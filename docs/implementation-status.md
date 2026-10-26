@@ -5,7 +5,8 @@
 - Read-only inventory and SHA-256 package fingerprints.
 - Bounded file count and per-file size; symlink rejection; script non-execution.
 - SKILL.md frontmatter type/required-field/name/length checks.
-- Local Markdown links, file targets, and detected heading/HTML fragments.
+- Local Markdown links and image assets, file targets, conventional script/reference/asset path mentions, and detected heading/HTML fragments.
+- Static syntax parsing of Python, JSON, YAML, TOML, and XML resources without executing scripts.
 - Protected spans for code fences, inline code, URLs, command flags, environment variables, common paths, and configured literals/regular expressions.
 - Provider-neutral translation protocol, identity adapter, and explicit-consent JSON HTTP bridge.
 - Markdown prose masking for frontmatter, code fences, inline code, URLs, link destinations, HTML tags, and basic line-prefix syntax.
@@ -20,7 +21,7 @@
 - Locale shape validation is lightweight BCP 47 syntax checking, not full registry validation.
 - External URLs and remote targets are not checked for reachability.
 - No bundled vendor SDK, API key management, hosted translation service, or built-in credentials.
-- No automatic protected-token rename mapping, full Markdown AST translation, complete programming-language parser, or optional Svelte review UI yet.
+- No automatic protected-token rename mapping, full Markdown AST translation, complete shell/JavaScript/PowerShell parser, or optional Svelte review UI yet.
 - Semantic inference remains a human-reviewed workflow, not an automatic safe/unsafe classifier.
 
 ## Current specification assumptions

@@ -85,10 +85,12 @@ Run the command separately for each finding. To change a disposition, run it aga
 
 ~~~sh
 skilltether approve ./sample-skill /tmp/candidate/sample-skill \
-  --report ./review/report.json --output ./approved/sample-skill
+  --report ./review/report.json --output ./approved/sample-skill \
+  --invariants ./sample-skill/.skilltether-invariants.yaml \
+  --policy config/protected-tokens.yaml
 ~~~
 
-Export requires a passing structural report, a current fingerprint match, a human-reviewed manifest, and approved dispositions for all review-required or critical findings. Output must be a new, separate directory.
+Export requires a passing structural report, current source/candidate/manifest/policy fingerprints, a human-reviewed manifest, and approved dispositions for all review-required or critical findings. Pass the same --invariants and --policy inputs used for comparison. Output must be a new, separate directory.
 
 ## Reports and local history
 

@@ -10,7 +10,8 @@ SkillTether is a local-first localization and integrity-checking CLI for Agent S
 
 - Read-only package inventory with SHA-256 hashes, bounded file sizes/counts, UTF-8 detection, and symlink rejection.
 - SKILL.md YAML-frontmatter checks: required fields, name syntax and directory identity, description length, compatibility, metadata types, and body presence.
-- Local Markdown link/resource and in-document fragment checks. External URLs are not fetched.
+- Local Markdown links and image assets, in-document fragments, and conventional scripts/references/assets/resources path checks. External URLs are not fetched.
+- Static syntax checks for Python scripts and JSON/YAML/TOML/XML resources; scripts are parsed, never executed.
 - Protected-span detection for fenced/inline code, URLs, environment variables, command flags, paths, plus configurable regexes and explicit identifiers.
 - A human-authored YAML invariant manifest with categories for safety constraints, mandatory conditions, negation, numeric limits, preconditions, and decision rules.
 - Line-block, protected-token, package-path, and invariant findings with severity, rationale, source/target context, proposed changes, and reviewer disposition.
@@ -100,10 +101,12 @@ Findings with rejected/deferred/pending status remain blockers. Missing or unrev
 
 ~~~sh
 skilltether approve ./skills/my-skill /tmp/candidate/my-skill \
-  --report ./review/report.json --output ./approved/my-skill
+  --report ./review/report.json --output ./approved/my-skill \
+  --invariants ./skills/my-skill/.skilltether-invariants.yaml \
+  --policy config/protected-tokens.yaml
 ~~~
 
-Approval checks report fingerprints against the current source and candidate, rejects structural failures and unresolved critical/review findings, and copies only to a separate, previously nonexistent output directory. It never overwrites an existing package.
+Approval checks source/candidate/manifest/policy fingerprints against the reviewed report, rejects structural failures and unresolved critical/review findings, and copies only to a separate, previously nonexistent output directory. It never overwrites an existing package.
 
 ## Commands
 

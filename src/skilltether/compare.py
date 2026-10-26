@@ -21,6 +21,8 @@ FATAL_STRUCTURE_CODES = {
     "DESCRIPTION_TOO_LONG", "COMPATIBILITY_INVALID", "ALLOWED_TOOLS_INVALID",
     "METADATA_INVALID", "SKILL_BODY_EMPTY", "SYMLINK_NOT_ALLOWED", "FILE_TOO_LARGE",
     "FILE_STAT_ERROR", "FILE_READ_ERROR", "PATH_TRAVERSAL_LINK", "BROKEN_LOCAL_LINK",
+    "SCRIPT_NOT_UTF8", "RESOURCE_SYNTAX_INVALID", "MISSING_REFERENCED_RESOURCE",
+    "PATH_TRAVERSAL_RESOURCE",
 }
 CODE_CATEGORIES = {
     "code_block", "inline_code", "command_flag", "file_path", "windows_path",
@@ -34,6 +36,23 @@ def load_invariant_manifest(path: str | Path) -> InvariantManifest:
         raise ValueError("Invariant manifest must be a YAML mapping")
     return InvariantManifest.model_validate(raw)
 
+
+
+def fingerprint_manifest(manifest: InvariantManifest | None) -> str | None:
+    """Stable fingerprint of normalized manifest contracts and reviewer decisions."""
+    if manifest is None:
+        return None
+    payload = json.dumps(manifest.model_dump(mode="json"), ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def fingerprint_policy(policy_path: str | Path | None) -> str:
+    """Fingerprint explicit policy bytes or the versioned built-in policy."""
+    if policy_path is None:
+        raw = b"skilltether-builtin-protected-policy-v1"
+    else:
+        raw = Path(policy_path).read_bytes()
+    return hashlib.sha256(raw).hexdigest()
 
 def compare_packages(
     source: str | Path,
@@ -50,17 +69,8 @@ def compare_packages(
     target_inventory, target_findings, target_text = inspect_package(target_root)
     findings = [*source_findings, *target_findings]
     patterns, explicit_tokens = load_policy(policy_path)
-    policy_fingerprint = (
-        hashlib.sha256(Path(policy_path).read_bytes()).hexdigest()
-        if policy_path is not None
-        else hashlib.sha256(b"skilltether-builtin-protected-policy-v1").hexdigest()
-    )
-    manifest_fingerprint = (
-        hashlib.sha256(
-            json.dumps(manifest.model_dump(mode="json"), ensure_ascii=False, sort_keys=True).encode("utf-8")
-        ).hexdigest()
-        if manifest is not None else None
-    )
+    policy_fingerprint = fingerprint_policy(policy_path)
+    manifest_fingerprint = fingerprint_manifest(manifest)
 
     source_paths, target_paths = set(source_inventory), set(target_inventory)
     for missing in sorted(source_paths - target_paths):
@@ -205,17 +215,33 @@ def compare_packages(
                     requires_review=True,
                 ))
                 continue
+            target_context = _find_invariant_context(target_doc, invariant.source_text or invariant.statement)
+            if invariant.severity == "high" and target_context is None:
+                findings.append(new_finding(
+                    "INVARIANT_TARGET_CONTEXT_UNCERTAIN", "high", "semantic_invariant",
+                    f"Invariant {invariant.id!r} could not be aligned confidently to a target-language context.",
+                    "Word-overlap matching is not multilingual semantic alignment; review is required when the target sentence cannot be located.",
+                    path=invariant.source_path,
+                    source_line=invariant.source_lines[0] if invariant.source_lines else None,
+                    original_context=invariant.source_text or invariant.statement,
+                    proposed_change="Locate the corresponding target sentence manually and review it against this invariant.",
+                    requires_review=True,
+                ))
             for expected in dict.fromkeys(invariant.required_tokens + invariant.expected_numbers):
-                if expected and expected not in target_doc:
+                needs_context_match = expected in invariant.expected_numbers
+                missing = expected not in target_doc or (
+                    needs_context_match and (not target_context or expected not in target_context)
+                )
+                if expected and missing:
                     findings.append(new_finding(
                         "INVARIANT_REQUIRED_TOKEN_MISSING", invariant.severity, "semantic_invariant",
-                        f"Invariant {invariant.id!r} requires a token/value missing from the target ({expected!r}).",
-                        "A required literal or numeric bound is not present in the target document.",
+                        f"Invariant {invariant.id!r} requires {expected!r}, which is absent from the document or matched target context.",
+                        "A required literal or numeric bound must be present in the appropriate instruction, not merely elsewhere in the package.",
                         path=invariant.source_path,
                         source_line=invariant.source_lines[0] if invariant.source_lines else None,
                         original_context=invariant.source_text or invariant.statement,
-                        target_context=_find_invariant_context(target_doc, invariant.statement),
-                        proposed_change=f"Restore {expected!r} if it is required in the target locale, or revise the manifest with reviewer approval.",
+                        target_context=target_context,
+                        proposed_change=f"Restore {expected!r} in the corresponding target instruction if required, or revise the manifest after human review.",
                         requires_review=True,
                     ))
             for forbidden in invariant.forbidden_tokens:
@@ -228,21 +254,42 @@ def compare_packages(
                         proposed_change="Remove the forbidden value or revise the invariant after human review.",
                         requires_review=True,
                     ))
-            if invariant.negation_required and invariant.negation_markers and not any(marker in target_doc for marker in invariant.negation_markers):
+            unconfigured_marker_types = []
+            if invariant.negation_required and not invariant.negation_markers:
+                unconfigured_marker_types.append("negation")
+            if invariant.mandatory_required and not invariant.mandatory_markers:
+                unconfigured_marker_types.append("mandatory-modality")
+            if unconfigured_marker_types:
                 findings.append(new_finding(
-                    "INVARIANT_NEGATION_UNCERTAIN", "critical", "semantic_invariant",
-                    f"Invariant {invariant.id!r} requires a target-language negation marker that was not detected.",
-                    "Negation loss or reversal can invert a safety instruction; this heuristic is language- and context-sensitive.",
+                    "INVARIANT_MARKERS_UNCONFIGURED", "critical", "semantic_invariant",
+                    f"Invariant {invariant.id!r} requires locale-specific marker configuration for {', '.join(unconfigured_marker_types)}.",
+                    "Marker checks cannot run until appropriate target-language negation/mandatory markers are explicitly configured.",
                     path=invariant.source_path, original_context=invariant.source_text or invariant.statement,
-                    proposed_change="Inspect the target sentence manually and update locale-specific markers only after review.",
+                    target_context=target_context,
+                    proposed_change="Configure locale-specific markers with a qualified reviewer, then rerun comparison.",
                     requires_review=True,
                 ))
-            if invariant.mandatory_required and invariant.mandatory_markers and not any(marker in target_doc for marker in invariant.mandatory_markers):
+            if invariant.negation_required and invariant.negation_markers and (
+                not target_context or not any(marker in target_context for marker in invariant.negation_markers)
+            ):
+                findings.append(new_finding(
+                    "INVARIANT_NEGATION_UNCERTAIN", "critical", "semantic_invariant",
+                    f"Invariant {invariant.id!r} requires a target-language negation marker in the matched instruction, but none was detected confidently.",
+                    "Negation loss or reversal can invert a safety instruction; global marker presence elsewhere in the package is not sufficient.",
+                    path=invariant.source_path, original_context=invariant.source_text or invariant.statement,
+                    target_context=target_context,
+                    proposed_change="Inspect the corresponding target sentence manually and update locale-specific markers only after review.",
+                    requires_review=True,
+                ))
+            if invariant.mandatory_required and invariant.mandatory_markers and (
+                not target_context or not any(marker in target_context for marker in invariant.mandatory_markers)
+            ):
                 findings.append(new_finding(
                     "INVARIANT_MODALITY_UNCERTAIN", "critical", "semantic_invariant",
-                    f"Invariant {invariant.id!r} requires a mandatory marker that was not detected.",
-                    "A mandatory instruction may have been weakened, but marker checks alone cannot decide equivalence.",
+                    f"Invariant {invariant.id!r} requires a mandatory marker in the matched target instruction, but none was detected confidently.",
+                    "A mandatory instruction may have been weakened; global marker presence elsewhere in the package is not enough to establish modality.",
                     path=invariant.source_path, original_context=invariant.source_text or invariant.statement,
+                    target_context=target_context,
                     proposed_change="Review modal strength in context and configure target-language markers deliberately.",
                     requires_review=True,
                 ))
@@ -254,7 +301,7 @@ def compare_packages(
                     path=invariant.source_path,
                     source_line=invariant.source_lines[0] if invariant.source_lines else None,
                     original_context=invariant.source_text or invariant.statement,
-                    target_context=_find_invariant_context(target_doc, invariant.statement),
+                    target_context=target_context,
                     proposed_change="Have a qualified human compare the complete source and target contexts, then disposition this finding.",
                     requires_review=True,
                 ))

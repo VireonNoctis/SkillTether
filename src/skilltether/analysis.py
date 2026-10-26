@@ -1,9 +1,13 @@
 """Read-only package inventory, SKILL.md validation, and protected-span extraction."""
 from __future__ import annotations
 
+import ast
 import hashlib
+import json
 import os
 import re
+import tomllib
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit
@@ -18,6 +22,8 @@ from .models import FileFingerprint, ProtectedToken, new_finding
 MAX_FILE_BYTES = 10 * 1024 * 1024
 MAX_PACKAGE_FILES = 5000
 TEXT_SUFFIXES = {".md", ".mdx", ".txt", ".rst"}
+SCRIPT_SUFFIXES = {".py", ".sh", ".bash", ".js", ".ts", ".ps1", ".bat"}
+RESOURCE_REFERENCE = re.compile(r"(?<![A-Za-z0-9/:])(?P<path>(?:\.\.?/)*(?:scripts|references|assets|resources)/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*)")
 READABLE_SUFFIXES = TEXT_SUFFIXES | {
     ".py", ".sh", ".bash", ".js", ".ts", ".json", ".yaml", ".yml",
     ".toml", ".xml", ".html", ".css", ".sql", ".ps1", ".bat", ".env",
@@ -118,7 +124,14 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
                 if path.suffix.lower() in READABLE_SUFFIXES:
                     texts[rel] = text
             except UnicodeDecodeError:
-                pass
+                if path.suffix.lower() in SCRIPT_SUFFIXES:
+                    findings.append(new_finding(
+                        "SCRIPT_NOT_UTF8", "high", "script_validation",
+                        "Script-like resource is not valid UTF-8 text.",
+                        "Static syntax checks and safe preservation require readable script text.",
+                        path=rel, proposed_change="Restore the intended encoding or explicitly mark this as a binary asset.",
+                        requires_review=True,
+                    ))
             inventory[rel] = FileFingerprint(
                 path=rel, size_bytes=len(data), sha256=sha256_bytes(data),
                 encoding=encoding, kind=path.suffix.lower().lstrip(".") or "file",
@@ -141,8 +154,10 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
         ))
 
     for rel, text in sorted(texts.items()):
+        findings.extend(validate_resource_syntax(rel, text))
         if Path(rel).suffix.lower() in TEXT_SUFFIXES:
             findings.extend(validate_local_links(root_path, rel, text))
+        findings.extend(validate_referenced_resources(root_path, rel, text, findings))
     return inventory, findings, texts
 
 
@@ -273,9 +288,10 @@ def validate_local_links(root: Path, rel_path: str, text: str) -> list:
     parsed = MarkdownIt("commonmark", {"html": False}).parse(text)
     for token in parsed:
         for child in token.children or []:
-            if child.type != "link_open":
+            if child.type not in {"link_open", "image"}:
                 continue
-            href = dict(child.attrs or []).get("href")
+            attrs = dict(child.attrs or [])
+            href = attrs.get("href") if child.type == "link_open" else attrs.get("src")
             if not href:
                 continue
             parsed_url = urlsplit(href)
@@ -320,6 +336,85 @@ def validate_local_links(root: Path, rel_path: str, text: str) -> list:
                     ))
     return findings
 
+
+
+def validate_resource_syntax(rel_path: str, text: str) -> list:
+    """Statically parse selected text resources without executing any package code."""
+    findings = []
+    suffix = Path(rel_path).suffix.lower()
+    try:
+        if suffix == ".py":
+            ast.parse(text, filename=rel_path)
+        elif suffix == ".json":
+            json.loads(text)
+        elif suffix == ".toml":
+            tomllib.loads(text)
+        elif suffix in {".yaml", ".yml"}:
+            safe_load_unique(text)
+        elif suffix == ".xml":
+            ET.fromstring(text)
+    except (SyntaxError, json.JSONDecodeError, tomllib.TOMLDecodeError, yaml.YAMLError, ET.ParseError) as exc:
+        line = getattr(exc, "lineno", None) or getattr(exc, "position", (None,))[0]
+        text_lines = text.splitlines()
+        excerpt = text_lines[line - 1] if isinstance(line, int) and 1 <= line <= len(text_lines) else None
+        findings.append(new_finding(
+            "RESOURCE_SYNTAX_INVALID", "high", "resource_validation",
+            f"Static syntax validation failed for {rel_path!r} ({exc.__class__.__name__}).",
+            "Malformed scripts or structured resource files may fail at runtime or break the localized package.",
+            path=rel_path, source_line=line if isinstance(line, int) and line > 0 else None,
+            original_context=excerpt,
+            proposed_change="Repair the syntax or confirm the file type/format is intentionally different.",
+            requires_review=True,
+        ))
+    return findings
+
+
+def validate_referenced_resources(
+    root: Path, rel_path: str, text: str, existing_findings: list,
+) -> list:
+    """Resolve conventional skill resource paths in prose and code without running scripts."""
+    findings = []
+    seen: set[str] = set()
+    lines = text.splitlines()
+    for line_no, line in enumerate(lines, start=1):
+        for match in RESOURCE_REFERENCE.finditer(line):
+            raw = match.group("path")
+            value = raw.rstrip(".,;:!?")
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            if any(
+                finding.path == rel_path
+                and finding.code in {"BROKEN_LOCAL_LINK", "PATH_TRAVERSAL_LINK"}
+                and value in finding.message
+                for finding in existing_findings
+            ):
+                continue
+            candidate_paths = [
+                (root / value).resolve(),
+                (root / Path(rel_path).parent / value).resolve(),
+            ]
+            in_package = [item for item in candidate_paths if item.is_relative_to(root.resolve())]
+            if not in_package:
+                findings.append(new_finding(
+                    "PATH_TRAVERSAL_RESOURCE", "critical", "resource_validation",
+                    f"Referenced resource path escapes the package root: {value!r}.",
+                    "Resource paths must remain inside the skill package.",
+                    path=rel_path, source_line=line_no, original_context=line,
+                    proposed_change="Use a resource path contained within the package root.",
+                    requires_review=True,
+                ))
+                continue
+            if not any(item.exists() for item in in_package):
+                findings.append(new_finding(
+                    "MISSING_REFERENCED_RESOURCE", "high", "resource_validation",
+                    f"Referenced skill resource does not exist: {value!r}.",
+                    "Scripts, references, and assets named in instructions should be present in the package.",
+                    path=rel_path, source_line=line_no, original_context=line,
+                    proposed_change="Restore the resource or correct the reference after confirming the intended path.",
+                    requires_review=True,
+                ))
+    return findings
 
 def extract_protected_tokens(
     text: str, path: str, extra_patterns: list[dict[str, str]] | None = None,
@@ -379,9 +474,24 @@ def load_policy(path: str | Path | None) -> tuple[list[dict[str, str]], list[str
         return [], []
     data = safe_load_unique(Path(path).read_text(encoding="utf-8"))
     if not isinstance(data, dict):
-        raise ValueError("Protected-token policy must be a YAML mapping")
+        raise ValueError("Protected-token policy must be a YAML or JSON mapping")
     patterns = data.get("patterns", [])
     tokens = data.get("explicit_tokens", [])
     if not isinstance(patterns, list) or not isinstance(tokens, list):
         raise ValueError("Policy patterns and explicit_tokens must be lists")
-    return patterns, [str(token) for token in tokens]
+    for index, item in enumerate(patterns):
+        if not isinstance(item, dict) or not isinstance(item.get("category"), str) or not isinstance(item.get("regex"), str):
+            raise ValueError(f"Protected-token pattern {index} needs string category and regex fields")
+        try:
+            compiled = re.compile(item["regex"])
+        except re.error as exc:
+            raise ValueError(f"Invalid protected-token regex at index {index}") from exc
+        samples = ("", "x", "1", "A", "/", "-", "$", "x1", "sample")
+        if any(
+            (match := compiled.search(sample)) is not None and match.start() == match.end()
+            for sample in samples
+        ):
+            raise ValueError(f"Protected-token regex at index {index} may match an empty span")
+    if not all(isinstance(token, str) and token for token in tokens):
+        raise ValueError("explicit_tokens must contain non-empty strings")
+    return patterns, tokens

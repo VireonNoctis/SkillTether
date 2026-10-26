@@ -14,7 +14,7 @@ from pydantic import ValidationError
 
 from . import __version__
 from .analysis import inspect_package, load_policy, package_fingerprint
-from .compare import compare_packages, load_invariant_manifest
+from .compare import compare_packages, fingerprint_manifest, fingerprint_policy, load_invariant_manifest
 from .history import record_event
 from .models import Invariant, InvariantManifest
 from .report import read_json_report, write_json_report, write_markdown_report
@@ -218,6 +218,11 @@ def cmd_approve(args: argparse.Namespace) -> int:
     report_path = Path(args.report).expanduser().resolve(strict=True)
     output = Path(args.output).expanduser().resolve()
     report = read_json_report(report_path)
+    current_manifest = _manifest_arg(args.invariants, source)
+    if fingerprint_manifest(current_manifest) != report.invariant_manifest_fingerprint:
+        raise ValueError("Invariant manifest fingerprint differs from the reviewed report; rerun compare")
+    if fingerprint_policy(args.policy) != report.protected_policy_fingerprint:
+        raise ValueError("Protected-token policy fingerprint differs from the reviewed report; rerun compare with the same policy")
     if output.exists():
         raise FileExistsError(f"Approved output already exists: {output}")
     if output.name != target.name:
@@ -321,6 +326,8 @@ def build_parser() -> argparse.ArgumentParser:
     approve.add_argument("target")
     approve.add_argument("--report", required=True)
     approve.add_argument("--output", required=True)
+    approve.add_argument("--invariants", help="same invariant manifest used for comparison")
+    approve.add_argument("--policy", help="same protected-token policy used for comparison")
     approve.set_defaults(func=cmd_approve)
     return parser
 

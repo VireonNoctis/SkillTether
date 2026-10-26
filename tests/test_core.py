@@ -222,3 +222,29 @@ def test_report_round_trip_preserves_review_disposition(tmp_path: Path) -> None:
     assert restored.findings[0].disposition == "approved"
     assert restored.findings[0].reviewer == "qa-reviewer"
     assert restored.protected_policy_fingerprint == report.protected_policy_fingerprint
+
+
+def test_missing_markdown_images_and_literal_script_references_are_reported(tmp_path: Path) -> None:
+    package = make_package(
+        tmp_path / "sample-skill",
+        "Run `python scripts/missing.py` and inspect ![the diagram](assets/missing.png).",
+    )
+    _inventory, findings, _texts = inspect_package(package)
+    codes = {item.code for item in findings}
+    assert "MISSING_REFERENCED_RESOURCE" in codes
+    assert "BROKEN_LOCAL_LINK" in codes
+
+
+def test_python_resources_are_parsed_but_never_executed(tmp_path: Path) -> None:
+    package = make_package(tmp_path / "sample-skill", "Inspect the scripts folder.")
+    scripts = package / "scripts"
+    scripts.mkdir()
+    marker = tmp_path / "should-not-exist.txt"
+    (scripts / "side_effect.py").write_text(
+        f"from pathlib import Path\nPath({str(marker)!r}).write_text('executed')\n",
+        encoding="utf-8",
+    )
+    (scripts / "invalid.py").write_text("def broken(:\n    pass\n", encoding="utf-8")
+    _inventory, findings, _texts = inspect_package(package)
+    assert any(item.code == "RESOURCE_SYNTAX_INVALID" and item.path == "scripts/invalid.py" for item in findings)
+    assert not marker.exists()
