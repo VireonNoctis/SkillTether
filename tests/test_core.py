@@ -158,15 +158,15 @@ def test_translation_policy_masks_custom_patterns_and_literals() -> None:
 
 def test_report_context_fence_cannot_be_closed_by_untrusted_text() -> None:
     from skilltether.report import _fenced_context
+    import re
 
-    hostile_context = "Source text\\n~~~text\\n# embedded heading\\n~~~\\n<script>not executable here</script>"
+    hostile_context = "Source text\n~~~text\n# embedded heading\n~~~\n<script>not executable here</script>"
     block = _fenced_context(hostile_context)
-    fence = block.split("text\\n", 1)[0]
-    assert len(fence) > 3
+    fence = block.split("text\n", 1)[0]
+    runs = [len(match.group(0)) for match in re.finditer(re.escape(fence[0]) + "+", hostile_context)]
+    assert len(fence) > max(runs, default=0)
     assert block.endswith(fence)
     assert hostile_context in block
-
-
 def test_remote_adapter_rejects_non_loopback_plain_http() -> None:
     from skilltether.translation import HttpJsonAdapter
 
