@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skilltether.local/schemas/comparison-report.schema.json",
+  "title": "SkillTether comparison report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_version", "tool_version", "generated_at", "source_fingerprint",
+    "target_fingerprint", "source_files", "target_files", "structural_status",
+    "semantic_status", "limitations", "findings", "translation_provider",
+    "invariant_manifest_fingerprint", "protected_policy_fingerprint"
+  ],
+  "properties": {
+    "report_version": { "const": "1.0" },
+    "tool_version": { "type": "string" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "source_locale": { "type": ["string", "null"] },
+    "target_locale": { "type": ["string", "null"] },
+    "translation_provider": { "type": ["string", "null"] },
+    "invariant_manifest_fingerprint": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+    "protected_policy_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "source_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "target_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "source_files": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^[a-f0-9]{64}$" } },
+    "target_files": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^[a-f0-9]{64}$" } },
+    "structural_status": { "enum": ["pass", "fail", "unsupported", "error"] },
+    "semantic_status": { "enum": ["no_issue_detected", "review_recommended", "unknown"] },
+    "limitations": { "type": "array", "items": { "type": "string" } },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "code", "severity", "category", "message", "rationale", "requires_review", "disposition"],
+        "properties": {
+          "id": { "type": "string" },
+          "code": { "type": "string" },
+          "severity": { "enum": ["info", "low", "medium", "high", "critical"] },
+          "category": { "type": "string" },
+          "message": { "type": "string" },
+          "rationale": { "type": "string" },
+          "path": { "type": ["string", "null"] },
+          "source_line": { "type": ["integer", "null"], "minimum": 1 },
+          "target_line": { "type": ["integer", "null"], "minimum": 1 },
+          "original_context": { "type": ["string", "null"] },
+          "target_context": { "type": ["string", "null"] },
+          "proposed_change": { "type": ["string", "null"] },
+          "requires_review": { "type": "boolean" },
+          "disposition": { "enum": ["pending", "approved", "rejected", "deferred"] },
+          "reviewer": { "type": ["string", "null"] },
+          "review_note": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

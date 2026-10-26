@@ -1,0 +1,16 @@
+policy_version: "1.0"
+# Patterns apply to prose outside fenced blocks. Keep these narrow to avoid noisy findings.
+patterns:
+  - category: environment_variable
+    regex: '(?<![A-Za-z0-9_])[$][A-Z][A-Z0-9_]*'
+  - category: environment_variable
+    regex: '%[A-Z][A-Z0-9_]*%'
+  - category: command_flag
+    regex: '(?<![A-Za-z0-9_-])--[A-Za-z][A-Za-z0-9-]*'
+  - category: url
+    regex: 'https?://[^ <>)]+'
+  - category: windows_path
+    regex: '[A-Za-z]:\x5c[^ ]+'
+  - category: file_path
+    regex: '(?:[.][.]/|[.]/|(?:[A-Za-z0-9_.-]+/)+)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*'
+explicit_tokens: []

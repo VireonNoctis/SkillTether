@@ -1,0 +1,38 @@
+name: SkillTether CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install package and development dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Run regression and property-based tests
+        run: pytest
+      - name: Validate JSON Schema syntax and protected-token policy
+        run: |
+          python -m json.tool schemas/invariant-manifest.schema.json > /dev/null
+          python -m json.tool schemas/comparison-report.schema.json > /dev/null
+          python - <<'PY'
+          from skilltether.analysis import load_policy
+          from skilltether.translation import _mask_protected_spans
+          patterns, tokens = load_policy("config/protected-tokens.yaml")
+          _mask_protected_spans("Use $API_TOKEN at references/guide.md", patterns, tokens)
+          PY
+      - name: Validate bundled fixture package
+        run: skilltether validate tests/fixtures/valid-skill

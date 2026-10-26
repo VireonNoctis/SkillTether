@@ -1,0 +1,339 @@
+"""Command-line interface for validation, translation, comparison, review, and approval."""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import sys
+from pathlib import Path
+
+import yaml
+from pydantic import ValidationError
+
+from . import __version__
+from .analysis import inspect_package, load_policy, package_fingerprint
+from .compare import compare_packages, load_invariant_manifest
+from .history import record_event
+from .models import Invariant, InvariantManifest
+from .report import read_json_report, write_json_report, write_markdown_report
+from .translation import HttpJsonAdapter, IdentityAdapter, translate_package
+
+CUE_PATTERN = re.compile(
+    r"\b(must|must not|mustn't|never|do not|don't|only if|unless|at least|at most|no more than|required|before|after|if)\b|\d",
+    re.I,
+)
+NEGATION_PATTERN = re.compile(r"\b(not|never|no|without|don't|doesn't|mustn't|cannot|can't)\b", re.I)
+MANDATORY_PATTERN = re.compile(r"\b(must|required|shall|mandatory)\b", re.I)
+NUMBER_PATTERN = re.compile(r"(?<![A-Za-z])(?:[<>]=?\s*)?\d+(?:[.,]\d+)?(?:\s*(?:%|seconds?|minutes?|hours?|days?|files?|tokens?))?", re.I)
+
+
+def _manifest_arg(path_value: str | None, source: Path) -> InvariantManifest | None:
+    if path_value:
+        return load_invariant_manifest(path_value)
+    fallback = source / ".skilltether-invariants.yaml"
+    if fallback.exists():
+        return load_invariant_manifest(fallback)
+    return None
+
+
+def _show_findings(findings) -> None:
+    if not findings:
+        print("No findings.")
+        return
+    for finding in findings:
+        location = finding.path or "(package)"
+        if finding.source_line:
+            location += f":{finding.source_line}"
+        print(f"[{finding.severity.upper():8}] {finding.code} {location} — {finding.message}")
+    counts = {}
+    for finding in findings:
+        counts[finding.severity] = counts.get(finding.severity, 0) + 1
+    print("Finding counts: " + ", ".join(f"{level}={counts[level]}" for level in sorted(counts)))
+
+
+def _fingerprint_path(root: Path) -> str:
+    inventory, _findings, _texts = inspect_package(root)
+    return package_fingerprint(inventory)
+
+
+def cmd_validate(args: argparse.Namespace) -> int:
+    _inventory, findings, _texts = inspect_package(args.package)
+    if args.json:
+        print(json.dumps([item.model_dump(mode="json") for item in findings], indent=2, ensure_ascii=False))
+    else:
+        _show_findings(findings)
+    return 1 if any(item.severity in ("high", "critical") for item in findings) else 0
+
+
+def _suggest_invariants(source_root: Path, source_locale: str, target_locale: str | None) -> InvariantManifest:
+    inventory, findings, texts = inspect_package(source_root)
+    if "SKILL.md" not in texts:
+        raise ValueError("Cannot suggest invariants without a readable SKILL.md")
+    suggestions: list[Invariant] = []
+    for line_no, line in enumerate(texts["SKILL.md"].splitlines(), start=1):
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or stripped.startswith("|") or stripped.startswith("~~~"):
+            continue
+        if not CUE_PATTERN.search(stripped):
+            continue
+        if len(stripped) > 1200:
+            continue
+        lower = stripped.lower()
+        if NEGATION_PATTERN.search(lower):
+            category = "negation"
+            severity = "critical"
+        elif NUMBER_PATTERN.search(stripped):
+            category = "numeric_limit"
+            severity = "critical"
+        elif MANDATORY_PATTERN.search(lower):
+            category = "mandatory_condition"
+            severity = "high"
+        elif re.search(r"\b(if|unless|before|after|only if)\b", lower):
+            category = "precondition"
+            severity = "high"
+        else:
+            category = "decision_rule"
+            severity = "high"
+        numbers = NUMBER_PATTERN.findall(stripped)
+        # A single line is a draft candidate. Review and refine before marking it trusted.
+        suggestions.append(Invariant(
+            id=f"INV-{len(suggestions)+1:04d}",
+            statement=stripped.lstrip("-*0123456789. "),
+            category=category,
+            severity=severity,
+            source_path="SKILL.md",
+            source_lines=(line_no, line_no),
+            source_text=stripped,
+            expected_numbers=sorted(set(n.strip() for n in numbers if n.strip())),
+            negation_required=category == "negation",
+            mandatory_required=category == "mandatory_condition",
+            reviewed=False,
+        ))
+    return InvariantManifest(
+        source_locale=source_locale, target_locale=target_locale, invariants=suggestions,
+        manifest_reviewed=False,
+    )
+
+
+def cmd_init_manifest(args: argparse.Namespace) -> int:
+    source = Path(args.source).expanduser().resolve(strict=True)
+    manifest = _suggest_invariants(source, args.source_locale, args.target_locale)
+    output = Path(args.out).expanduser()
+    if output.exists():
+        raise FileExistsError(f"Manifest output already exists: {output}; choose a new path so reviewed rules are not overwritten")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    payload = manifest.model_dump(mode="json", exclude_none=True)
+    output.write_text(yaml.safe_dump(payload, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    print(f"Wrote {len(manifest.invariants)} draft invariant candidates to {output}")
+    print("Review every candidate and its locale-specific markers before setting manifest_reviewed=true.")
+    return 0
+
+
+def cmd_compare(args: argparse.Namespace) -> int:
+    if args.target_locale:
+        _validate_locale_tag(args.target_locale)
+    source = Path(args.source).expanduser().resolve(strict=True)
+    target = Path(args.target).expanduser().resolve(strict=True)
+    manifest = _manifest_arg(args.invariants, source)
+    report = compare_packages(
+        source, target, manifest, target_locale=args.target_locale,
+        policy_path=args.policy,
+    )
+    write_json_report(report, args.out)
+    if args.markdown:
+        write_markdown_report(report, args.markdown)
+    _show_findings(report.findings)
+    print(f"Report: {args.out}")
+    print(f"Structural status: {report.structural_status}; semantic status: {report.semantic_status}")
+    return 1 if report.structural_status in ("fail", "error") else 0
+
+
+def _validate_locale_tag(value: str) -> str:
+    if not re.fullmatch(r"[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*", value):
+        raise ValueError(f"Locale {value!r} is not a valid-looking BCP 47 language tag")
+    return value
+
+
+def cmd_translate(args: argparse.Namespace) -> int:
+    _validate_locale_tag(args.source_locale)
+    _validate_locale_tag(args.target_locale)
+    source = Path(args.source).expanduser().resolve(strict=True)
+    output = Path(args.output).expanduser().resolve()
+    if args.adapter == "identity":
+        adapter = IdentityAdapter()
+        print("Using the identity adapter: no prose will be translated; this exercises the safe pipeline only.")
+    else:
+        if not args.allow_remote:
+            raise ValueError("Remote translation requires --allow-remote after reviewing the endpoint's data handling.")
+        if not args.endpoint:
+            raise ValueError("--endpoint is required with --adapter http-json")
+        adapter = HttpJsonAdapter(args.endpoint)
+
+    protected_patterns, explicit_tokens = load_policy(args.policy)
+    source_inventory, target_inventory, changed = translate_package(
+        source, output, adapter, args.source_locale, args.target_locale,
+        protected_patterns=protected_patterns, explicit_tokens=explicit_tokens,
+    )
+    manifest = _manifest_arg(args.invariants, source)
+    report = compare_packages(
+        source, output, manifest, target_locale=args.target_locale, policy_path=args.policy,
+    )
+    report.translation_provider = adapter.name
+    report_path = Path(args.report).expanduser() if args.report else output.with_name(output.name + ".report.json")
+    write_json_report(report, report_path)
+    history_path = record_event(
+        source_fingerprint=package_fingerprint(source_inventory),
+        target_fingerprint=package_fingerprint(target_inventory),
+        source_locale=args.source_locale, target_locale=args.target_locale,
+        provider=adapter.name, status="candidate_written",
+        database=args.history_db,
+    )
+    print(f"Candidate package: {output}")
+    print(f"Translated text files changed: {changed}")
+    print(f"Comparison report: {report_path}")
+    print(f"Local run metadata: {history_path}")
+    print("This is an unapproved candidate. Run review decisions and skilltether approve before distributing it.")
+    return 1 if report.structural_status in ("fail", "error") else 0
+
+
+def cmd_review(args: argparse.Namespace) -> int:
+    report = read_json_report(args.report)
+    matched = [finding for finding in report.findings if finding.id == args.finding_id]
+    if len(matched) != 1:
+        raise ValueError(f"Finding ID not found or not unique: {args.finding_id}")
+    finding = matched[0]
+    finding.disposition = args.disposition
+    finding.reviewer = args.reviewer
+    finding.review_note = args.note
+    write_json_report(report, args.report)
+    print(f"Recorded {args.disposition} disposition for {finding.id} by {args.reviewer}.")
+    return 0
+
+
+def cmd_approve(args: argparse.Namespace) -> int:
+    source = Path(args.source).expanduser().resolve(strict=True)
+    target = Path(args.target).expanduser().resolve(strict=True)
+    report_path = Path(args.report).expanduser().resolve(strict=True)
+    output = Path(args.output).expanduser().resolve()
+    report = read_json_report(report_path)
+    if output.exists():
+        raise FileExistsError(f"Approved output already exists: {output}")
+    if output.name != target.name:
+        raise ValueError("Approved output directory basename must match the skill package directory name")
+    if source == target or source in target.parents or target in source.parents:
+        raise ValueError("Source and candidate directories must be separate and non-overlapping")
+    if output == source or output == target or source in output.parents or target in output.parents or output in source.parents or output in target.parents:
+        raise ValueError("Approved output must be a separate, non-overlapping directory")
+
+    if _fingerprint_path(source) != report.source_fingerprint:
+        raise ValueError("Source package changed after comparison; rerun compare before approval")
+    if _fingerprint_path(target) != report.target_fingerprint:
+        raise ValueError("Candidate package changed after comparison; rerun compare before approval")
+    if report.structural_status != "pass":
+        raise ValueError("Structural validation failed. Fix the package and rerun comparison before approval.")
+    permanently_blocked = {
+        "INVARIANT_MANIFEST_MISSING", "INVARIANT_MANIFEST_UNREVIEWED", "INVARIANT_NOT_HUMAN_REVIEWED",
+    }
+    blocked = [finding for finding in report.findings if finding.code in permanently_blocked]
+    if blocked:
+        raise ValueError("The invariant manifest is missing or not human-reviewed; update it and rerun comparison.")
+    unresolved = [
+        finding for finding in report.findings
+        if (finding.requires_review or finding.severity == "critical") and finding.disposition != "approved"
+    ]
+    if unresolved:
+        preview = ", ".join(f.id for f in unresolved[:8])
+        raise ValueError(f"{len(unresolved)} review-required finding(s) are not approved: {preview}")
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    import tempfile
+
+    temp_parent = Path(tempfile.mkdtemp(prefix=f".{output.name}.approved-", dir=output.parent))
+    temp_package = temp_parent / output.name
+    try:
+        shutil.copytree(target, temp_package, symlinks=False)
+        if _fingerprint_path(temp_package) != report.target_fingerprint:
+            raise RuntimeError("Approved output fingerprint mismatch; nothing was published")
+        os.replace(temp_package, output)
+    finally:
+        shutil.rmtree(temp_parent, ignore_errors=True)
+    print(f"Approved package written to: {output}")
+    print(f"Approval evidence: {report_path}")
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="skilltether",
+        description="Local-first localization integrity checks for Agent Skill packages.",
+    )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    validate = sub.add_parser("validate", help="validate SKILL.md metadata, structure, and local links")
+    validate.add_argument("package")
+    validate.add_argument("--json", action="store_true", help="print findings as JSON")
+    validate.set_defaults(func=cmd_validate)
+
+    init_manifest = sub.add_parser("init-manifest", help="suggest invariant candidates for human review")
+    init_manifest.add_argument("source")
+    init_manifest.add_argument("--out", required=True)
+    init_manifest.add_argument("--source-locale", required=True)
+    init_manifest.add_argument("--target-locale")
+    init_manifest.set_defaults(func=cmd_init_manifest)
+
+    compare = sub.add_parser("compare", help="compare source and localized package")
+    compare.add_argument("source")
+    compare.add_argument("target")
+    compare.add_argument("--invariants", help="human-reviewed YAML invariant manifest")
+    compare.add_argument("--target-locale")
+    compare.add_argument("--policy", help="protected-token policy YAML")
+    compare.add_argument("--out", required=True, help="JSON report path")
+    compare.add_argument("--markdown", help="optional Markdown report path")
+    compare.set_defaults(func=cmd_compare)
+
+    translate = sub.add_parser("translate", help="create a separate candidate package and comparison report")
+    translate.add_argument("source")
+    translate.add_argument("output", help="new candidate directory, with the same basename as the skill root")
+    translate.add_argument("--source-locale", required=True)
+    translate.add_argument("--target-locale", required=True)
+    translate.add_argument("--adapter", choices=["identity", "http-json"], default="identity")
+    translate.add_argument("--endpoint", help="provider-neutral JSON translation endpoint")
+    translate.add_argument("--allow-remote", action="store_true", help="explicit consent to transmit eligible prose")
+    translate.add_argument("--invariants")
+    translate.add_argument("--policy")
+    translate.add_argument("--report")
+    translate.add_argument("--history-db", help="optional local SQLite path (default: ~/.skilltether/history.sqlite3)")
+    translate.set_defaults(func=cmd_translate)
+
+    review = sub.add_parser("review", help="record a human disposition for a report finding")
+    review.add_argument("report")
+    review.add_argument("finding_id")
+    review.add_argument("--disposition", choices=["approved", "rejected", "deferred"], required=True)
+    review.add_argument("--reviewer", required=True)
+    review.add_argument("--note", default="")
+    review.set_defaults(func=cmd_review)
+
+    approve = sub.add_parser("approve", help="copy a reviewed candidate to a new approved output directory")
+    approve.add_argument("source")
+    approve.add_argument("target")
+    approve.add_argument("--report", required=True)
+    approve.add_argument("--output", required=True)
+    approve.set_defaults(func=cmd_approve)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    try:
+        return args.func(args)
+    except (OSError, ValueError, ValidationError, yaml.YAMLError, RuntimeError) as exc:
+        print(f"skilltether: error: {exc}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
