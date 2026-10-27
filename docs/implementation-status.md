@@ -12,7 +12,7 @@
 - Provider-neutral translation protocol, identity adapter, and explicit-consent JSON HTTP bridge.
 - Markdown prose masking for frontmatter, code fences, inline code, URLs, link destinations, HTML tags, and basic line-prefix syntax.
 - Line-block, token, file-path, non-text resource hash, and human-authored invariant findings.
-- Atomically written mode-0600 (POSIX) JSON/Markdown reports; bounded regular-file reads for config/report inputs; output-path guards; file-mode-aware fingerprints; explicit rule/method/uncertainty/severity rationale; chronological review history; common-credential redaction on finding/report persistence; JSON Schema validation tests; and optional fail-on-review CI exit semantics.
+- Atomically written mode-0600 (POSIX) JSON/Markdown reports; bounded regular-file reads; output-path guards; file-mode-aware fingerprints; explicit rule/method/uncertainty/severity rationale; chronological review history; common-credential redaction; and optional HMAC-SHA256 report integrity with verification before review/export.
 - Optional local SQLite metadata history with fingerprint/locale/metadata validation, private file permissions, and no text payload columns; pytest/Hypothesis/JSON Schema tests and GitHub Actions CI.
 
 ## Deliberately not claimed
@@ -26,6 +26,7 @@
 - Semantic inference remains a human-reviewed workflow, not an automatic safe/unsafe classifier.
 - Review history improves accountability but is not a cryptographic signature or protection against deliberate edits to a report file.
 - Credential redaction covers selected common patterns only; it is not a secret scanner and cannot guarantee sensitive material has been removed.
+- HMAC seals detect accidental/unauthorized report edits while the key remains private, but do not authenticate reviewers or provide non-repudiation.
 
 ## Current specification assumptions
 
