@@ -26,6 +26,7 @@
 | Added instructions | Target contains new imperative not in source | Unexpected addition warning |
 | Provider privacy | Provider disabled or mock provider configured | No network call without explicit setup |
 | Review evidence | Critical finding approved, then deferred | Approval is blocked until a newer consistent approval event exists |
+| Invariant source evidence | Manifest quote/path/line range is stale, missing, or beyond current source | Deterministic critical finding; approval remains blocked until the manifest is corrected and comparison rerun |
 | Signed report integrity | Signed report field is edited before export | HMAC verification rejects the report and no output package is published |
 | Standalone report verification | Signed JSON report is unchanged / signature bytes are altered | `verify-report` returns 0 for valid signature and non-zero for tampered report without modifying it |
 | Signed review update | Existing signed report is reviewed with the matching key | Decision is appended and the new report payload receives a valid updated seal |
