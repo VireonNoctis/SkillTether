@@ -448,3 +448,34 @@ def test_report_path_guard_catches_external_alias_to_source_package(tmp_path: Pa
 
     assert result == 2
     assert not (source / "report.json").exists()
+
+
+
+def test_report_pydantic_contract_rejects_bad_fingerprints_and_naive_timestamps() -> None:
+    from pydantic import ValidationError
+
+    report = comparison(critical_finding())
+    payload = report.model_dump(mode="json")
+    payload["source_fingerprint"] = "not-a-sha256"
+    with pytest.raises(ValidationError):
+        ComparisonReport.model_validate(payload)
+
+    payload = report.model_dump(mode="json")
+    payload["generated_at"] = "2026-10-27T12:00:00"
+    with pytest.raises(ValidationError, match="timezone"):
+        ComparisonReport.model_validate(payload)
+
+
+def test_report_read_and_write_sizes_are_bounded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import skilltether.report as report_module
+
+    monkeypatch.setattr(report_module, "MAX_REPORT_BYTES", 64)
+    path = tmp_path / "oversized.json"
+    path.write_text("{" + " " * 100 + "}", encoding="utf-8")
+    with pytest.raises(ValueError, match="safety limit"):
+        read_json_report(path)
+
+    out = tmp_path / "not-written.json"
+    with pytest.raises(ValueError, match="safety limit"):
+        write_json_report(comparison(critical_finding()), out)
+    assert not out.exists()
