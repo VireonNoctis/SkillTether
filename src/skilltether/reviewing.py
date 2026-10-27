@@ -25,6 +25,8 @@ def record_review(
         raise ValueError("Review note must not be blank; record the reason for the decision")
     reviewer = reviewer.strip()
     note = note.strip()
+    if redact_sensitive_text(reviewer) != reviewer:
+        raise ValueError("Reviewer identifier resembles credential material; remove secrets and retry")
     if len(reviewer) > 200:
         raise ValueError("Reviewer identifier must be 200 characters or fewer")
     if len(note) > 4000:
