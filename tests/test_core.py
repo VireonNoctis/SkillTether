@@ -351,3 +351,36 @@ def test_zero_width_policy_regex_on_real_text_is_rejected() -> None:
             IdentityLikeAdapter(), "en", "fr",
             extra_patterns=[{"category": "lookahead", "regex": r"(?=critical)"}],
         )
+
+
+
+def test_aggregate_package_byte_limit_is_enforced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import skilltether.analysis as analysis
+
+    package = make_package(tmp_path / "sample-skill", "A package with a bounded inventory.")
+    base_size = (package / "SKILL.md").stat().st_size
+    assets = package / "assets"
+    assets.mkdir()
+    (assets / "a.bin").write_bytes(b"123")
+    (assets / "b.bin").write_bytes(b"456")
+    monkeypatch.setattr(analysis, "MAX_PACKAGE_BYTES", base_size + 4)
+
+    inventory, findings, _texts = analysis.inspect_package(package)
+
+    assert "assets/a.bin" in inventory
+    assert "assets/b.bin" not in inventory
+    assert any(item.code == "PACKAGE_TOO_LARGE" for item in findings)
+    report = compare_packages(package, package, reviewed_manifest())
+    assert report.structural_status == "fail"
+
+
+def test_directory_count_limit_is_enforced(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import skilltether.analysis as analysis
+
+    package = make_package(tmp_path / "sample-skill")
+    (package / "assets").mkdir()
+    (package / "references").mkdir()
+    monkeypatch.setattr(analysis, "MAX_PACKAGE_DIRECTORIES", 1)
+
+    with pytest.raises(ValueError, match="directory safety limit"):
+        analysis.inspect_package(package)
