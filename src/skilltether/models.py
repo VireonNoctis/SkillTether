@@ -8,6 +8,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from .redaction import redact_sensitive_text
+
 Severity = Literal["info", "low", "medium", "high", "critical"]
 Disposition = Literal["pending", "approved", "rejected", "deferred"]
 AnalysisMethod = Literal["deterministic", "heuristic", "human_review", "unknown"]
@@ -213,7 +215,17 @@ def new_finding(
     analysis_method: AnalysisMethod | None = None, uncertainty: Uncertainty | None = None,
     severity_rationale: str | None = None,
 ) -> Finding:
-    """Create a stable finding with explicit rule provenance and uncertainty metadata."""
+    """Create a stable finding with explicit rule provenance and redacted evidence."""
+    # Redact before deriving the stable ID as well as before exposing evidence in a
+    # report. The patterns are high-confidence guardrails, not a complete secret scan.
+    path = redact_sensitive_text(path) if path is not None else None
+    message = redact_sensitive_text(message)
+    rationale = redact_sensitive_text(rationale)
+    original_context = redact_sensitive_text(original_context) if original_context is not None else None
+    target_context = redact_sensitive_text(target_context) if target_context is not None else None
+    proposed_change = redact_sensitive_text(proposed_change) if proposed_change is not None else None
+    severity_rationale = redact_sensitive_text(severity_rationale) if severity_rationale is not None else None
+    rule_id = redact_sensitive_text(rule_id) if rule_id is not None else None
     identity = "\\0".join(
         [code, path or "", str(source_line or ""), str(target_line or ""),
          message, original_context or "", target_context or ""]
