@@ -742,3 +742,19 @@ def test_http_adapter_bounds_provider_response_without_parsing_unbounded_data(
 
     with pytest.raises(RuntimeError, match="response exceeds"):
         adapter.translate("hello", "en", "fr")
+
+
+
+def test_policy_loader_rejects_zero_width_lookahead_on_representative_input(tmp_path: Path) -> None:
+    import yaml
+    from skilltether.analysis import load_policy
+
+    path = tmp_path / "zero-width.yaml"
+    path.write_text(yaml.safe_dump({
+        "policy_version": "1.0",
+        "patterns": [{"category": "lookahead", "regex": r"(?=critical)"}],
+        "explicit_tokens": [],
+    }), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="may match an empty span"):
+        load_policy(path)
