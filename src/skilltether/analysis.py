@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import tomllib
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -90,33 +91,59 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
                     path=rel, proposed_change="Replace the symlink with a regular in-package resource.",
                 ))
                 continue
+            # Open without following a final-component symlink and without blocking on
+            # FIFOs. fstat the opened descriptor (not the path) to avoid trusting a
+            # stale path-level stat result. Read at most MAX_FILE_BYTES + 1 bytes so
+            # a file that grows after fstat cannot bypass the resource bound.
+            descriptor = None
             try:
-                size = path.stat().st_size
-            except OSError as exc:
-                findings.append(new_finding(
-                    "FILE_STAT_ERROR", "high", "package_integrity",
-                    f"Unable to stat package file: {exc.__class__.__name__}.",
-                    "An unreadable file cannot be fingerprinted reliably.", path=rel,
-                ))
-                continue
-            if size > MAX_FILE_BYTES:
-                findings.append(new_finding(
-                    "FILE_TOO_LARGE", "high", "package_integrity",
-                    f"File exceeds the {MAX_FILE_BYTES}-byte safety limit.",
-                    "Large inputs are bounded to reduce resource-exhaustion risk.",
-                    path=rel, proposed_change="Review and split or explicitly handle this resource.",
-                ))
-                continue
-            try:
-                data = path.read_bytes()
+                flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+                descriptor = os.open(path, flags)
+                opened = os.fstat(descriptor)
+                if not stat.S_ISREG(opened.st_mode):
+                    findings.append(new_finding(
+                        "SPECIAL_FILE_NOT_ALLOWED", "critical", "package_integrity",
+                        "Package contains a non-regular filesystem entry.",
+                        "Devices, sockets, and named pipes can block reads or expose behavior outside a static package inventory.",
+                        path=rel, proposed_change="Replace this entry with a regular file or directory.",
+                    ))
+                    continue
+                if opened.st_size > MAX_FILE_BYTES:
+                    findings.append(new_finding(
+                        "FILE_TOO_LARGE", "high", "package_integrity",
+                        f"File exceeds the {MAX_FILE_BYTES}-byte safety limit.",
+                        "Large inputs are bounded to reduce resource-exhaustion risk.",
+                        path=rel, proposed_change="Review and split or explicitly handle this resource.",
+                    ))
+                    continue
+                chunks: list[bytes] = []
+                total = 0
+                while total <= MAX_FILE_BYTES:
+                    chunk = os.read(descriptor, min(64 * 1024, MAX_FILE_BYTES + 1 - total))
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    total += len(chunk)
+                data = b"".join(chunks)
+                if len(data) > MAX_FILE_BYTES:
+                    findings.append(new_finding(
+                        "FILE_TOO_LARGE", "high", "package_integrity",
+                        f"File grew beyond the {MAX_FILE_BYTES}-byte safety limit while being read.",
+                        "The file size changed during inspection and exceeded the bounded read limit.",
+                        path=rel, proposed_change="Stabilize the resource and rerun validation.",
+                    ))
+                    continue
             except OSError as exc:
                 findings.append(new_finding(
                     "FILE_READ_ERROR", "high", "package_integrity",
-                    f"Unable to read package file: {exc.__class__.__name__}.",
-                    "Unreadable resources cannot be validated or fingerprinted.",
+                    f"Unable to safely open or read package file: {exc.__class__.__name__}.",
+                    "An unreadable or concurrently replaced file cannot be fingerprinted reliably.",
                     path=rel,
                 ))
                 continue
+            finally:
+                if descriptor is not None:
+                    os.close(descriptor)
             encoding = None
             try:
                 text = data.decode("utf-8")
