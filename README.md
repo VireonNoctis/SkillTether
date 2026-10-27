@@ -14,7 +14,8 @@ SkillTether is a local-first localization and integrity-checking CLI for Agent S
 - Static syntax checks for Python scripts and JSON/YAML/TOML/XML resources; scripts are parsed, never executed.
 - Protected-span detection for fenced/inline code, URLs, environment variables, command flags, paths, plus configurable regexes and explicit identifiers.
 - A human-authored YAML invariant manifest with categories for safety constraints, mandatory conditions, negation, numeric limits, preconditions, and decision rules.
-- Line-block, protected-token, package-path, and invariant findings with severity, rationale, source/target context, proposed changes, and reviewer disposition.
+- Line-block, protected-token, package-path, and invariant findings with stable rule IDs, explicit deterministic/heuristic method labels, uncertainty states, severity rationale, source/target context, and reviewer disposition.
+- Chronological review history with mandatory reviewer identifiers and non-empty rationale; approval requires the latest decision to match a consistent audit history.
 - A provider-neutral adapter protocol, an identity adapter for local pipeline tests, and an optional generic JSON-over-HTTPS adapter. No provider is called by default.
 - Atomic candidate output, a separate explicit approval/export command, JSON and Markdown reports, and local SQLite run metadata without document text or credentials.
 - pytest and Hypothesis regression fixtures, plus GitHub Actions CI.
@@ -141,6 +142,7 @@ Run skilltether COMMAND --help for flags.
 - Source hashes and the candidate are checked, but this is not a sandbox for hostile operating-system-level inputs.
 - The generic HTTP adapter is a bridge contract, not a translation service. Configure a service you trust.
 - The report is reproducible from fingerprints, versioned rules, and stable finding IDs; generated timestamps naturally vary.
+- Review history is a local audit aid, not a cryptographic signature: it cannot authenticate reviewer identity or prevent deliberate report-file edits.
 
 ## Documentation
 
@@ -150,6 +152,7 @@ Run skilltether COMMAND --help for flags.
 - [Mitigation strategy](docs/mitigation-strategy.md)
 - [Validation matrix](docs/validation-matrix.md)
 - [Implementation status and limits](docs/implementation-status.md)
+- [Review evidence and approval gates](docs/review-audit.md)
 
 ## Research references
 
