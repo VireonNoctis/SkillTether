@@ -15,6 +15,8 @@
 | Agent Skills optional fields | Optional license/compatibility/metadata/allowed-tools are valid | No false requirement to include fields; correct types are accepted |
 | Extension metadata | Unknown client-specific field appears | Low-severity notice, not an automatic blocking error |
 | Exact identifiers | Command, path, tool name changed | Protected-token finding |
+| Markdown syntax preservation | Emphasis, inline links, reference links, task-list checkboxes, escaped punctuation, and hard line breaks | Syntax is restored exactly; label text remains translatable; syntax placeholder deletion/duplication/reordering aborts translation |
+| Markdown table localization | Header/data rows with pipe delimiters plus alignment separators | Cell prose is translated, pipes stay intact, and delimiter-only rows remain byte-for-byte unchanged |
 | Protected-token order | Same command flags/identifiers remain present but their order changes | High-severity, high-uncertainty review finding; unchanged order is a negative case |
 | Negation | “Do” changed to “do not”, or negation removed | Critical review warning |
 | Modal strength | “Must” weakened to “may” | Invariant review warning |
