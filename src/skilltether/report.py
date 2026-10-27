@@ -56,8 +56,8 @@ def _fenced_context(value: str, limit: int = 4000) -> str:
 
 def _markdown_escape(value: object) -> str:
     """Escape untrusted scalar text before inserting it into Markdown structure."""
-    text = html.escape(str(value), quote=False).replace("\\r", " ").replace("\\n", " ")
-    return re.sub(r"([\\\\`*_{}\\[\\]()#+.!|>~-])", r"\\\\\\1", text)
+    text = html.escape(str(value), quote=False).replace("\r", " ").replace("\n", " ")
+    return re.sub(r"([\\\x60*_{}\[\]()#+.!|>~-])", r"\\\1", text)
 
 
 def write_markdown_report(report: ComparisonReport, path: str | Path) -> Path:
