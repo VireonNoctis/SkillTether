@@ -402,7 +402,7 @@ def test_invariant_numbers_in_frontmatter_do_not_satisfy_instruction_context(tmp
     invariant = Invariant(
         id="RETRIES-3", statement="Do not exceed 3 retries.",
         category="numeric_limit", severity="critical",
-        source_path="SKILL.md", source_lines=(7, 7),
+        source_path="SKILL.md", source_lines=(8, 8),
         source_text="You must not use more than 3 retries.",
         expected_numbers=["3"], reviewed=True, reviewer="qa-reviewer",
     )
