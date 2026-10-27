@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import shutil
@@ -20,6 +21,9 @@ from .models import FileFingerprint
 from .regex_safety import validate_policy_regex
 
 ELIGIBLE_SUFFIXES = {".md", ".mdx", ".txt", ".rst"}
+MAX_TRANSLATION_REQUEST_BYTES = 2 * 1024 * 1024
+MAX_TRANSLATION_RESPONSE_BYTES = 2 * 1024 * 1024
+MAX_TRANSLATION_TIMEOUT_SECONDS = 300.0
 FENCE = re.compile(r"^\s{0,3}(\x60{3,}|~{3,})")
 PREFIX = re.compile(r"^(\s*(?:(?:#{1,6}|>)\s+|[-*+]\s+|\d+[.)]\s+)?)(.*?)(\r?\n?)$")
 MASK_SPAN = re.compile(
@@ -67,6 +71,8 @@ class HttpJsonAdapter:
     remote = True
 
     def __init__(self, endpoint: str, timeout: float = 60.0) -> None:
+        if not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or not 0 < timeout <= MAX_TRANSLATION_TIMEOUT_SECONDS:
+            raise ValueError(f"Translation timeout must be greater than 0 and at most {MAX_TRANSLATION_TIMEOUT_SECONDS:g} seconds")
         parsed = urllib.parse.urlparse(endpoint)
         local_hosts = {"localhost", "127.0.0.1", "::1"}
         if parsed.scheme != "https" and not (parsed.scheme == "http" and parsed.hostname in local_hosts):
@@ -82,6 +88,10 @@ class HttpJsonAdapter:
         body = json.dumps({
             "text": text, "source_locale": source_locale, "target_locale": target_locale,
         }, ensure_ascii=False).encode("utf-8")
+        if len(body) > MAX_TRANSLATION_REQUEST_BYTES:
+            raise RuntimeError(
+                f"Translation provider request exceeds the {MAX_TRANSLATION_REQUEST_BYTES}-byte safety limit"
+            )
         request = urllib.request.Request(
             self.endpoint, data=body,
             headers={"Content-Type": "application/json", "Accept": "application/json"},
@@ -90,11 +100,11 @@ class HttpJsonAdapter:
         try:
             opener = urllib.request.build_opener(_NoRedirect())
             with opener.open(request, timeout=self.timeout) as response:
-                raw = response.read(2 * 1024 * 1024 + 1)
+                raw = response.read(MAX_TRANSLATION_RESPONSE_BYTES + 1)
         except (urllib.error.URLError, TimeoutError) as exc:
             raise RuntimeError(f"Translation provider request failed: {exc.__class__.__name__}") from exc
-        if len(raw) > 2 * 1024 * 1024:
-            raise RuntimeError("Translation provider response exceeds the 2 MiB safety limit")
+        if len(raw) > MAX_TRANSLATION_RESPONSE_BYTES:
+            raise RuntimeError(f"Translation provider response exceeds the {MAX_TRANSLATION_RESPONSE_BYTES}-byte safety limit")
         try:
             payload = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
