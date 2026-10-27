@@ -13,7 +13,7 @@ Inventory package → parse structure → identify protected spans → apply con
 - pytest, property-based tests, and GitHub Actions for regressions and adversarial fixtures.
 
 ## Package inventory
-Record original file path, type, size, hash, encoding where detectable, frontmatter metadata, link targets, and referenced resources. Avoid reading or executing a script merely to translate its surrounding documentation.
+Record original file path, type, size, hash, filesystem mode, encoding where detectable, frontmatter metadata, link targets, and referenced resources. Bound per-file/aggregate bytes and directory traversal. Avoid reading or executing a script merely to translate its surrounding documentation.
 
 ## Protected-span model
 Each span has path, source range, category, exact literal or matching rule, criticality, and policy. Categories may include tool names, commands, file paths, environment variables, URLs, code, safety constraints, numeric limits, and identifiers. A rule must be able to distinguish a literal code example from narrative prose.
