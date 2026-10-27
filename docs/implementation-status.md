@@ -2,8 +2,9 @@
 
 ## Implemented in the CLI MVP
 
-- Read-only inventory and SHA-256 package fingerprints.
+- Read-only inventory and SHA-256 package fingerprints that include file permission bits, with explicit permission-drift findings.
 - Bounded file and directory counts, directory depth, per-file size, aggregate package bytes, race-resistant regular-file opens, symlink/special-file rejection, and script non-execution.
+- Bounded regular-file reads for manifests, protected-token policies, reports, and local-history databases; reject symlink/special-file inputs and cap report/policy/manifest sizes.
 - SKILL.md frontmatter type/required-field/name/length checks.
 - Local Markdown links and image assets, file targets, conventional script/reference/asset path mentions, and detected heading/HTML fragments.
 - Static syntax parsing of Python, JSON, YAML, TOML, and XML resources without executing scripts.
@@ -12,7 +13,7 @@
 - Markdown prose masking for frontmatter, code fences, inline code, URLs, link destinations, HTML tags, and basic line-prefix syntax.
 - Line-block, token, file-path, non-text resource hash, and human-authored invariant findings.
 - Atomically written mode-0600 (POSIX) JSON/Markdown reports; output-path guards to preserve source/candidate packages; stable IDs and fingerprints; explicit rule/method/uncertainty/severity rationale; chronological review history; approval gates requiring consistent reviewer decisions with rationale; JSON Schema validation tests; and optional fail-on-review CI exit semantics.
-- Optional local SQLite metadata history, pytest/Hypothesis tests, and GitHub Actions CI.
+- Optional local SQLite metadata history with fingerprint/locale/metadata validation, private file permissions, and no text payload columns; pytest/Hypothesis/JSON Schema tests and GitHub Actions CI.
 
 ## Deliberately not claimed
 
