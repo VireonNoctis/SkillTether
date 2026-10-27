@@ -324,3 +324,40 @@ def test_compare_refuses_same_json_and_markdown_output_path(tmp_path: Path) -> N
 
     assert result == 2
     assert not report_path.exists()
+
+
+
+def test_review_events_must_be_chronological() -> None:
+    finding = critical_finding()
+    record_review(
+        finding, disposition="approved", reviewer="reviewer-1",
+        note="Reviewed initial target context.",
+        recorded_at=datetime(2026, 10, 27, 12, 0, tzinfo=timezone.utc),
+    )
+    with pytest.raises(ValueError, match="must not precede"):
+        record_review(
+            finding, disposition="deferred", reviewer="reviewer-2",
+            note="The decision needs further review.",
+            recorded_at=datetime(2026, 10, 27, 11, 59, tzinfo=timezone.utc),
+        )
+    assert len(finding.review_history) == 1
+    assert has_audited_approval(finding)
+
+
+def test_audit_gate_rejects_manually_reordered_timestamps() -> None:
+    finding = critical_finding()
+    record_review(
+        finding, disposition="approved", reviewer="reviewer-1",
+        note="Initial review.", recorded_at=datetime(2026, 10, 27, 12, 0, tzinfo=timezone.utc),
+    )
+    record_review(
+        finding, disposition="deferred", reviewer="reviewer-2",
+        note="Needs a second look.", recorded_at=datetime(2026, 10, 27, 12, 1, tzinfo=timezone.utc),
+    )
+    record_review(
+        finding, disposition="approved", reviewer="reviewer-3",
+        note="Re-reviewed all context.", recorded_at=datetime(2026, 10, 27, 12, 2, tzinfo=timezone.utc),
+    )
+    finding.review_history[1].recorded_at = "2026-10-27T11:59:00+00:00"
+
+    assert not has_audited_approval(finding)
