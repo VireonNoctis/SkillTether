@@ -18,6 +18,7 @@ from markdown_it import MarkdownIt
 
 from .yamlio import safe_load_unique
 from .safeio import read_bounded_regular_file
+from .regex_safety import validate_policy_regex
 
 from .models import FileFingerprint, ProtectedToken, new_finding
 
@@ -579,9 +580,11 @@ def load_policy(path: str | Path | None) -> tuple[list[dict[str, str]], list[str
         if len(item["regex"]) > MAX_POLICY_REGEX_CHARS:
             raise ValueError(f"Protected-token regex at index {index} exceeds {MAX_POLICY_REGEX_CHARS} characters")
         try:
-            compiled = re.compile(item["regex"])
-        except re.error as exc:
-            raise ValueError(f"Invalid protected-token regex at index {index}") from exc
+            compiled = validate_policy_regex(
+                item["regex"], max_chars=MAX_POLICY_REGEX_CHARS,
+            )
+        except ValueError as exc:
+            raise ValueError(f"Invalid or unsafe protected-token regex at index {index}: {exc}") from exc
         samples = ("", "x", "1", "A", "/", "-", "$", "x1", "sample")
         if any(
             (match := compiled.search(sample)) is not None and match.start() == match.end()
