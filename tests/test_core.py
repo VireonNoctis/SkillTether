@@ -444,4 +444,4 @@ def test_forbidden_token_elsewhere_is_uncertain_not_a_context_confirmed_violatio
     assert finding.analysis_method == "heuristic"
     assert finding.uncertainty == "high"
     assert finding.target_context == "The public endpoint must accept requests only."
-    assert finding.target_line == 6
+    assert finding.target_line == 8
