@@ -91,6 +91,31 @@ def compare_packages(
             requires_review=True,
         ))
 
+    # Byte-only resources (including images and unknown binary formats) are
+    # part of package integrity too. They do not appear in source_text/target_text,
+    # so compare their hashes explicitly instead of silently overlooking edits.
+    for path in sorted(source_paths & target_paths):
+        source_file = source_inventory[path]
+        target_file = target_inventory[path]
+        if source_file.sha256 == target_file.sha256:
+            continue
+        if path in source_text and path in target_text:
+            continue
+        normalized = path.lower()
+        executable_suffixes = {".exe", ".dll", ".so", ".dylib", ".bin", ".com"}
+        is_executable_area = normalized.startswith("scripts/") or Path(path).suffix.lower() in executable_suffixes
+        severity = "high" if is_executable_area else "medium"
+        findings.append(new_finding(
+            "PACKAGE_RESOURCE_CHANGED", severity, "package_integrity",
+            f"Target changes bytes of a resource that is not compared as decoded text: {path!r}.",
+            "Binary assets and unsupported text formats are part of the skill package; a byte change may alter behavior or user-visible output even when ordinary line comparison cannot inspect it.",
+            path=path,
+            original_context=f"sha256:{source_file.sha256}",
+            target_context=f"sha256:{target_file.sha256}",
+            proposed_change="Restore the original bytes or explicitly review and document why this non-text resource must change.",
+            requires_review=True,
+        ))
+
     for path in sorted(source_paths & target_paths):
         left, right = source_text.get(path), target_text.get(path)
         if left is None or right is None or left == right:
