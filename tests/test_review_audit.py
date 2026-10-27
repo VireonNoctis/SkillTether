@@ -194,3 +194,28 @@ def test_review_cli_requires_a_note() -> None:
             "review", "report.json", "finding-1",
             "--disposition", "approved", "--reviewer", "reviewer-1",
         ])
+
+
+
+def test_report_schema_validates_actual_serialized_report(tmp_path: Path) -> None:
+    from jsonschema import Draft202012Validator, FormatChecker
+
+    schema = json.loads(Path("schemas/comparison-report.schema.json").read_text(encoding="utf-8"))
+    validator = Draft202012Validator(schema, format_checker=FormatChecker())
+    report = comparison(critical_finding())
+    errors = sorted(validator.iter_errors(report.model_dump(mode="json")), key=lambda error: list(error.absolute_path))
+
+    assert not errors, "\\n".join(f"{list(error.absolute_path)}: {error.message}" for error in errors)
+
+
+def test_report_schema_rejects_unknown_severity_value() -> None:
+    from jsonschema import Draft202012Validator, FormatChecker
+
+    schema = json.loads(Path("schemas/comparison-report.schema.json").read_text(encoding="utf-8"))
+    validator = Draft202012Validator(schema, format_checker=FormatChecker())
+    payload = comparison(critical_finding()).model_dump(mode="json")
+    payload["findings"][0]["severity"] = "probably-safe"
+
+    errors = list(validator.iter_errors(payload))
+
+    assert any(list(error.absolute_path) == ["findings", 0, "severity"] for error in errors)
