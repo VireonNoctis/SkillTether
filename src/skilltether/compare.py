@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .analysis import (
     MAX_MANIFEST_FILE_BYTES, MAX_POLICY_FILE_BYTES, extract_protected_tokens,
-    inspect_package, load_policy, package_fingerprint,
+    inspect_package, load_policy, normalize_package_root, package_fingerprint,
 )
 from .models import ComparisonReport, InvariantManifest, new_finding
 from .yamlio import safe_load_unique
@@ -72,8 +72,8 @@ def compare_packages(
     policy_path: str | Path | None = None,
 ) -> ComparisonReport:
     """Compare packages without executing their scripts or making network calls."""
-    source_root = Path(source).expanduser().resolve(strict=True)
-    target_root = Path(target).expanduser().resolve(strict=True)
+    source_root = normalize_package_root(source)
+    target_root = normalize_package_root(target)
     source_inventory, source_findings, source_text = inspect_package(source_root)
     target_inventory, target_findings, target_text = inspect_package(target_root)
     findings = [*source_findings, *target_findings]
