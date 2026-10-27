@@ -12,7 +12,7 @@
 - Protected spans for code fences, inline code, URLs, command flags, environment variables, common paths, and configured literals/regular expressions.
 - Provider-neutral translation protocol, identity adapter, and explicit-consent JSON HTTP bridge.
 - Whole-package no-network preflight caps translation at 10,000 requests and 10 MiB of aggregate outbound JSON; HTTP adapter independently limits aggregate request count/bytes and response bytes.
-- Markdown prose masking for frontmatter, code fences, inline code, URLs, link destinations, HTML tags, and basic line-prefix syntax.
+- Markdown prose masking for frontmatter, code fences, inline code, URLs/destinations, emphasis and link/image/reference-link delimiters, task-list checkboxes, escaped punctuation, hard line breaks, HTML tags, and table pipes. Table-cell prose can be translated while separator rows remain unchanged; missing, duplicated, or reordered Markdown syntax placeholders abort publication. This is lexical protection, not a full Markdown AST translator.
 - Line-block, token, file-path, non-text resource hash, and human-authored invariant findings.
 - Validate optional invariant source paths, line ranges, and source excerpts against current source text; invalid anchors produce deterministic critical findings and cannot be overridden during approval until the manifest is corrected and comparison rerun.
 - Detect count-preserving reordering of protected machine-facing tokens as a high-uncertainty heuristic finding that requires human review.
