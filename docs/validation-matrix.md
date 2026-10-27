@@ -22,6 +22,9 @@
 | Added instructions | Target contains new imperative not in source | Unexpected addition warning |
 | Provider privacy | Provider disabled or mock provider configured | No network call without explicit setup |
 | Review evidence | Critical finding approved, then deferred | Approval is blocked until a newer consistent approval event exists |
+| Signed report integrity | Signed report field is edited before export | HMAC verification rejects the report and no output package is published |
+| Signed review update | Existing signed report is reviewed with the matching key | Decision is appended and the new report payload receives a valid updated seal |
+| Key hygiene | Key is symlinked, too short, or group/world accessible on POSIX | Key is rejected before signing or verification |
 | Review audit | Bare approved disposition without history or rationale | Approval gate rejects missing review evidence |
 | Review input privacy | Note contains obvious credential material | Note is rejected without echoing the credential |
 | Review rendering | Note contains HTML/Markdown control syntax | Markdown report fences the untrusted note |
