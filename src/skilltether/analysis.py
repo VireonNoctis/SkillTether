@@ -24,6 +24,10 @@ MAX_FILE_BYTES = 10 * 1024 * 1024
 MAX_PACKAGE_FILES = 5000
 MAX_PACKAGE_DIRECTORIES = 5000
 MAX_PACKAGE_BYTES = 100 * 1024 * 1024
+MAX_POLICY_PATTERNS = 128
+MAX_EXPLICIT_TOKENS = 2048
+MAX_POLICY_REGEX_CHARS = 1000
+MAX_EXPLICIT_TOKEN_CHARS = 2048
 TEXT_SUFFIXES = {".md", ".mdx", ".txt", ".rst"}
 SCRIPT_SUFFIXES = {".py", ".sh", ".bash", ".js", ".ts", ".ps1", ".bat"}
 RESOURCE_REFERENCE = re.compile(r"(?<![A-Za-z0-9/:])(?P<path>(?:\.\.?/)*(?:scripts|references|assets|resources)/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*)")
@@ -532,9 +536,15 @@ def load_policy(path: str | Path | None) -> tuple[list[dict[str, str]], list[str
     tokens = data.get("explicit_tokens", [])
     if not isinstance(patterns, list) or not isinstance(tokens, list):
         raise ValueError("Policy patterns and explicit_tokens must be lists")
+    if len(patterns) > MAX_POLICY_PATTERNS:
+        raise ValueError(f"Protected-token policy exceeds {MAX_POLICY_PATTERNS} patterns")
+    if len(tokens) > MAX_EXPLICIT_TOKENS:
+        raise ValueError(f"Protected-token policy exceeds {MAX_EXPLICIT_TOKENS} explicit tokens")
     for index, item in enumerate(patterns):
         if not isinstance(item, dict) or not isinstance(item.get("category"), str) or not isinstance(item.get("regex"), str):
             raise ValueError(f"Protected-token pattern {index} needs string category and regex fields")
+        if len(item["regex"]) > MAX_POLICY_REGEX_CHARS:
+            raise ValueError(f"Protected-token regex at index {index} exceeds {MAX_POLICY_REGEX_CHARS} characters")
         try:
             compiled = re.compile(item["regex"])
         except re.error as exc:
@@ -547,4 +557,6 @@ def load_policy(path: str | Path | None) -> tuple[list[dict[str, str]], list[str
             raise ValueError(f"Protected-token regex at index {index} may match an empty span")
     if not all(isinstance(token, str) and token for token in tokens):
         raise ValueError("explicit_tokens must contain non-empty strings")
+    if any(len(token) > MAX_EXPLICIT_TOKEN_CHARS for token in tokens):
+        raise ValueError(f"Explicit protected tokens must be at most {MAX_EXPLICIT_TOKEN_CHARS} characters")
     return patterns, tokens
