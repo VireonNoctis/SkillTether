@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator, FormatChecker
 
+from skilltether.cli import main
 from skilltether.models import ComparisonReport
 from skilltether.report import read_json_report, verify_report_signature, write_json_report
 from skilltether.signing import create_signing_key, load_signing_key, sign_payload
@@ -111,3 +112,25 @@ def test_report_schema_accepts_valid_signature_and_rejects_unpaired_fields(tmp_p
     safe_payload = report.model_dump(mode="json")
     safe_payload["integrity_algorithm"] = "hmac-sha256"
     assert sign_payload(safe_payload, key) == sign_payload(safe_payload, key)
+
+
+
+def test_verify_report_cli_checks_signature_without_review_or_export(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    key = create_signing_key(tmp_path / "report.key")
+    report_path = tmp_path / "report.json"
+    write_json_report(sample_report(), report_path, signing_key=key)
+
+    result = main(["verify-report", str(report_path), "--signing-key", str(key)])
+    assert result == 0
+    assert "Report integrity verified" in capsys.readouterr().out
+
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    current = payload["integrity_signature"]
+    payload["integrity_signature"] = ("0" if current[0] != "0" else "1") + current[1:]
+    report_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = main(["verify-report", str(report_path), "--signing-key", str(key)])
+    assert result == 2
+    assert "signature verification failed" in capsys.readouterr().err
