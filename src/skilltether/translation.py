@@ -12,7 +12,10 @@ import urllib.request
 from pathlib import Path
 from typing import Protocol
 
-from .analysis import (\n    MAX_EXPLICIT_TOKEN_CHARS, MAX_EXPLICIT_TOKENS, MAX_POLICY_PATTERNS,\n    MAX_POLICY_REGEX_CHARS, inspect_package, package_fingerprint,\n)
+from .analysis import (
+    MAX_EXPLICIT_TOKEN_CHARS, MAX_EXPLICIT_TOKENS, MAX_POLICY_PATTERNS,
+    MAX_POLICY_REGEX_CHARS, inspect_package, package_fingerprint,
+)
 from .models import FileFingerprint
 
 ELIGIBLE_SUFFIXES = {".md", ".mdx", ".txt", ".rst"}
