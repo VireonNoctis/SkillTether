@@ -320,7 +320,7 @@ def cmd_approve(args: argparse.Namespace) -> int:
     }
     blocked = [finding for finding in report.findings if finding.code in permanently_blocked]
     if blocked:
-        raise ValueError("The invariant manifest is missing or not human-reviewed; update it and rerun comparison.")
+        raise ValueError("The invariant manifest is missing, unreviewed, or contains invalid source references; correct it and rerun comparison before approval.")
     unresolved = [
         finding for finding in report.findings
         if (finding.requires_review or finding.severity == "critical")
