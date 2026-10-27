@@ -155,7 +155,7 @@ def test_review_history_survives_json_and_markdown_exports(tmp_path: Path) -> No
     assert "**Signal uncertainty:**" in markdown
     assert "onerror=alert(1)" in markdown
     assert "[click](javascript:alert(1))" in markdown
-    assert "~~~text" in markdown  # untrusted note is fenced instead of parsed as Markdown
+    assert "```text" in markdown  # untrusted note is fenced instead of parsed as Markdown
 
 
 def test_schema_documents_new_fields_without_breaking_old_required_contract() -> None:
