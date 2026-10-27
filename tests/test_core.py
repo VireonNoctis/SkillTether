@@ -395,8 +395,8 @@ def test_invariant_numbers_in_frontmatter_do_not_satisfy_instruction_context(tmp
     target = tmp_path / "target" / "sample-skill"
     target.mkdir(parents=True)
     (target / "SKILL.md").write_text(
-        "---\\nname: sample-skill\\ndescription: A 3-step retry workflow.\\n---\\n\\n"
-        "# Retry guidance\\nUse five retries.\\n",
+        "---\nname: sample-skill\ndescription: A 3-step retry workflow.\n---\n\n"
+        "# Retry guidance\nUse five retries.\n",
         encoding="utf-8",
     )
     invariant = Invariant(
@@ -425,7 +425,7 @@ def test_forbidden_token_elsewhere_is_uncertain_not_a_context_confirmed_violatio
     )
     target = make_package(
         tmp_path / "target" / "sample-skill",
-        "The public endpoint must accept requests only.\\n\\n"
+        "The public endpoint must accept requests only.\n\n"
         "A glossary lists SECRET_TOKEN as a separate identifier.",
     )
     invariant = Invariant(
@@ -489,7 +489,10 @@ def test_empty_optional_compatibility_is_rejected_when_present(tmp_path: Path) -
     package = tmp_path / "sample-skill"
     package.mkdir()
     (package / "SKILL.md").write_text(
-        "---\\nname: sample-skill\\ndescription: A skill.\\ncompatibility: \\\"\\\"\\n---\\n\\nInstructions.\\n",
+        "\n".join([
+            "---", "name: sample-skill", "description: A skill.",
+            'compatibility: ""', "---", "", "Instructions.", "",
+        ]),
         encoding="utf-8",
     )
 
