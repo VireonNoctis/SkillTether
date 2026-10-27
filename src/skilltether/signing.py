@@ -10,7 +10,6 @@ import hmac
 import json
 import os
 import secrets
-import stat
 from pathlib import Path
 from typing import Any
 
@@ -51,13 +50,10 @@ def load_signing_key(path: str | Path) -> bytes:
     key_path = Path(path).expanduser()
     raw = read_bounded_regular_file(
         key_path, max_bytes=MAX_KEY_FILE_BYTES, purpose="Report signing key",
+        require_private_mode=True,
     )
     if len(raw) < MIN_KEY_BYTES:
         raise ValueError(f"Report signing key must contain at least {MIN_KEY_BYTES} bytes")
-    if os.name == "posix":
-        mode = stat.S_IMODE(key_path.stat().st_mode)
-        if mode & 0o077:
-            raise ValueError("Report signing key permissions are too broad; set mode 0600")
     return raw
 
 
