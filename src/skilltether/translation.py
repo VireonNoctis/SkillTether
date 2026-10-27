@@ -17,6 +17,7 @@ from .analysis import (
     MAX_POLICY_REGEX_CHARS, inspect_package, package_fingerprint,
 )
 from .models import FileFingerprint
+from .regex_safety import validate_policy_regex
 
 ELIGIBLE_SUFFIXES = {".md", ".mdx", ".txt", ".rst"}
 FENCE = re.compile(r"^\s{0,3}(\x60{3,}|~{3,})")
@@ -194,10 +195,7 @@ def _mask_protected_spans(
             raise ValueError("Every protected-token policy entry needs a regex string")
         if len(regex) > MAX_POLICY_REGEX_CHARS:
             raise ValueError(f"Protected-token policy regex exceeds the {MAX_POLICY_REGEX_CHARS}-character limit")
-        try:
-            custom = re.compile(regex)
-        except re.error as exc:
-            raise ValueError("Invalid custom protected-token regular expression") from exc
+        custom = validate_policy_regex(regex, max_chars=MAX_POLICY_REGEX_CHARS)
         patterns.append(custom)
 
     # (start, end, priority, literal). Explicit identifiers are treated as
