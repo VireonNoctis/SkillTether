@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 
 import pytest
@@ -248,3 +249,37 @@ def test_python_resources_are_parsed_but_never_executed(tmp_path: Path) -> None:
     _inventory, findings, _texts = inspect_package(package)
     assert any(item.code == "RESOURCE_SYNTAX_INVALID" and item.path == "scripts/invalid.py" for item in findings)
     assert not marker.exists()
+
+
+
+def test_binary_asset_byte_changes_are_review_findings(tmp_path: Path) -> None:
+    source = make_package(tmp_path / "source" / "sample-skill", "A skill with an image.")
+    target = make_package(tmp_path / "target" / "sample-skill", "A skill with an image.")
+    (source / "assets").mkdir()
+    (target / "assets").mkdir()
+    (source / "assets" / "icon.png").write_bytes(b"\\x89PNG\\r\\n\\x1a\\nsource")
+    (target / "assets" / "icon.png").write_bytes(b"\\x89PNG\\r\\n\\x1a\\ntarget")
+
+    report = compare_packages(source, target, reviewed_manifest())
+    changed = [item for item in report.findings if item.code == "PACKAGE_RESOURCE_CHANGED"]
+
+    assert len(changed) == 1
+    assert changed[0].path == "assets/icon.png"
+    assert changed[0].severity == "medium"
+    assert changed[0].requires_review
+    assert changed[0].original_context != changed[0].target_context
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="named pipes are not available on this platform")
+def test_named_pipe_is_rejected_without_blocking_package_inspection(tmp_path: Path) -> None:
+    package = make_package(tmp_path / "sample-skill", "A package with a special entry.")
+    (package / "assets").mkdir()
+    os.mkfifo(package / "assets" / "pipe")
+
+    inventory, findings, _texts = inspect_package(package)
+
+    assert "assets/pipe" not in inventory
+    assert any(
+        item.code == "SPECIAL_FILE_NOT_ALLOWED" and item.path == "assets/pipe"
+        for item in findings
+    )
