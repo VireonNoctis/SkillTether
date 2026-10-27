@@ -170,7 +170,7 @@ def test_review_history_survives_json_and_markdown_exports(tmp_path: Path) -> No
     write_markdown_report(reloaded, markdown_path)
     markdown = markdown_path.read_text(encoding="utf-8")
     assert "**Review history**" in markdown
-    assert "**Signal uncertainty:**" in markdown
+    assert "- Signal uncertainty:" in markdown
     assert "onerror=alert(1)" in markdown
     assert "[click](javascript:alert(1))" in markdown
     assert "```text" in markdown  # untrusted note is fenced instead of parsed as Markdown
