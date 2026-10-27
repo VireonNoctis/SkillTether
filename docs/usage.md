@@ -18,7 +18,7 @@ skilltether validate ./sample-skill
 skilltether validate ./sample-skill --json
 ~~~
 
-A skill directory must contain a readable UTF-8 SKILL.md beginning with a closed YAML frontmatter block. The base Agent Skills contract requires non-empty name and description. The name must be lowercase kebab-case, at most 64 characters, and match the package directory name. The implementation also checks optional compatibility and metadata types, local links, fragments, symlinks, and bounded input sizes.
+A skill directory must contain a readable UTF-8 SKILL.md beginning with a closed YAML frontmatter block. The base Agent Skills contract requires non-empty name and description. The name must be lowercase kebab-case, at most 64 characters, and match the package directory name. The package root itself may not be a symlink alias, and symlinked entries inside the package are rejected; symlinks in parent path components are resolved normally. The implementation also checks optional compatibility and metadata types, local links, fragments, and bounded input sizes.
 
 External HTTP(S) links are preserved but are not fetched. Scripts and other assets are never executed.
 
