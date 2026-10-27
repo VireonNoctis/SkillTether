@@ -39,6 +39,11 @@ def _manifest_arg(path_value: str | None, source: Path) -> InvariantManifest | N
     return None
 
 
+def _terminal_safe(value: object) -> str:
+    """Collapse control characters so untrusted paths and excerpts cannot alter the terminal."""
+    return re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", str(value))
+
+
 def _show_findings(findings) -> None:
     if not findings:
         print("No findings.")
@@ -47,7 +52,7 @@ def _show_findings(findings) -> None:
         location = finding.path or "(package)"
         if finding.source_line:
             location += f":{finding.source_line}"
-        print(f"[{finding.severity.upper():8}] {finding.code} {location} — {finding.message}")
+        print(f"[{finding.severity.upper():8}] {_terminal_safe(finding.code)} {_terminal_safe(location)} — {_terminal_safe(finding.message)}")
     counts = {}
     for finding in findings:
         counts[finding.severity] = counts.get(finding.severity, 0) + 1
@@ -239,7 +244,7 @@ def cmd_review(args: argparse.Namespace) -> int:
         finding, disposition=args.disposition, reviewer=args.reviewer, note=args.note,
     )
     write_json_report(report, args.report)
-    print(f"Recorded {args.disposition} disposition for {finding.id} by {finding.reviewer}; prior decisions were retained.")
+    print(f"Recorded {args.disposition} disposition for {_terminal_safe(finding.id)} by {_terminal_safe(finding.reviewer)}; prior decisions were retained.")
     return 0
 
 
@@ -381,7 +386,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(args)
     except (OSError, ValueError, ValidationError, yaml.YAMLError, RuntimeError) as exc:
-        print(f"skilltether: error: {exc}", file=sys.stderr)
+        print(f"skilltether: error: {_terminal_safe(exc)}", file=sys.stderr)
         return 2
 
 
