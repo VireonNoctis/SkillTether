@@ -15,7 +15,7 @@ from typing import Protocol
 
 from .analysis import (
     MAX_EXPLICIT_TOKEN_CHARS, MAX_EXPLICIT_TOKENS, MAX_POLICY_PATTERNS,
-    MAX_POLICY_REGEX_CHARS, inspect_package, package_fingerprint,
+    MAX_POLICY_REGEX_CHARS, inspect_package, normalize_package_root, package_fingerprint,
 )
 from .models import FileFingerprint
 from .regex_safety import validate_policy_regex
@@ -259,7 +259,7 @@ def translate_package(
     explicit_tokens: list[str] | None = None,
 ) -> tuple[dict[str, FileFingerprint], dict[str, FileFingerprint], int]:
     """Generate a candidate atomically; never mutate source or overwrite an existing output."""
-    source_root = Path(source).expanduser().resolve(strict=True)
+    source_root = normalize_package_root(source)
     output_root = Path(output).expanduser().resolve()
     if not source_root.is_dir():
         raise ValueError("Source package must be a directory")
