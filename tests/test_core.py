@@ -207,6 +207,36 @@ def test_translate_translates_table_cells_but_preserves_pipes_and_separator_rows
     assert "| Guide FR | Explique le processus |" in result
 
 
+def test_translate_preserves_reference_ids_checkboxes_escapes_and_hard_breaks() -> None:
+    class CapturingAdapter:
+        name = "capturing"
+        remote = False
+
+        def __init__(self) -> None:
+            self.received = ""
+
+        def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+            self.received = text
+            return text.replace("manual", "manuel").replace("finish", "terminer")
+
+    adapter = CapturingAdapter()
+    source = (
+        "Read [manual][guide-id] and finish [x].\n"
+        r"Use \*literal\* marker.  " + "\n"
+        "Continue here.\n"
+    )
+    result = translate_markdown(source, adapter, "en", "fr")
+
+    assert "[manuel][guide-id]" in result
+    assert "terminer [x]" in result
+    assert r"\*literal\*" in result
+    assert "marker.  \n" in result
+    assert "guide-id" not in adapter.received
+    assert "[x]" not in adapter.received
+    assert r"\*" not in adapter.received
+    assert "marker.  " not in adapter.received
+
+
 def test_translate_rejects_reordered_markdown_delimiters() -> None:
     import re
 
