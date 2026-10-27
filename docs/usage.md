@@ -94,6 +94,34 @@ skilltether approve ./sample-skill /tmp/candidate/sample-skill \
 
 Export requires a passing structural report, current source/candidate/manifest/policy fingerprints, a human-reviewed manifest, and approved dispositions for all review-required or critical findings. Pass the same --invariants and --policy inputs used for comparison. Output must be a new, separate directory.
 
+## Optional signed report workflow
+
+Create a local HMAC key once, keep it private, back it up securely, and never commit it:
+
+~~~sh
+skilltether init-signing-key --out ~/.skilltether/report-signing.key
+~~~
+
+Seal a comparison report and verify that seal before export:
+
+~~~sh
+skilltether compare ./source/sample-skill ./candidate/sample-skill \
+  --invariants ./invariants.yaml --out ./review/report.json \
+  --signing-key ~/.skilltether/report-signing.key
+
+skilltether review ./review/report.json FINDING_ID \
+  --disposition approved --reviewer qa-reviewer --note "Reviewed the matched source and target context" \
+  --signing-key ~/.skilltether/report-signing.key
+
+skilltether approve ./source/sample-skill ./candidate/sample-skill \
+  --report ./review/report.json --output ./approved/sample-skill \
+  --invariants ./invariants.yaml --signing-key ~/.skilltether/report-signing.key
+~~~
+
+A signed report must be verified before it can be edited through the `review` command, and the updated report is re-signed. When `approve --signing-key` is supplied, unsigned reports are rejected. Signed reports cannot be rewritten without the matching key. Key files must be regular, non-symlink files with at least 32 bytes; on POSIX systems their permissions must not grant group/other access.
+
+HMAC provides integrity detection while the key stays private, not reviewer identity or non-repudiation. Anyone who obtains the key can alter and re-sign a report. Unsigned reports remain supported for existing workflows unless signing is required explicitly.
+
 ## Reports and local history
 
 JSON reports are intended for tooling; Markdown reports fence untrusted context and review notes before presenting them. Reports and translation-history database outputs must live outside the source and candidate package roots; the CLI rejects overlapping paths, including symlink aliases. Report files are replaced atomically and use mode 0600 on POSIX systems. New findings include a rule ID, detection method, explicit uncertainty state, and severity rationale. Review history is preserved within one report; rerunning comparison creates a new report and requires new review decisions. A generated timestamp and provider output may differ between runs.
