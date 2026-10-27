@@ -157,6 +157,14 @@ class ComparisonReport(StrictModel):
     semantic_status: Literal["no_issue_detected", "review_recommended", "unknown"]
     limitations: list[str] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
+    integrity_algorithm: Literal["hmac-sha256"] | None = None
+    integrity_signature: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def integrity_fields_are_paired(self) -> "ComparisonReport":
+        if (self.integrity_algorithm is None) != (self.integrity_signature is None):
+            raise ValueError("integrity_algorithm and integrity_signature must be supplied together")
+        return self
 
     @field_validator("generated_at")
     @classmethod
