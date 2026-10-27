@@ -528,9 +528,11 @@ def extract_protected_tokens(
     fence_start = 0
     fence_lines: list[str] = []
 
-    def add(category: str, value: str, line_no: int) -> None:
+    def add(category: str, value: str, line_no: int, column: int | None = None) -> None:
         if value:
-            result.append(ProtectedToken(path=path, category=category, value=value, line=line_no))
+            result.append(ProtectedToken(
+                path=path, category=category, value=value, line=line_no, column=column,
+            ))
 
     for line_no, line in enumerate(text.splitlines(), start=1):
         opening = FENCE_START.match(line)
@@ -546,12 +548,20 @@ def extract_protected_tokens(
             fence_start = line_no
             fence_lines = [line]
             continue
+        # Sort all span types by their actual text position rather than by
+        # category/pattern order; comparison uses this to detect order drift.
+        line_matches: list[tuple[int, int, str, str]] = []
         for category, pattern in patterns:
             for match in pattern.finditer(line):
-                add(category, match.group(0), line_no)
+                if match.start() < match.end():
+                    line_matches.append((match.start(), match.end(), category, match.group(0)))
         for token in explicit_tokens or []:
-            if token and token in line:
-                add("explicit_identifier", token, line_no)
+            if token:
+                for match in re.finditer(re.escape(token), line):
+                    line_matches.append((match.start(), match.end(), "explicit_identifier", match.group(0)))
+        line_matches.sort(key=lambda item: (item[0], -(item[1] - item[0]), item[2], item[3]))
+        for column, _end, category, value in line_matches:
+            add(category, value, line_no, column)
     if fence_marker is not None:
         add("code_block", "\n".join(fence_lines), fence_start)
     return result
