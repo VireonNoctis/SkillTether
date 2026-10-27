@@ -283,6 +283,9 @@ def test_named_pipe_is_rejected_without_blocking_package_inspection(tmp_path: Pa
         item.code == "SPECIAL_FILE_NOT_ALLOWED" and item.path == "assets/pipe"
         for item in findings
     )
+    from skilltether.compare import compare_packages
+    report = compare_packages(package, package, reviewed_manifest())
+    assert report.structural_status == "fail"
 
 
 
