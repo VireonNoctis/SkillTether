@@ -27,6 +27,8 @@ class FileFingerprint(StrictModel):
     sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     encoding: str | None = None
     kind: str
+    # Optional so existing in-memory callers that create fingerprints still parse.
+    mode: int | None = Field(default=None, ge=0, le=0o7777)
 
 class ProtectedToken(StrictModel):
     path: str
