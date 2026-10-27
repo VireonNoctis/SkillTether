@@ -229,16 +229,16 @@ def test_report_metadata_escapes_markdown_structure_and_newlines(tmp_path: Path)
         "LINE_CHANGED",
         "info",
         "line_diff",
-        "line one\\n## Injected heading [click](javascript:alert(1))",
-        "A rationale with *emphasis* and \\nnew line.",
-        path="refs/guide\\n[link](javascript:alert(1)).md",
+        "line one\n## Injected heading [click](javascript:alert(1))",
+        "A rationale with *emphasis* and \nnew line.",
+        path="refs/guide\n[link](javascript:alert(1)).md",
         proposed_change="Review [this](javascript:alert(1)) safely.",
     )
     path = tmp_path / "untrusted.md"
     write_markdown_report(comparison(hostile), path)
     markdown = path.read_text(encoding="utf-8")
 
-    assert "\\n## Injected heading" not in markdown
+    assert "\n## Injected heading" not in markdown
     assert "\\[click\\]" in markdown
     assert "\\(javascript:alert\\(1\\)\\)" in markdown
     assert "- Path: refs/guide " in markdown
@@ -275,7 +275,7 @@ def test_compare_refuses_report_path_inside_source_package(tmp_path: Path) -> No
     for package in (source, target):
         package.mkdir(parents=True)
         (package / "SKILL.md").write_text(
-            f"---\\nname: sample-skill\\ndescription: A skill.\\n---\\n\\nInstructions.\\n",
+            f"---\nname: sample-skill\ndescription: A skill.\n---\n\nInstructions.\n",
             encoding="utf-8",
         )
     before = (source / "SKILL.md").read_bytes()
@@ -291,7 +291,7 @@ def test_translate_refuses_report_path_that_would_overwrite_source(tmp_path: Pat
     source.mkdir(parents=True)
     skill_file = source / "SKILL.md"
     skill_file.write_text(
-        "---\\nname: sample-skill\\ndescription: A skill.\\n---\\n\\nTranslate this sentence.\\n",
+        "---\nname: sample-skill\ndescription: A skill.\n---\n\nTranslate this sentence.\n",
         encoding="utf-8",
     )
     before = skill_file.read_bytes()
@@ -313,7 +313,7 @@ def test_compare_refuses_same_json_and_markdown_output_path(tmp_path: Path) -> N
     for package in (source, target):
         package.mkdir(parents=True)
         (package / "SKILL.md").write_text(
-            f"---\\nname: sample-skill\\ndescription: A skill.\\n---\\n\\nInstructions.\\n",
+            f"---\nname: sample-skill\ndescription: A skill.\n---\n\nInstructions.\n",
             encoding="utf-8",
         )
     report_path = tmp_path / "report.out"
