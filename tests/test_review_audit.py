@@ -384,3 +384,19 @@ def test_compare_fail_on_review_is_an_optional_ci_gate(tmp_path: Path) -> None:
     assert default_result == 0
     assert gated_result == 1
     assert report_path.exists()
+
+
+
+def test_terminal_findings_collapse_untrusted_control_characters(capsys: pytest.CaptureFixture[str]) -> None:
+    from skilltether.cli import _show_findings
+
+    message = f"unsafe{chr(27)}[31mred{chr(27)}[0m\\nforged"
+    _show_findings([new_finding(
+        "UNTRUSTED_TEST", "high", "test", message, "A test message with terminal controls.",
+        path="name" + chr(27) + "[2J",
+    )])
+    output = capsys.readouterr().out
+
+    assert chr(27) not in output
+    assert "\\nforged" not in output
+    assert "unsafe" in output and "forged" in output
