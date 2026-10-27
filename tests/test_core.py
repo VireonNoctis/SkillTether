@@ -157,6 +157,74 @@ def test_translation_policy_masks_custom_patterns_and_literals() -> None:
     assert "ToolZ" in result
 
 
+def test_translate_preserves_inline_markdown_syntax_and_translates_link_labels() -> None:
+    class RewritingAdapter:
+        name = "rewrite"
+        remote = False
+
+        def __init__(self) -> None:
+            self.requests: list[str] = []
+
+        def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+            self.requests.append(text)
+            return text.replace("bold text", "texte gras").replace("read the guide", "lisez le guide")
+
+    adapter = RewritingAdapter()
+    source = "Use **bold text** and [read the guide](references/guide.md).\n"
+    result = translate_markdown(source, adapter, "en", "fr")
+
+    assert "**texte gras**" in result
+    assert "[lisez le guide](references/guide.md)" in result
+    assert "**" not in adapter.requests[0]
+    assert "](" not in adapter.requests[0]
+    assert "references/guide.md" not in adapter.requests[0]
+    assert "bold text" in adapter.requests[0]
+    assert "read the guide" in adapter.requests[0]
+
+
+def test_translate_translates_table_cells_but_preserves_pipes_and_separator_rows() -> None:
+    class TableAdapter:
+        name = "table"
+        remote = False
+
+        def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+            return (
+                text.replace("Name", "Nom")
+                .replace("Description", "Description FR")
+                .replace("Guide", "Guide FR")
+                .replace("Explains the workflow", "Explique le processus")
+            )
+
+    source = (
+        "| Name | Description |\n"
+        "| --- | --- |\n"
+        "| Guide | Explains the workflow |\n"
+    )
+    result = translate_markdown(source, TableAdapter(), "en", "fr")
+
+    assert "| Nom | Description FR |" in result
+    assert "| --- | --- |" in result
+    assert "| Guide FR | Explique le processus |" in result
+
+
+def test_translate_rejects_reordered_markdown_delimiters() -> None:
+    import re
+
+    class ReorderingAdapter:
+        name = "reordering"
+        remote = False
+
+        def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+            markers = re.findall(r"SKTETHERSYNTAX\d{5}END", text)
+            assert len(markers) == 2
+            first, last = markers
+            temporary = "SYNTAX_MARKER_SWAP_TEMP"
+            return text.replace(first, temporary, 1).replace(last, first, 1).replace(temporary, last, 1)
+
+    with pytest.raises(RuntimeError, match="reordered Markdown syntax placeholders"):
+        translate_markdown("Use **bold text**.\n", ReorderingAdapter(), "en", "fr")
+
+
 def test_report_context_fence_cannot_be_closed_by_untrusted_text() -> None:
     from skilltether.report import _fenced_context
     import re
