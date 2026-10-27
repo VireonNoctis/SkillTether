@@ -62,11 +62,22 @@ def package_fingerprint(files: dict[str, FileFingerprint]) -> str:
     return digest.hexdigest()
 
 
+def normalize_package_root(root: str | Path) -> Path:
+    """Resolve a package directory while rejecting a symlink at the root itself."""
+    requested = Path(root).expanduser()
+    lexical = Path(os.path.abspath(requested))
+    root_stat = lexical.lstat()
+    if stat.S_ISLNK(root_stat.st_mode):
+        raise ValueError("Package root must not be a symbolic link")
+    resolved = lexical.resolve(strict=True)
+    if not resolved.is_dir():
+        raise ValueError(f"Package root is not a directory: {resolved}")
+    return resolved
+
+
 def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list, dict[str, str]]:
     """Inspect files without executing scripts or following symlinks."""
-    root_path = Path(root).expanduser().resolve(strict=True)
-    if not root_path.is_dir():
-        raise ValueError(f"Package root is not a directory: {root_path}")
+    root_path = normalize_package_root(root)
 
     inventory: dict[str, FileFingerprint] = {}
     findings = []
