@@ -8,7 +8,10 @@ import re
 from collections import Counter
 from pathlib import Path
 
-from .analysis import (\n    MAX_MANIFEST_FILE_BYTES, MAX_POLICY_FILE_BYTES, extract_protected_tokens,\n    inspect_package, load_policy, package_fingerprint,\n)
+from .analysis import (
+    MAX_MANIFEST_FILE_BYTES, MAX_POLICY_FILE_BYTES, extract_protected_tokens,
+    inspect_package, load_policy, package_fingerprint,
+)
 from .models import ComparisonReport, InvariantManifest, new_finding
 from .yamlio import safe_load_unique
 from .safeio import read_bounded_regular_file
