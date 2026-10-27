@@ -361,3 +361,26 @@ def test_audit_gate_rejects_manually_reordered_timestamps() -> None:
     finding.review_history[1].recorded_at = "2026-10-27T11:59:00+00:00"
 
     assert not has_audited_approval(finding)
+
+
+
+def test_compare_fail_on_review_is_an_optional_ci_gate(tmp_path: Path) -> None:
+    source = tmp_path / "source" / "sample-skill"
+    target = tmp_path / "target" / "sample-skill"
+    for package in (source, target):
+        package.mkdir(parents=True)
+        (package / "SKILL.md").write_text(
+            f"---\\nname: sample-skill\\ndescription: A skill.\\n---\\n\\nInstructions.\\n",
+            encoding="utf-8",
+        )
+
+    report_path = tmp_path / "report.json"
+    default_result = main(["compare", str(source), str(target), "--out", str(report_path)])
+    gated_result = main([
+        "compare", str(source), str(target),
+        "--out", str(report_path), "--fail-on-review",
+    ])
+
+    assert default_result == 0
+    assert gated_result == 1
+    assert report_path.exists()
