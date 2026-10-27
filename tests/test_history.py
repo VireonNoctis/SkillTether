@@ -80,7 +80,8 @@ def test_history_rejects_named_pipe_before_sqlite_open(tmp_path: Path) -> None:
         ({"target_fingerprint": "A" * 64}, "SHA-256"),
         ({"source_locale": "en_US"}, "BCP 47"),
         ({"target_locale": ""}, "BCP 47"),
-        ({"provider": "identity\\nforged"}, "control characters"),
+        ({"provider": "identity\nforged"}, "control characters"),
+        ({"provider": "api_key=veryPrivateCredentialValue_123456789"}, "credential material"),
         ({"status": "x" * 129}, "128 printable"),
     ],
 )
