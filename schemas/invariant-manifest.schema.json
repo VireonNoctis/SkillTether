@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skilltether.local/schemas/invariant-manifest.schema.json",
+  "title": "SkillTether invariant manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifest_version", "source_locale", "invariants"],
+  "properties": {
+    "manifest_version": { "const": "1.0" },
+    "source_locale": { "type": "string", "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$" },
+    "target_locale": { "type": ["string", "null"], "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$" },
+    "manifest_reviewer": { "type": ["string", "null"] },
+    "manifest_reviewed": { "type": "boolean", "default": false },
+    "invariants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "statement"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$" },
+          "statement": { "type": "string", "minLength": 1 },
+          "category": { "enum": ["safety_constraint", "mandatory_condition", "negation", "numeric_limit", "precondition", "decision_rule", "other"], "default": "other" },
+          "severity": { "enum": ["low", "medium", "high", "critical"], "default": "high" },
+          "source_path": { "type": "string", "default": "SKILL.md" },
+          "source_lines": { "type": ["array", "null"], "items": { "type": "integer", "minimum": 1 }, "minItems": 2, "maxItems": 2 },
+          "source_text": { "type": ["string", "null"] },
+          "required_tokens": { "type": "array", "items": { "type": "string" }, "default": [] },
+          "forbidden_tokens": { "type": "array", "items": { "type": "string" }, "default": [] },
+          "expected_numbers": { "type": "array", "items": { "type": "string" }, "default": [] },
+          "negation_required": { "type": "boolean", "default": false },
+          "negation_markers": { "type": "array", "items": { "type": "string" }, "default": [] },
+          "mandatory_required": { "type": "boolean", "default": false },
+          "mandatory_markers": { "type": "array", "items": { "type": "string" }, "default": [] },
+          "reviewed": { "type": "boolean", "default": false },
+          "reviewer": { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

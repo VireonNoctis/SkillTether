@@ -1,110 +1,163 @@
 # SkillTether
 
-<p align="center">
-  <strong>Translate the words. Preserve the intent.</strong><br/>
-  A localization and integrity-testing toolkit for AI Agent Skills.
-</p>
+**Translate the words. Preserve the intent.**
 
----
+SkillTether is a local-first localization and integrity-checking CLI for Agent Skill packages. It treats a skill as a directory of instructions and resources—not merely a text blob—and reports where localization may have changed machine-facing tokens, package structure, mandatory conditions, negation, numeric limits, or decision logic.
 
-## The problem
+> **Safety boundary:** automated checks identify risks; they do not prove semantic equivalence. Critical instructions and uncertain cases require human review.
 
-A Skill package is more than prose. A translated instruction set can accidentally weaken a constraint, change a command or tool identifier, break a path, alter a condition, or turn a mandatory requirement into a suggestion. Ordinary translation quality checks do not reliably catch these failures.
+## Included in this MVP
 
-SkillTether is planned to translate and validate Agent Skill packages while protecting critical invariants. It compares the source and localized package, finds risky changes, and presents evidence for a human reviewer.
+- Read-only package inventory with SHA-256 hashes, bounded file sizes/counts, UTF-8 detection, and symlink rejection.
+- SKILL.md YAML-frontmatter checks: required fields, name syntax and directory identity, description length, compatibility, metadata types, and body presence.
+- Local Markdown links and image assets, in-document fragments, and conventional scripts/references/assets/resources path checks. External URLs are not fetched.
+- Static syntax checks for Python scripts and JSON/YAML/TOML/XML resources; scripts are parsed, never executed.
+- Protected-span detection for fenced/inline code, URLs, environment variables, command flags, paths, plus configurable regexes and explicit identifiers.
+- A human-authored YAML invariant manifest with categories for safety constraints, mandatory conditions, negation, numeric limits, preconditions, and decision rules.
+- Line-block, protected-token, package-path, and invariant findings with severity, rationale, source/target context, proposed changes, and reviewer disposition.
+- A provider-neutral adapter protocol, an identity adapter for local pipeline tests, and an optional generic JSON-over-HTTPS adapter. No provider is called by default.
+- Atomic candidate output, a separate explicit approval/export command, JSON and Markdown reports, and local SQLite run metadata without document text or credentials.
+- pytest and Hypothesis regression fixtures, plus GitHub Actions CI.
 
-> **No automatic checker can guarantee semantic equivalence for every instruction.** SkillTether is a risk detector and review aid, not a substitute for testing or human approval.
+The optional Svelte + TypeScript review UI is intentionally deferred until the report contracts are stable.
 
-## Planned capabilities
+## Install
 
-- Parse a skill directory and validate SKILL.md metadata and structure.
-- Identify protected tokens such as tool names, commands, paths, environment variables, URLs, identifiers, and code blocks.
-- Maintain a human-reviewed invariant manifest for safety constraints, mandatory conditions, negations, limits, and decision rules.
-- Support translation-provider adapters without coupling the core to one vendor.
-- Compare source and target language documents with line-level, token-level, and invariant-level findings.
-- Detect omitted sections, broken links, malformed frontmatter, missing resources, and altered file paths.
-- Build a review queue with severity rationale, original context, proposed change, and human disposition.
-- Export a reproducible report and keep translation history local by default.
+Requires Python 3.13 or newer.
 
-## Workflow
+~~~sh
+python -m pip install -e ".[dev]"
+skilltether --version
+pytest
+~~~
 
-1. Load a package as read-only input and fingerprint its files.
-2. Parse frontmatter, Markdown structure, links, scripts, references, and assets.
-3. Extract protected spans and explicit invariants.
-4. Translate only eligible prose using a configured adapter.
-5. Validate structure and protected tokens after translation.
-6. Run invariant checks and flag likely semantic drift.
-7. Require review for critical findings and uncertain cases.
-8. Export a report and write an approved output to a separate directory.
+## Typical workflow
 
-## Planned technology stack
+### 1. Validate a source skill
 
-| Component | Planned technology | Purpose |
-|---|---|---|
-| Core CLI and package analysis | Python 3.13+ | Markdown/frontmatter parsing, diffing, rules, adapters |
-| Contract validation | Pydantic + JSON Schema | Validate project manifests and findings |
-| Locale metadata | BCP 47 language tags | Identify language/region consistently |
-| Rule configuration | YAML and JSON | Explicit invariants and protected-token policies |
-| Local case history | SQLite, if persistence proves useful | Review state and report metadata |
-| Optional review interface | Svelte + TypeScript | Source/target diff and reviewer decisions |
-| Tests and CI | pytest, property-based tests, GitHub Actions | Adversarial skill fixtures and regression testing |
+~~~sh
+skilltether validate ./skills/my-skill
+~~~
 
-Translation engines are adapters, not built-in truth sources. Any external provider must be configured deliberately; sending skill content outside the machine should require explicit consent and a clear data-handling explanation.
+The package root basename must match the SKILL.md frontmatter name. The source is read-only; scripts are never executed.
 
-## Documentation
+### 2. Draft an invariant manifest
 
-- [Research notes](docs/research-notes.md)
-- [Mitigation strategy](docs/mitigation-strategy.md)
-- [Architecture research](docs/architecture-research.md)
-- [Validation matrix](docs/validation-matrix.md)
+~~~sh
+skilltether init-manifest ./skills/my-skill \
+  --out ./skills/my-skill/.skilltether-invariants.yaml \
+  --source-locale en --target-locale fr
+~~~
+
+Suggestions are heuristic candidates, not policy. Edit them and have an appropriate human reviewer confirm every invariant, populate locale-specific negation/mandatory markers where useful, then set manifest_reviewed and each invariant's reviewed fields to true with reviewer identifiers.
+
+### 3. Translate to a separate candidate directory
+
+For local pipeline checks with no translation, use the identity adapter:
+
+~~~sh
+skilltether translate ./skills/my-skill /tmp/candidate/my-skill \
+  --source-locale en --target-locale fr --adapter identity \
+  --invariants ./skills/my-skill/.skilltether-invariants.yaml \
+  --policy config/protected-tokens.yaml
+~~~
+
+For a remote service, configure a JSON endpoint matching the contract below. Remote transmission requires the explicit --allow-remote flag and an HTTPS endpoint (HTTP is permitted only on loopback):
+
+~~~sh
+skilltether translate ./skills/my-skill /tmp/candidate/my-skill \
+  --source-locale en --target-locale fr --adapter http-json \
+  --endpoint https://your-approved-translation-gateway.example/translate \
+  --allow-remote --invariants ./skills/my-skill/.skilltether-invariants.yaml \
+  --policy config/protected-tokens.yaml
+~~~
+
+The HTTP bridge sends only eligible prose segments as JSON: source text, source locale, and target locale. It expects JSON with a string text field. It has no built-in credentials or vendor assumption. Review the endpoint's data handling before granting consent.
+
+Candidate output and its JSON report are separate from the original package. Translation failures do not publish a partial candidate. The default SQLite history at ~/.skilltether/history.sqlite3 records timestamps, locales, provider name, status, and fingerprints only—not raw source/target text, secrets, or credentials.
+
+### 4. Compare or regenerate a report
+
+~~~sh
+skilltether compare ./skills/my-skill /tmp/candidate/my-skill \
+  --invariants ./skills/my-skill/.skilltether-invariants.yaml \
+  --target-locale fr --policy config/protected-tokens.yaml \
+  --out ./review/report.json --markdown ./review/report.md
+~~~
+
+The JSON report is the machine-readable review record. It records source and target fingerprints, the canonical human-reviewed manifest fingerprint, the protected-policy fingerprint, locale tags, and (for translate runs) the adapter name. Each finding has a stable ID derived from its evidence and fields for disposition, reviewer, and note.
+
+### 5. Record human decisions and export an approved package
+
+For every finding that requires review (and every critical finding), record a disposition:
+
+~~~sh
+skilltether review ./review/report.json FINDING_ID \
+  --disposition approved --reviewer "reviewer-id" \
+  --note "Compared source and target context; approved."
+~~~
+
+Findings with rejected/deferred/pending status remain blockers. Missing or unreviewed manifests are blockers and cannot be approved away: update the manifest and rerun compare. Then export to a new directory with the same skill basename:
+
+~~~sh
+skilltether approve ./skills/my-skill /tmp/candidate/my-skill \
+  --report ./review/report.json --output ./approved/my-skill \
+  --invariants ./skills/my-skill/.skilltether-invariants.yaml \
+  --policy config/protected-tokens.yaml
+~~~
+
+Approval checks source/candidate/manifest/policy fingerprints against the reviewed report, rejects structural failures and unresolved critical/review findings, and copies only to a separate, previously nonexistent output directory. It never overwrites an existing package.
+
+## Commands
+
+| Command | Purpose |
+|---|---|
+| skilltether validate PACKAGE | Validate SKILL.md metadata, package safety, and local links |
+| skilltether init-manifest SOURCE --out FILE | Suggest human-reviewable invariant candidates |
+| skilltether translate SOURCE OUTPUT | Generate a candidate and an initial comparison report |
+| skilltether compare SOURCE TARGET --out REPORT | Compare packages and build a review queue |
+| skilltether review REPORT FINDING_ID ... | Record approved/rejected/deferred human disposition |
+| skilltether approve SOURCE TARGET --report REPORT --output OUTPUT | Export only a reviewed, fingerprint-matched candidate |
+
+Run skilltether COMMAND --help for flags.
 
 ## Integrity model
 
-| Content type | Default handling |
+| Content | Default handling |
 |---|---|
-| Tool names, commands, API identifiers, paths, variables | Protect or flag for explicit review |
-| Code blocks and machine-readable frontmatter | Preserve unless a declared schema-aware transform is enabled |
-| Safety constraints, negations, limits, preconditions | Treat as critical invariants with human review |
-| Natural-language explanatory prose | Eligible for translation and semantic checks |
-| Unknown or ambiguous content | Flag; do not silently guess |
+| Names, identifiers, commands, paths, variables, URLs | Protect exact spans or flag mismatches |
+| Frontmatter and machine-readable values | Preserve during translation and validate after |
+| Code blocks and scripts | Never execute; code blocks are preserved and compared exactly |
+| Safety constraints, negation, limits, preconditions | Record in the invariant manifest and require review for critical cases |
+| Ordinary prose | Eligible for configured adapters after Markdown/opaque-span masking |
+| Unknown or ambiguous meaning | Report uncertainty; do not silently mark semantically safe |
 
-A valid package can still contain a wrong translation. Structural validity and semantic fidelity are separate outcomes.
+## Limits
 
-## Principles
+- Heuristic invariant suggestions are incomplete and can be wrong. Human-review the manifest.
+- Negation/modal-marker detection is locale-specific and does not understand full linguistic context.
+- Changed protected tokens require explicit review; this MVP does not implement automatic rename mappings.
+- External URLs are not fetched, so network reachability and remote content are outside the default offline check.
+- Source hashes and the candidate are checked, but this is not a sandbox for hostile operating-system-level inputs.
+- The generic HTTP adapter is a bridge contract, not a translation service. Configure a service you trust.
+- The report is reproducible from fingerprints, versioned rules, and stable finding IDs; generated timestamps naturally vary.
 
-- Preserve the original source and write targets to a separate output.
-- Version protected-token and invariant rules.
-- Keep machine findings distinct from human decisions.
-- Never remove a warning merely because the translated text is fluent.
-- Do not claim that an invariant checker proves intent was preserved.
-- Avoid sending private skills to external services without explicit approval.
-- Treat executable scripts and referenced resources as untrusted content.
+## Documentation
 
-## Project status
-
-**Research / early planning.** The README and documentation set the intended architecture and safety criteria; implementation claims must be based on code and passing tests.
-
-## Roadmap
-
-- [ ] Define a versioned skill-package inventory schema.
-- [ ] Validate SKILL.md frontmatter and required fields against the current Agent Skills specification.
-- [ ] Build protected-token and structural-diff checks.
-- [ ] Add invariant manifests and omission/negation checks.
-- [ ] Add translation adapters behind an explicit privacy boundary.
-- [ ] Build a human-reviewable report and regression fixture library.
-- [ ] Add a review UI only after result contracts stabilize.
+- [Quick start and workflow](docs/usage.md)
+- [Invariant manifest guidance](docs/invariants.md)
+- [Architecture research](docs/architecture-research.md)
+- [Mitigation strategy](docs/mitigation-strategy.md)
+- [Validation matrix](docs/validation-matrix.md)
+- [Implementation status and limits](docs/implementation-status.md)
 
 ## Research references
 
-- Agent Skills specification and project: https://agentskills.io/ and https://github.com/agentskills/agentskills
-- RFC 5646, language tags: https://www.rfc-editor.org/rfc/rfc5646
-- JSON Schema: https://json-schema.org/
-- NIST Generative AI Profile: https://doi.org/10.6028/NIST.AI.600-1
-
-## Contributing
-
-Include a minimal skill fixture, expected invariants, an example of the failure being prevented, and both positive and negative tests. Do not include private instructions or secrets in fixtures.
+- [Agent Skills specification](https://agentskills.io/specification)
+- [Agent Skills reference implementation](https://github.com/agentskills/agentskills)
+- [RFC 5646 — Tags for Identifying Languages](https://www.rfc-editor.org/rfc/rfc5646)
+- [JSON Schema](https://json-schema.org/)
 
 ## License
 
-Add an explicit licence before treating this repository as licensed for reuse.
+GPL-3.0-only. See LICENSE.
