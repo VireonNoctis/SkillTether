@@ -400,3 +400,51 @@ def test_terminal_findings_collapse_untrusted_control_characters(capsys: pytest.
     assert chr(27) not in output
     assert "\\nforged" not in output
     assert "unsafe" in output and "forged" in output
+
+
+
+def test_report_path_guard_catches_symlink_inside_source_package(tmp_path: Path) -> None:
+    source = tmp_path / "source" / "sample-skill"
+    target = tmp_path / "target" / "sample-skill"
+    for package in (source, target):
+        package.mkdir(parents=True)
+        (package / "SKILL.md").write_text(
+            f"---\\nname: sample-skill\\ndescription: A skill.\\n---\\n\\nInstructions.\\n",
+            encoding="utf-8",
+        )
+    external = tmp_path / "external.json"
+    external.write_text("external sentinel", encoding="utf-8")
+    report_link = source / "report.json"
+    try:
+        report_link.symlink_to(external)
+    except OSError:
+        pytest.skip("symlink creation is not permitted")
+    before = external.read_bytes()
+
+    result = main(["compare", str(source), str(target), "--out", str(report_link)])
+
+    assert result == 2
+    assert report_link.is_symlink()
+    assert external.read_bytes() == before
+
+
+def test_report_path_guard_catches_external_alias_to_source_package(tmp_path: Path) -> None:
+    source = tmp_path / "source" / "sample-skill"
+    target = tmp_path / "target" / "sample-skill"
+    for package in (source, target):
+        package.mkdir(parents=True)
+        (package / "SKILL.md").write_text(
+            f"---\\nname: sample-skill\\ndescription: A skill.\\n---\\n\\nInstructions.\\n",
+            encoding="utf-8",
+        )
+    alias_parent = tmp_path / "source-alias"
+    try:
+        alias_parent.symlink_to(source, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlink creation is not permitted")
+    report_path = alias_parent / "report.json"
+
+    result = main(["compare", str(source), str(target), "--out", str(report_path)])
+
+    assert result == 2
+    assert not (source / "report.json").exists()
