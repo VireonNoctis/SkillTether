@@ -19,6 +19,7 @@ from .history import record_event
 from .models import Invariant, InvariantManifest
 from .report import read_json_report, write_json_report, write_markdown_report
 from .translation import HttpJsonAdapter, IdentityAdapter, translate_package
+from .reviewing import has_audited_approval, record_review
 
 CUE_PATTERN = re.compile(
     r"\b(must|must not|mustn't|never|do not|don't|only if|unless|at least|at most|no more than|required|before|after|if)\b|\d",
@@ -204,11 +205,11 @@ def cmd_review(args: argparse.Namespace) -> int:
     if len(matched) != 1:
         raise ValueError(f"Finding ID not found or not unique: {args.finding_id}")
     finding = matched[0]
-    finding.disposition = args.disposition
-    finding.reviewer = args.reviewer
-    finding.review_note = args.note
+    record_review(
+        finding, disposition=args.disposition, reviewer=args.reviewer, note=args.note,
+    )
     write_json_report(report, args.report)
-    print(f"Recorded {args.disposition} disposition for {finding.id} by {args.reviewer}.")
+    print(f"Recorded {args.disposition} disposition for {finding.id} by {finding.reviewer}; prior decisions were retained.")
     return 0
 
 
@@ -246,11 +247,15 @@ def cmd_approve(args: argparse.Namespace) -> int:
         raise ValueError("The invariant manifest is missing or not human-reviewed; update it and rerun comparison.")
     unresolved = [
         finding for finding in report.findings
-        if (finding.requires_review or finding.severity == "critical") and finding.disposition != "approved"
+        if (finding.requires_review or finding.severity == "critical")
+        and not has_audited_approval(finding)
     ]
     if unresolved:
         preview = ", ".join(f.id for f in unresolved[:8])
-        raise ValueError(f"{len(unresolved)} review-required finding(s) are not approved: {preview}")
+        raise ValueError(
+            f"{len(unresolved)} review-required finding(s) lack a current, audited approval "
+            f"with a reviewer and non-empty rationale: {preview}"
+        )
 
     output.parent.mkdir(parents=True, exist_ok=True)
     import tempfile
@@ -318,7 +323,7 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("finding_id")
     review.add_argument("--disposition", choices=["approved", "rejected", "deferred"], required=True)
     review.add_argument("--reviewer", required=True)
-    review.add_argument("--note", default="")
+    review.add_argument("--note", required=True, help="non-empty rationale; obvious credential material is rejected")
     review.set_defaults(func=cmd_review)
 
     approve = sub.add_parser("approve", help="copy a reviewed candidate to a new approved output directory")
