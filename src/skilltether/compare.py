@@ -8,11 +8,10 @@ import re
 from collections import Counter
 from pathlib import Path
 
-import yaml
-
-from .analysis import extract_protected_tokens, inspect_package, load_policy, package_fingerprint
+from .analysis import (\n    MAX_MANIFEST_FILE_BYTES, MAX_POLICY_FILE_BYTES, extract_protected_tokens,\n    inspect_package, load_policy, package_fingerprint,\n)
 from .models import ComparisonReport, InvariantManifest, new_finding
 from .yamlio import safe_load_unique
+from .safeio import read_bounded_regular_file
 from . import __version__
 
 FATAL_STRUCTURE_CODES = {
@@ -31,7 +30,10 @@ CODE_CATEGORIES = {
 
 
 def load_invariant_manifest(path: str | Path) -> InvariantManifest:
-    raw = safe_load_unique(Path(path).read_text(encoding="utf-8"))
+    source = read_bounded_regular_file(
+        path, max_bytes=MAX_MANIFEST_FILE_BYTES, purpose="Invariant manifest",
+    )
+    raw = safe_load_unique(source.decode("utf-8"))
     if not isinstance(raw, dict):
         raise ValueError("Invariant manifest must be a YAML mapping")
     return InvariantManifest.model_validate(raw)
@@ -51,7 +53,9 @@ def fingerprint_policy(policy_path: str | Path | None) -> str:
     if policy_path is None:
         raw = b"skilltether-builtin-protected-policy-v1"
     else:
-        raw = Path(policy_path).read_bytes()
+        raw = read_bounded_regular_file(
+            policy_path, max_bytes=MAX_POLICY_FILE_BYTES, purpose="Protected-token policy",
+        )
     return hashlib.sha256(raw).hexdigest()
 
 def compare_packages(
