@@ -482,3 +482,17 @@ def test_policy_loader_rejects_oversized_regex_and_too_many_patterns(tmp_path: P
     }), encoding="utf-8")
     with pytest.raises(ValueError, match="exceeds 128 patterns"):
         load_policy(too_many)
+
+
+
+def test_empty_optional_compatibility_is_rejected_when_present(tmp_path: Path) -> None:
+    package = tmp_path / "sample-skill"
+    package.mkdir()
+    (package / "SKILL.md").write_text(
+        "---\\nname: sample-skill\\ndescription: A skill.\\ncompatibility: \\\"\\\"\\n---\\n\\nInstructions.\\n",
+        encoding="utf-8",
+    )
+
+    _inventory, findings, _texts = inspect_package(package)
+
+    assert any(item.code == "COMPATIBILITY_INVALID" for item in findings)
