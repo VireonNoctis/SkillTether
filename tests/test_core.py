@@ -622,3 +622,55 @@ def test_unknown_frontmatter_extension_is_warning_not_blocking_error(tmp_path: P
 
     assert unknown.severity == "low"
     assert not [item for item in findings if item.severity in ("high", "critical")]
+
+
+
+@pytest.mark.parametrize(
+    "dangerous",
+    [
+        r"(?:a+)+$",
+        r"(?:a|aa)+$",
+        r"(?:(?:[A-Z]+_)+TOKEN)+$",
+    ],
+)
+def test_protected_policy_rejects_common_catastrophic_backtracking_shapes(
+    tmp_path: Path, dangerous: str,
+) -> None:
+    import yaml
+    from skilltether.analysis import load_policy
+
+    policy = tmp_path / "unsafe-policy.yaml"
+    policy.write_text(yaml.safe_dump({
+        "policy_version": "1.0",
+        "patterns": [{"category": "custom", "regex": dangerous}],
+        "explicit_tokens": [],
+    }), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="nested unbounded repetition|repeated alternation"):
+        load_policy(policy)
+
+
+def test_safe_bounded_group_regex_remains_supported(tmp_path: Path) -> None:
+    import yaml
+    from skilltether.analysis import load_policy
+
+    policy = tmp_path / "safe-policy.yaml"
+    policy.write_text(yaml.safe_dump({
+        "policy_version": "1.0",
+        "patterns": [{"category": "identifier", "regex": r"(?:[A-Z]{2,5}_)+TOKEN"}],
+        "explicit_tokens": [],
+    }), encoding="utf-8")
+
+    patterns, tokens = load_policy(policy)
+
+    assert patterns[0]["regex"] == r"(?:[A-Z]{2,5}_)+TOKEN"
+    assert tokens == []
+
+
+def test_default_protected_token_policy_passes_regex_safety_checks() -> None:
+    from skilltether.analysis import load_policy
+
+    patterns, _tokens = load_policy("config/protected-tokens.yaml")
+
+    assert patterns
+    assert any(item["category"] == "file_path" for item in patterns)
