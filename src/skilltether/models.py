@@ -120,8 +120,8 @@ class Finding(StrictModel):
     message: str
     rationale: str
     path: str | None = None
-    source_line: int | None = None
-    target_line: int | None = None
+    source_line: int | None = Field(default=None, ge=1)
+    target_line: int | None = Field(default=None, ge=1)
     original_context: str | None = None
     target_context: str | None = None
     proposed_change: str | None = None
@@ -143,16 +143,42 @@ class ComparisonReport(StrictModel):
     source_locale: str | None = None
     target_locale: str | None = None
     translation_provider: str | None = None
-    invariant_manifest_fingerprint: str | None = None
-    protected_policy_fingerprint: str
-    source_fingerprint: str
-    target_fingerprint: str
+    invariant_manifest_fingerprint: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    protected_policy_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    source_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
+    target_fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
     source_files: dict[str, str]
     target_files: dict[str, str]
     structural_status: Literal["pass", "fail", "unsupported", "error"]
     semantic_status: Literal["no_issue_detected", "review_recommended", "unknown"]
     limitations: list[str] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
+
+    @field_validator("generated_at")
+    @classmethod
+    def generated_timestamp_is_timezone_aware(cls, value: str) -> str:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError("generated_at must be an ISO-8601 timestamp") from exc
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise ValueError("generated_at must include a timezone")
+        return value
+
+    @field_validator("source_locale", "target_locale")
+    @classmethod
+    def report_locale_has_bcp47_shape(cls, value: str | None) -> str | None:
+        if value is not None and not _BCP47_SHAPE.fullmatch(value):
+            raise ValueError(f"{value!r} is not a valid-looking BCP 47 language tag")
+        return value
+
+    @field_validator("source_files", "target_files")
+    @classmethod
+    def report_file_hashes_are_sha256(cls, value: dict[str, str]) -> dict[str, str]:
+        for path, digest in value.items():
+            if not path or not re.fullmatch(r"[a-f0-9]{64}", digest):
+                raise ValueError("file map entries require a non-empty path and a lowercase SHA-256 digest")
+        return value
 
     @classmethod
     def create(cls, **kwargs) -> "ComparisonReport":
