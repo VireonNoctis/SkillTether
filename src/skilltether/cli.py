@@ -17,7 +17,8 @@ from .analysis import inspect_package, load_policy, package_fingerprint
 from .compare import compare_packages, fingerprint_manifest, fingerprint_policy, load_invariant_manifest
 from .history import default_history_path, record_event
 from .models import Invariant, InvariantManifest
-from .report import read_json_report, write_json_report, write_markdown_report
+from .report import read_json_report, verify_report_signature, write_json_report, write_markdown_report
+from .signing import create_signing_key
 from .translation import HttpJsonAdapter, IdentityAdapter, translate_package
 from .reviewing import has_audited_approval, record_review
 
@@ -147,6 +148,13 @@ def _suggest_invariants(source_root: Path, source_locale: str, target_locale: st
     )
 
 
+def cmd_init_signing_key(args: argparse.Namespace) -> int:
+    path = create_signing_key(args.out)
+    print(f"Created private report signing key: {_terminal_safe(path)}")
+    print("Keep this key private and backed up; losing it prevents verification or updates to signed reports.")
+    return 0
+
+
 def cmd_init_manifest(args: argparse.Namespace) -> int:
     source = Path(args.source).expanduser().resolve(strict=True)
     manifest = _suggest_invariants(source, args.source_locale, args.target_locale)
@@ -177,7 +185,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
         source, target, manifest, target_locale=args.target_locale,
         policy_path=args.policy,
     )
-    write_json_report(report, report_outputs[0])
+    write_json_report(report, report_outputs[0], signing_key=args.signing_key)
     if args.markdown:
         write_markdown_report(report, report_outputs[1])
     _show_findings(report.findings)
@@ -224,7 +232,7 @@ def cmd_translate(args: argparse.Namespace) -> int:
         source, output, manifest, target_locale=args.target_locale, policy_path=args.policy,
     )
     report.translation_provider = adapter.name
-    write_json_report(report, report_path)
+    write_json_report(report, report_path, signing_key=args.signing_key)
     history_path = record_event(
         source_fingerprint=package_fingerprint(source_inventory),
         target_fingerprint=package_fingerprint(target_inventory),
@@ -243,6 +251,7 @@ def cmd_translate(args: argparse.Namespace) -> int:
 
 def cmd_review(args: argparse.Namespace) -> int:
     report = read_json_report(args.report)
+    verify_report_signature(report, args.signing_key)
     matched = [finding for finding in report.findings if finding.id == args.finding_id]
     if len(matched) != 1:
         raise ValueError(f"Finding ID not found or not unique: {args.finding_id}")
@@ -250,7 +259,7 @@ def cmd_review(args: argparse.Namespace) -> int:
     record_review(
         finding, disposition=args.disposition, reviewer=args.reviewer, note=args.note,
     )
-    write_json_report(report, args.report)
+    write_json_report(report, args.report, signing_key=args.signing_key)
     print(f"Recorded {args.disposition} disposition for {_terminal_safe(finding.id)} by {_terminal_safe(finding.reviewer)}; prior decisions were retained.")
     return 0
 
@@ -261,6 +270,9 @@ def cmd_approve(args: argparse.Namespace) -> int:
     report_path = Path(args.report).expanduser().resolve(strict=True)
     output = Path(args.output).expanduser().resolve()
     report = read_json_report(report_path)
+    verify_report_signature(
+        report, args.signing_key, require_signature=bool(args.signing_key),
+    )
     current_manifest = _manifest_arg(args.invariants, source)
     if fingerprint_manifest(current_manifest) != report.invariant_manifest_fingerprint:
         raise ValueError("Invariant manifest fingerprint differs from the reviewed report; rerun compare")
@@ -324,6 +336,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
+    init_key = sub.add_parser("init-signing-key", help="create a private local key for signed report integrity")
+    init_key.add_argument("--out", required=True, help="new key file path; existing files are never overwritten")
+    init_key.set_defaults(func=cmd_init_signing_key)
+
     validate = sub.add_parser("validate", help="validate SKILL.md metadata, structure, and local links")
     validate.add_argument("package")
     validate.add_argument("--json", action="store_true", help="print findings as JSON")
@@ -344,6 +360,7 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--policy", help="protected-token policy YAML")
     compare.add_argument("--out", required=True, help="JSON report path")
     compare.add_argument("--markdown", help="optional Markdown report path")
+    compare.add_argument("--signing-key", help="optional private HMAC key; seals the JSON report")
     compare.add_argument(
         "--fail-on-review", action="store_true",
         help="return exit code 1 when semantic findings require human review or meaning is unknown",
@@ -361,6 +378,7 @@ def build_parser() -> argparse.ArgumentParser:
     translate.add_argument("--invariants")
     translate.add_argument("--policy")
     translate.add_argument("--report")
+    translate.add_argument("--signing-key", help="optional private HMAC key; seals the JSON report")
     translate.add_argument("--history-db", help="optional local SQLite path (default: ~/.skilltether/history.sqlite3)")
     translate.add_argument(
         "--fail-on-review", action="store_true",
@@ -374,6 +392,7 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--disposition", choices=["approved", "rejected", "deferred"], required=True)
     review.add_argument("--reviewer", required=True)
     review.add_argument("--note", required=True, help="non-empty rationale; obvious credential material is rejected")
+    review.add_argument("--signing-key", help="key required to verify/re-sign a sealed report")
     review.set_defaults(func=cmd_review)
 
     approve = sub.add_parser("approve", help="copy a reviewed candidate to a new approved output directory")
@@ -383,6 +402,7 @@ def build_parser() -> argparse.ArgumentParser:
     approve.add_argument("--output", required=True)
     approve.add_argument("--invariants", help="same invariant manifest used for comparison")
     approve.add_argument("--policy", help="same protected-token policy used for comparison")
+    approve.add_argument("--signing-key", help="verify HMAC-sealed approval evidence; requires a signed report")
     approve.set_defaults(func=cmd_approve)
     return parser
 
