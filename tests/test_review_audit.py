@@ -691,3 +691,21 @@ def test_review_rejects_credential_like_reviewer_identifier_without_echoing_it()
         )
 
     assert secret not in str(error.value)
+
+
+
+def test_compare_refuses_signing_key_inside_source_package(tmp_path: Path) -> None:
+    source = _write_identical_skill_package(tmp_path / "source" / "sample-skill")
+    target = _write_identical_skill_package(tmp_path / "target" / "sample-skill")
+    key = source / "report-signing.key"
+    key.write_bytes(b"K" * 32)
+    report_path = tmp_path / "report.json"
+
+    result = main([
+        "compare", str(source), str(target),
+        "--out", str(report_path), "--signing-key", str(key),
+    ])
+
+    assert result == 2
+    assert key.read_bytes() == b"K" * 32
+    assert not report_path.exists()
