@@ -177,9 +177,13 @@ def cmd_compare(args: argparse.Namespace) -> int:
     requested_outputs = [Path(args.out).expanduser()]
     if args.markdown:
         requested_outputs.append(Path(args.markdown).expanduser())
-    report_outputs = _ensure_outputs_outside_packages(
-        requested_outputs, [source, target], label="Report",
+    guarded_paths = list(requested_outputs)
+    if args.signing_key:
+        guarded_paths.append(Path(args.signing_key).expanduser())
+    checked_paths = _ensure_outputs_outside_packages(
+        guarded_paths, [source, target], label="Report/signing-key",
     )
+    report_outputs = checked_paths[:len(requested_outputs)]
     manifest = _manifest_arg(args.invariants, source)
     report = compare_packages(
         source, target, manifest, target_locale=args.target_locale,
@@ -208,10 +212,13 @@ def cmd_translate(args: argparse.Namespace) -> int:
     output = Path(args.output).expanduser().resolve()
     report_requested = Path(args.report).expanduser() if args.report else output.with_name(output.name + ".report.json")
     history_requested = Path(args.history_db).expanduser() if args.history_db else default_history_path()
+    guarded_paths = [report_requested, history_requested]
+    if args.signing_key:
+        guarded_paths.append(Path(args.signing_key).expanduser())
     output_paths = _ensure_outputs_outside_packages(
-        [report_requested, history_requested], [source, output], label="Report/history",
+        guarded_paths, [source, output], label="Report/history/signing-key",
     )
-    report_path, history_path = output_paths
+    report_path, history_path = output_paths[:2]
     if args.adapter == "identity":
         adapter = IdentityAdapter()
         print("Using the identity adapter: no prose will be translated; this exercises the safe pipeline only.")
@@ -269,6 +276,11 @@ def cmd_approve(args: argparse.Namespace) -> int:
     target = Path(args.target).expanduser().resolve(strict=True)
     report_path = Path(args.report).expanduser().resolve(strict=True)
     output = Path(args.output).expanduser().resolve()
+    if args.signing_key:
+        _ensure_outputs_outside_packages(
+            [Path(args.signing_key).expanduser()], [source, target, output],
+            label="Signing key",
+        )
     report = read_json_report(report_path)
     verify_report_signature(
         report, args.signing_key, require_signature=bool(args.signing_key),
