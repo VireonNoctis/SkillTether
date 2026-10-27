@@ -171,7 +171,8 @@ def cmd_compare(args: argparse.Namespace) -> int:
     _show_findings(report.findings)
     print(f"Report: {args.out}")
     print(f"Structural status: {report.structural_status}; semantic status: {report.semantic_status}")
-    return 1 if report.structural_status in ("fail", "error") else 0
+    review_gate = args.fail_on_review and report.semantic_status in ("review_recommended", "unknown")
+    return 1 if report.structural_status in ("fail", "error") or review_gate else 0
 
 
 def _validate_locale_tag(value: str) -> str:
@@ -224,7 +225,8 @@ def cmd_translate(args: argparse.Namespace) -> int:
     print(f"Comparison report: {report_path}")
     print(f"Local run metadata: {history_path}")
     print("This is an unapproved candidate. Run review decisions and skilltether approve before distributing it.")
-    return 1 if report.structural_status in ("fail", "error") else 0
+    review_gate = args.fail_on_review and report.semantic_status in ("review_recommended", "unknown")
+    return 1 if report.structural_status in ("fail", "error") or review_gate else 0
 
 
 def cmd_review(args: argparse.Namespace) -> int:
@@ -330,6 +332,10 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--policy", help="protected-token policy YAML")
     compare.add_argument("--out", required=True, help="JSON report path")
     compare.add_argument("--markdown", help="optional Markdown report path")
+    compare.add_argument(
+        "--fail-on-review", action="store_true",
+        help="return exit code 1 when semantic findings require human review or meaning is unknown",
+    )
     compare.set_defaults(func=cmd_compare)
 
     translate = sub.add_parser("translate", help="create a separate candidate package and comparison report")
@@ -344,6 +350,10 @@ def build_parser() -> argparse.ArgumentParser:
     translate.add_argument("--policy")
     translate.add_argument("--report")
     translate.add_argument("--history-db", help="optional local SQLite path (default: ~/.skilltether/history.sqlite3)")
+    translate.add_argument(
+        "--fail-on-review", action="store_true",
+        help="return exit code 1 when the generated report requires human review or meaning is unknown",
+    )
     translate.set_defaults(func=cmd_translate)
 
     review = sub.add_parser("review", help="record a human disposition for a report finding")
