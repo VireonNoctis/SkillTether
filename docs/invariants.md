@@ -48,11 +48,11 @@ The example's language markers are illustrative. Confirm natural target-language
 ## Findings and disposition
 
 A comparison finding includes:
-- Stable ID, code, severity, and finding category.
-- Source/target path and line when available.
-- Original and target context when available.
+- Stable ID, code, and rule ID, with severity and an explicit severity rationale.
+- Analysis method (deterministic, heuristic, human review, or unknown) and an explicit uncertainty state.
+- Source/target path and line when available, plus original and target context.
 - Rationale and proposed change.
-- requires_review plus disposition, reviewer, and note.
+- requires_review, current disposition, reviewer, and note, plus a timestamped history of review decisions.
 
 Critical findings and findings marked for review must be explicitly approved before export. Rejected or deferred findings remain blockers. Missing/unreviewed manifests are permanent blockers until the manifest is corrected and comparison rerun. Structural failures are also blockers.
 
