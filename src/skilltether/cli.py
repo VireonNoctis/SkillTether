@@ -316,6 +316,7 @@ def cmd_approve(args: argparse.Namespace) -> int:
         raise ValueError("Structural validation failed. Fix the package and rerun comparison before approval.")
     permanently_blocked = {
         "INVARIANT_MANIFEST_MISSING", "INVARIANT_MANIFEST_UNREVIEWED", "INVARIANT_NOT_HUMAN_REVIEWED",
+        "INVARIANT_SOURCE_REFERENCE_INVALID",
     }
     blocked = [finding for finding in report.findings if finding.code in permanently_blocked]
     if blocked:
