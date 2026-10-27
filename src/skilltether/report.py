@@ -56,13 +56,18 @@ def write_markdown_report(report: ComparisonReport, path: str | Path) -> Path:
             f"### {html.escape(finding.id)} — {html.escape(finding.severity.upper())}",
             "",
             f"- Code: {html.escape(finding.code)}",
+            f"- Rule ID: {html.escape(finding.rule_id or finding.code)}",
             f"- Category: {html.escape(finding.category)}",
+            f"- Analysis method: {html.escape(finding.analysis_method)}",
+            f"- Signal uncertainty: {html.escape(finding.uncertainty)}",
             f"- Path: {html.escape(finding.path or '(package-level)')}",
             f"- Source line: {finding.source_line if finding.source_line is not None else '—'}",
             f"- Target line: {finding.target_line if finding.target_line is not None else '—'}",
             f"- Human disposition: {html.escape(finding.disposition)}",
             f"- Review required: {'yes' if finding.requires_review or finding.severity == 'critical' else 'no'}",
-            "", html.escape(finding.message), "", f"**Rationale:** {html.escape(finding.rationale)}", "",
+            "", html.escape(finding.message), "",
+            f"**Why this severity:** {html.escape(finding.severity_rationale or 'No severity rationale supplied.')}", "",
+            f"**Rationale:** {html.escape(finding.rationale)}", "",
         ])
         if finding.original_context:
             lines.extend(["**Original context**", "", _fenced_context(finding.original_context), ""])
@@ -71,9 +76,24 @@ def write_markdown_report(report: ComparisonReport, path: str | Path) -> Path:
         if finding.proposed_change:
             lines.extend([f"**Proposed change:** {html.escape(finding.proposed_change)}", ""])
         if finding.reviewer:
-            lines.extend([f"**Reviewer:** {html.escape(finding.reviewer)}", ""])
+            lines.extend(["**Latest reviewer**", "", _fenced_context(finding.reviewer, limit=200), ""])
         if finding.review_note:
-            lines.extend([f"**Review note:** {html.escape(finding.review_note)}", ""])
+            lines.extend(["**Latest review note**", "", _fenced_context(finding.review_note), ""])
+        if finding.review_history:
+            lines.extend(["**Review history**", ""])
+            for event in finding.review_history:
+                lines.extend([
+                    f"- {html.escape(event.recorded_at)} — {html.escape(event.previous_disposition)} → {html.escape(event.disposition)}",
+                    "",
+                    "  Reviewer:",
+                    "",
+                    _fenced_context(event.reviewer, limit=200),
+                    "",
+                    "  Rationale:",
+                    "",
+                    _fenced_context(event.note),
+                    "",
+                ])
     lines.extend(["## Limitations", ""])
     lines.extend(f"- {html.escape(item)}" for item in report.limitations)
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
