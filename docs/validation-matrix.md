@@ -26,6 +26,8 @@
 | Review rendering | Note contains HTML/Markdown control syntax | Markdown report fences the untrusted note |
 | Report compatibility | Existing v1.0 finding omits additive evidence fields | Legacy report still parses; bare approval is not treated as an audited approval |
 | Local history privacy | History record is written to SQLite | Only fingerprints, locales, provider/status and timestamp are stored; DB mode is 0600 on POSIX |
+| Credential redaction | Report context or a path contains common API-key, bearer, provider-token, or PEM patterns | JSON/Markdown report omits the raw credential-like value; truncated key blocks are covered |
+| Redaction limitation | Unknown credential shape appears in report evidence | Documentation states redaction is not a complete secret scanner |
 | Hostile content | HTML-like text, huge Markdown, path traversal strings | Safe parsing and rendering |
 | Policy complexity | Too many protected patterns/tokens or oversized regex | Policy is rejected before analysis |
 | Config input safety | Oversized policy/manifest/report, symlink, FIFO, or special file | Bounded read rejects it without blocking or following the link |
