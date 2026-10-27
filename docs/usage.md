@@ -30,7 +30,7 @@ skilltether init-manifest ./sample-skill --out ./sample-skill/.skilltether-invar
 
 The generator looks for lines that may express negation, a requirement, a prerequisite, a number, or a limit. It intentionally creates an unreviewed manifest. A reviewer must:
 1. Confirm each suggestion is a real requirement, and add invariants the heuristic missed.
-2. Correct its category/severity, source lines, and supporting text.
+2. Correct its category/severity, source lines, and supporting text. When source_lines or source_text are supplied, they must still match the current source package; comparison rejects stale source evidence, and approval remains blocked until the manifest is corrected and comparison is rerun.
 3. Set reviewed=true and reviewer to an accountable reviewer identifier on each approved invariant.
 4. Set manifest_reviewed=true and manifest_reviewer on the manifest.
 5. Configure target-locale negation_markers and mandatory_markers where marker checks are appropriate.
