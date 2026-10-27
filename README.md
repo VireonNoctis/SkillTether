@@ -8,16 +8,16 @@ SkillTether is a local-first localization and integrity-checking CLI for Agent S
 
 ## Included in this MVP
 
-- Read-only package inventory with SHA-256 hashes, bounded per-file and aggregate sizes, bounded directory/file counts and depth, UTF-8 detection, symlink rejection, and special-file rejection.
+- Read-only package inventory with SHA-256 hashes, filesystem permission bits, bounded per-file and aggregate sizes, bounded directory/file counts and depth, UTF-8 detection, symlink rejection, and special-file rejection.
 - SKILL.md YAML-frontmatter checks: required fields, name syntax and directory identity, description length, compatibility, metadata types, and body presence.
 - Local Markdown links and image assets, in-document fragments, and conventional scripts/references/assets/resources path checks. External URLs are not fetched.
 - Static syntax checks for Python scripts and JSON/YAML/TOML/XML resources; scripts are parsed, never executed.
 - Protected-span detection for fenced/inline code, URLs, environment variables, command flags, paths, plus configurable regexes and explicit identifiers.
 - A human-authored YAML invariant manifest with categories for safety constraints, mandatory conditions, negation, numeric limits, preconditions, and decision rules.
-- Line-block, protected-token, package-path, and invariant findings with stable rule IDs, explicit deterministic/heuristic method labels, uncertainty states, severity rationale, source/target context, and reviewer disposition. Byte changes to non-text resources are also detected.
+- Line-block, protected-token, package-path, file-mode, non-text resource, and invariant findings with stable rule IDs, explicit deterministic/heuristic method labels, uncertainty states, severity rationale, source/target context, and reviewer disposition.
 - Chronological review history with mandatory reviewer identifiers and non-empty rationale; approval requires the latest decision to match a consistent audit history.
 - A provider-neutral adapter protocol, an identity adapter for local pipeline tests, and an optional generic JSON-over-HTTPS adapter. No provider is called by default.
-- Atomic candidate output, separate explicit approval/export, atomic private JSON/Markdown reports, report-path guards that protect source/candidate packages, actual JSON Schema regression checks, and local SQLite run metadata without document text or credentials.
+- Atomic candidate output, separate explicit approval/export, atomic private JSON/Markdown reports, output-path guards that protect source/candidate packages, bounded reads for manifests/policies/reports/history, actual JSON Schema regression checks, and private SQLite run metadata without document text or credentials.
 - pytest and Hypothesis regression fixtures, plus GitHub Actions CI.
 
 The optional Svelte + TypeScript review UI is intentionally deferred until the report contracts are stable.
@@ -141,7 +141,7 @@ Run skilltether COMMAND --help for flags. For CI runs that should fail when huma
 - External URLs are not fetched, so network reachability and remote content are outside the default offline check.
 - Source hashes and the candidate are checked, but this is not a sandbox for hostile operating-system-level inputs.
 - The generic HTTP adapter is a bridge contract, not a translation service. Configure a service you trust.
-- The report is reproducible from fingerprints, versioned rules, and stable finding IDs; generated timestamps naturally vary.
+- The report is reproducible from fingerprints (including filesystem mode), versioned rules, and stable finding IDs; generated timestamps naturally vary.
 - Review history is a local audit aid, not a cryptographic signature: it cannot authenticate reviewer identity or prevent deliberate report-file edits.
 
 ## Documentation
