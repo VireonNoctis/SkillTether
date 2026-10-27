@@ -44,6 +44,13 @@ def record_review(
     timestamp = recorded_at or datetime.now(timezone.utc)
     if timestamp.tzinfo is None or timestamp.utcoffset() is None:
         raise ValueError("Review timestamp must be timezone-aware")
+    if finding.review_history:
+        previous_time = datetime.fromisoformat(
+            finding.review_history[-1].recorded_at.replace("Z", "+00:00")
+        )
+        if timestamp.astimezone(timezone.utc) < previous_time.astimezone(timezone.utc):
+            raise ValueError("Review timestamp must not precede the previous review event")
+
     event = ReviewEvent(
         recorded_at=timestamp.isoformat(),
         previous_disposition=finding.disposition,
@@ -72,9 +79,14 @@ def has_audited_approval(finding: Finding) -> bool:
     # The first recorded event may start from a legacy report disposition. Once
     # the audit trail exists, every subsequent event must follow the prior event.
     expected: Disposition = finding.review_history[0].disposition
+    previous_time: datetime | None = None
     for index, event in enumerate(finding.review_history):
         if index > 0 and event.previous_disposition != expected:
             return False
+        event_time = datetime.fromisoformat(event.recorded_at.replace("Z", "+00:00"))
+        if previous_time is not None and event_time.astimezone(timezone.utc) < previous_time.astimezone(timezone.utc):
+            return False
+        previous_time = event_time
         expected = event.disposition
 
     last = finding.review_history[-1]
