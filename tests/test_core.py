@@ -674,3 +674,71 @@ def test_default_protected_token_policy_passes_regex_safety_checks() -> None:
 
     assert patterns
     assert any(item["category"] == "file_path" for item in patterns)
+
+
+
+@pytest.mark.parametrize("timeout", [0, -1, float("nan"), float("inf"), 301])
+def test_http_adapter_rejects_invalid_timeout_values(timeout: float) -> None:
+    from skilltether.translation import HttpJsonAdapter
+
+    with pytest.raises(ValueError, match="timeout must be greater than 0"):
+        HttpJsonAdapter("https://provider.example.test/translate", timeout=timeout)
+
+
+def test_http_adapter_rejects_url_credentials_and_query_parameters() -> None:
+    from skilltether.translation import HttpJsonAdapter
+
+    for endpoint in (
+        "https://user:password@provider.example.test/translate",
+        "https://provider.example.test/translate?api_key=secret",
+        "https://provider.example.test/translate#fragment",
+    ):
+        with pytest.raises(ValueError, match="Do not put credentials"):
+            HttpJsonAdapter(endpoint)
+
+
+def test_http_adapter_rejects_oversized_request_before_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import urllib.request
+
+    from skilltether.translation import HttpJsonAdapter
+
+    def forbidden_network(*_args, **_kwargs):
+        raise AssertionError("network must not be reached for an oversized request")
+
+    monkeypatch.setattr(urllib.request, "build_opener", forbidden_network)
+    adapter = HttpJsonAdapter("https://provider.example.test/translate")
+
+    with pytest.raises(RuntimeError, match="request exceeds"):
+        adapter.translate("x" * (2 * 1024 * 1024), "en", "fr")
+
+
+def test_http_adapter_bounds_provider_response_without_parsing_unbounded_data(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import urllib.request
+
+    from skilltether.translation import HttpJsonAdapter, MAX_TRANSLATION_RESPONSE_BYTES
+
+    class OversizedResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self, limit: int) -> bytes:
+            assert limit == MAX_TRANSLATION_RESPONSE_BYTES + 1
+            return b"x" * limit
+
+    class FakeOpener:
+        def open(self, _request, timeout: float):
+            assert timeout == 60.0
+            return OversizedResponse()
+
+    monkeypatch.setattr(urllib.request, "build_opener", lambda *_args: FakeOpener())
+    adapter = HttpJsonAdapter("https://provider.example.test/translate")
+
+    with pytest.raises(RuntimeError, match="response exceeds"):
+        adapter.translate("hello", "en", "fr")
