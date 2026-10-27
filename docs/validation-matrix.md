@@ -36,6 +36,8 @@
 | Redaction limitation | Unknown credential shape appears in report evidence | Documentation states redaction is not a complete secret scanner |
 | Hostile content | HTML-like text, huge Markdown, path traversal strings | Safe parsing and rendering |
 | Policy complexity | Too many protected patterns/tokens or oversized regex | Policy is rejected before analysis |
+| Regex backtracking | Nested unbounded repeats or repeated alternation supplied as a policy regex | Conservative validator rejects known-risk shapes before matching |
+| Regex compatibility | Bounded quantifiers and ordinary literals in a policy regex | Safe bounded pattern remains accepted |
 | Config input safety | Oversized policy/manifest/report, symlink, FIFO, or special file | Bounded read rejects it without blocking or following the link |
 | Protected-token overlap | `TOOL` and `TOOL_NAME` both protected | Longest matching span is masked once |
 | Placeholder collision | Source prose contains a reserved-looking placeholder | Placeholder namespace is chosen without colliding with the prose |
