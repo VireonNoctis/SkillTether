@@ -68,17 +68,24 @@ def _ensure_outputs_outside_packages(
     outputs: list[Path], packages: list[Path], *, label: str,
 ) -> list[Path]:
     """Prevent report/history outputs from overwriting or polluting skill packages."""
-    resolved_outputs = [Path(item).expanduser().resolve() for item in outputs]
+    raw_outputs = [Path(item).expanduser() for item in outputs]
+    # Compare both normalized lexical paths and resolved paths: resolving only the
+    # final component could hide an output symlink located inside a protected package.
+    lexical_outputs = [Path(os.path.abspath(item)) for item in raw_outputs]
+    resolved_outputs = [item.resolve() for item in raw_outputs]
     if len(set(resolved_outputs)) != len(resolved_outputs):
         raise ValueError(f"{label} output paths must be distinct")
     resolved_packages = [Path(item).expanduser().resolve() for item in packages]
-    for output in resolved_outputs:
-        for package in resolved_packages:
-            if output == package or output in package.parents or package in output.parents:
-                raise ValueError(
-                    f"{label} output must be outside source/candidate package directories: {output}"
-                )
-    return resolved_outputs
+    for lexical, resolved in zip(lexical_outputs, resolved_outputs, strict=True):
+        for candidate in (lexical, resolved):
+            for package in resolved_packages:
+                if candidate == package or candidate in package.parents or package in candidate.parents:
+                    raise ValueError(
+                        f"{label} output must be outside source/candidate package directories: {lexical}"
+                    )
+    # Return the lexical path so atomic report writing replaces a final-component
+    # symlink instead of following it to an unrelated external file.
+    return lexical_outputs
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
