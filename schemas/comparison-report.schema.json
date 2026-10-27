@@ -34,6 +34,25 @@
         "required": ["id", "code", "severity", "category", "message", "rationale", "requires_review", "disposition"],
         "properties": {
           "id": { "type": "string" },
+          "rule_id": { "type": ["string", "null"] },
+          "analysis_method": { "enum": ["deterministic", "heuristic", "human_review", "unknown"] },
+          "uncertainty": { "enum": ["none", "low", "medium", "high", "unknown"] },
+          "severity_rationale": { "type": "string" },
+          "review_history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["recorded_at", "previous_disposition", "disposition", "reviewer", "note"],
+              "properties": {
+                "recorded_at": { "type": "string", "format": "date-time" },
+                "previous_disposition": { "enum": ["pending", "approved", "rejected", "deferred"] },
+                "disposition": { "enum": ["pending", "approved", "rejected", "deferred"] },
+                "reviewer": { "type": "string", "minLength": 1, "maxLength": 200 },
+                "note": { "type": "string", "minLength": 1, "maxLength": 4000 }
+              }
+            }
+          },
           "code": { "type": "string" },
           "severity": { "enum": ["info", "low", "medium", "high", "critical"] },
           "category": { "type": "string" },
