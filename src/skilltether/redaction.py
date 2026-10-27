@@ -23,7 +23,7 @@ _PROVIDER_TOKENS = re.compile(
 )
 _PRIVATE_KEY = re.compile(
     r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----.*?"
-    r"-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----",
+    r"(?:-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|$)",
     re.DOTALL,
 )
 _REDACTED = "[REDACTED_CREDENTIAL]"
