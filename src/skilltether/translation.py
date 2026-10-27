@@ -174,11 +174,18 @@ def _mask_protected_spans(
     # Collect matches independently, then resolve overlaps by earliest start and
     # longest span. Regex alternation is left-biased, so a single combined pattern
     # can accidentally protect only a prefix when configured identifiers overlap.
+    if extra_patterns is not None and (
+        not isinstance(extra_patterns, list) or any(not isinstance(item, dict) for item in extra_patterns)
+    ):
+        raise ValueError("Protected-token patterns must be a list of mappings")
+    tokens = explicit_tokens or []
+    if not isinstance(tokens, list) or any(not isinstance(token, str) for token in tokens):
+        raise ValueError("Explicit protected tokens must be a list of strings")
     if len(extra_patterns or []) > MAX_POLICY_PATTERNS:
         raise ValueError(f"Protected-token policy exceeds {MAX_POLICY_PATTERNS} patterns")
-    if len([token for token in (explicit_tokens or []) if token]) > MAX_EXPLICIT_TOKENS:
+    if len([token for token in tokens if token]) > MAX_EXPLICIT_TOKENS:
         raise ValueError(f"Protected-token policy exceeds {MAX_EXPLICIT_TOKENS} explicit tokens")
-    if any(len(token) > MAX_EXPLICIT_TOKEN_CHARS for token in (explicit_tokens or []) if token):
+    if any(len(token) > MAX_EXPLICIT_TOKEN_CHARS for token in tokens if token):
         raise ValueError(f"Explicit protected tokens must be at most {MAX_EXPLICIT_TOKEN_CHARS} characters")
     patterns: list[re.Pattern[str]] = [re.compile(MASK_SPAN.pattern)]
     for item in extra_patterns or []:
@@ -204,7 +211,7 @@ def _mask_protected_spans(
             candidates.append((match.start(), match.end(), priority, match.group(0)))
 
     seen_tokens: set[str] = set()
-    for token in sorted((token for token in (explicit_tokens or []) if token), key=lambda value: (-len(value), value)):
+    for token in sorted((token for token in tokens if token), key=lambda value: (-len(value), value)):
         if token in seen_tokens:
             continue
         seen_tokens.add(token)
