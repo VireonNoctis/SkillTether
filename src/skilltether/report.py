@@ -108,6 +108,10 @@ def write_json_report(
     if signing_key is not None:
         data["integrity_algorithm"] = "hmac-sha256"
         data["integrity_signature"] = sign_payload(data, signing_key)
+        # Keep the in-memory report consistent so a companion Markdown export can
+        # accurately state that the authoritative JSON report has been sealed.
+        report.integrity_algorithm = "hmac-sha256"
+        report.integrity_signature = data["integrity_signature"]
     elif data.get("integrity_signature"):
         raise ValueError("Cannot rewrite a signed report without its signing key")
     payload = json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
