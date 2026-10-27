@@ -4,6 +4,7 @@
 
 - Read-only inventory and SHA-256 package fingerprints that include file permission bits, with explicit permission-drift findings.
 - Bounded file and directory counts, directory depth, per-file size, aggregate package bytes, race-resistant regular-file opens, symlink/special-file rejection, and script non-execution.
+- Reject package-root symlink aliases; stage candidate and approved copies without intentionally dereferencing symlinks, then compare staged package fingerprints before modifying or publishing the copy.
 - Bounded regular-file reads for manifests, protected-token policies, reports, and local-history databases; reject symlink/special-file inputs and cap report/policy/manifest sizes.
 - SKILL.md frontmatter type/required-field/name/length checks.
 - Local Markdown links and image assets, file targets, conventional script/reference/asset path mentions, and detected heading/HTML fragments.
@@ -12,6 +13,8 @@
 - Provider-neutral translation protocol, identity adapter, and explicit-consent JSON HTTP bridge.
 - Markdown prose masking for frontmatter, code fences, inline code, URLs, link destinations, HTML tags, and basic line-prefix syntax.
 - Line-block, token, file-path, non-text resource hash, and human-authored invariant findings.
+- Validate optional invariant source paths, line ranges, and source excerpts against current source text; invalid anchors produce deterministic critical findings and cannot be overridden during approval until the manifest is corrected and comparison rerun.
+- Detect count-preserving reordering of protected machine-facing tokens as a high-uncertainty heuristic finding that requires human review.
 - Atomically written mode-0600 (POSIX) JSON/Markdown reports; bounded regular-file reads; output-path guards; file-mode-aware fingerprints; explicit rule/method/uncertainty/severity rationale; chronological review history; common-credential redaction; and optional HMAC-SHA256 report integrity with verification before review/export.
 - Optional local SQLite metadata history with fingerprint/locale/metadata validation, private file permissions, and no text payload columns; pytest/Hypothesis/JSON Schema tests and GitHub Actions CI.
 
