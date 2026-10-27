@@ -168,34 +168,62 @@ def _mask_protected_spans(
     prose: str, extra_patterns: list[dict[str, str]] | None,
     explicit_tokens: list[str] | None,
 ) -> tuple[str, list[tuple[str, str]]]:
-    expressions = [f"(?:{MASK_SPAN.pattern})"]
+    # Collect matches independently, then resolve overlaps by earliest start and
+    # longest span. Regex alternation is left-biased, so a single combined pattern
+    # can accidentally protect only a prefix when configured identifiers overlap.
+    patterns: list[re.Pattern[str]] = [re.compile(MASK_SPAN.pattern)]
     for item in extra_patterns or []:
         regex = item.get("regex")
         if not isinstance(regex, str):
             raise ValueError("Every protected-token policy entry needs a regex string")
+        if len(regex) > 1000:
+            raise ValueError("Protected-token policy regex exceeds the 1000-character limit")
         try:
             custom = re.compile(regex)
         except re.error as exc:
             raise ValueError("Invalid custom protected-token regular expression") from exc
-        empty_match = custom.match("")
-        sample_match = custom.search("x")
-        if empty_match or (sample_match and sample_match.start() == sample_match.end()):
-            raise ValueError("Protected-token policy regexes must not match empty strings")
-        expressions.append(f"(?:{regex})")
-    expressions.extend(re.escape(token) for token in explicit_tokens or [] if token)
-    pattern = re.compile("|".join(expressions))
+        patterns.append(custom)
+
+    # (start, end, priority, literal). Explicit identifiers are treated as
+    # literal substrings; longest-first overlap resolution preserves compound
+    # identifiers such as TOOL and TOOL_NAME as one opaque span.
+    candidates: list[tuple[int, int, int, str]] = []
+    for priority, pattern in enumerate(patterns):
+        for match in pattern.finditer(prose):
+            if match.start() == match.end():
+                raise ValueError("Protected-token policy regex matched an empty span")
+            candidates.append((match.start(), match.end(), priority, match.group(0)))
+
+    seen_tokens: set[str] = set()
+    for token in sorted((token for token in (explicit_tokens or []) if token), key=lambda value: (-len(value), value)):
+        if token in seen_tokens:
+            continue
+        seen_tokens.add(token)
+        for match in re.finditer(re.escape(token), prose):
+            candidates.append((match.start(), match.end(), len(patterns), match.group(0)))
+
+    candidates.sort(key=lambda item: (item[0], -(item[1] - item[0]), item[2], item[3]))
+    selected: list[tuple[int, int, str]] = []
+    cursor = 0
+    for start, end, _priority, literal in candidates:
+        if start < cursor:
+            continue
+        selected.append((start, end, literal))
+        cursor = end
+
     replacements: list[tuple[str, str]] = []
     output: list[str] = []
     cursor = 0
-    for index, match in enumerate(pattern.finditer(prose)):
-        if match.start() == match.end():
-            raise ValueError("Protected-token policy regex matched an empty span")
-        output.append(prose[cursor:match.start()])
-        marker = f"SKTETHEROPAQUE{index:05d}END"
-        original = match.group(0)
+    # Never choose a placeholder namespace that already occurs in unmasked prose.
+    placeholder_prefix = "SKTETHEROPAQUE"
+    while placeholder_prefix in prose:
+        placeholder_prefix = "_" + placeholder_prefix
+    for index, (start, end, original) in enumerate(selected):
+        output.append(prose[cursor:start])
+        marker = f"{placeholder_prefix}{index:05d}END"
         replacements.append((marker, original))
         output.append(marker)
-        cursor = match.end()
+        cursor = end
     output.append(prose[cursor:])
     return "".join(output), replacements
 
