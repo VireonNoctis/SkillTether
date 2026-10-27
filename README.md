@@ -140,6 +140,7 @@ Run skilltether COMMAND --help for flags. For CI runs that should fail when huma
 - Negation/modal-marker detection is locale-specific and does not understand full linguistic context.
 - Changed protected tokens require explicit review; this MVP does not implement automatic rename mappings.
 - External URLs are not fetched, so network reachability and remote content are outside the default offline check.
+- Pathological line-diff workloads are bounded; when detailed matching is skipped, SkillTether reports high uncertainty and requires review rather than treating the content as equivalent.
 - Source hashes and the candidate are checked, but this is not a sandbox for hostile operating-system-level inputs.
 - The generic HTTP adapter is a bridge contract, not a translation service. Configure a service you trust.
 - Credential redaction is a high-confidence guardrail, not a complete secret scanner. Do not put credentials into skill content, policy files, or reviewer notes; unfamiliar token formats may not be detected.
