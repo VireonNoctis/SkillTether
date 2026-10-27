@@ -585,7 +585,7 @@ def load_policy(path: str | Path | None) -> tuple[list[dict[str, str]], list[str
             )
         except ValueError as exc:
             raise ValueError(f"Invalid or unsafe protected-token regex at index {index}: {exc}") from exc
-        samples = ("", "x", "1", "A", "/", "-", "$", "x1", "sample")
+        samples = ("", "x", "1", "A", "/", "-", "$", "x1", "sample", "critical", "SKILL.md", "references/guide.md", "https://example.test")
         if any(
             (match := compiled.search(sample)) is not None and match.start() == match.end()
             for sample in samples
