@@ -256,6 +256,15 @@ def cmd_translate(args: argparse.Namespace) -> int:
     return 1 if report.structural_status in ("fail", "error") or review_gate else 0
 
 
+def cmd_verify_report(args: argparse.Namespace) -> int:
+    report = read_json_report(args.report)
+    verify_report_signature(report, args.signing_key, require_signature=True)
+    print("Report integrity verified (HMAC-SHA256).")
+    print(f"Structural status: {report.structural_status}; semantic status: {report.semantic_status}")
+    print(f"Findings: {len(report.findings)}")
+    return 0
+
+
 def cmd_review(args: argparse.Namespace) -> int:
     report = read_json_report(args.report)
     verify_report_signature(report, args.signing_key)
@@ -397,6 +406,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="return exit code 1 when the generated report requires human review or meaning is unknown",
     )
     translate.set_defaults(func=cmd_translate)
+
+    verify_report = sub.add_parser(
+        "verify-report", help="verify the HMAC integrity seal on a signed JSON report",
+    )
+    verify_report.add_argument("report")
+    verify_report.add_argument("--signing-key", required=True, help="private HMAC key used to seal the report")
+    verify_report.set_defaults(func=cmd_verify_report)
 
     review = sub.add_parser("review", help="record a human disposition for a report finding")
     review.add_argument("report")
