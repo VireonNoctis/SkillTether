@@ -26,6 +26,8 @@ FATAL_STRUCTURE_CODES = {
     "SCRIPT_NOT_UTF8", "SPECIAL_FILE_NOT_ALLOWED", "RESOURCE_SYNTAX_INVALID", "MISSING_REFERENCED_RESOURCE",
     "PATH_TRAVERSAL_RESOURCE",
 }
+MAX_DIFF_LINE_CELLS = 4_000_000
+
 CODE_CATEGORIES = {
     "code_block", "inline_code", "command_flag", "file_path", "windows_path",
     "environment_variable", "explicit_identifier",
@@ -147,6 +149,21 @@ def compare_packages(
         if left is None or right is None or left == right:
             continue
         left_lines, right_lines = left.splitlines(), right.splitlines()
+        if len(left_lines) * len(right_lines) > MAX_DIFF_LINE_CELLS:
+            findings.append(new_finding(
+                "TEXT_DIFF_COMPLEXITY_LIMIT", "high", "line_diff",
+                f"Line-by-line comparison was skipped for {path!r} because the source/target line-pair budget was exceeded.",
+                "Sequence matching can take quadratic time on adversarial repeated-line inputs. Skipping the detailed diff is explicit uncertainty, not a pass.",
+                path=path,
+                original_context=f"source_lines:{len(left_lines)}",
+                target_context=f"target_lines:{len(right_lines)}",
+                proposed_change="Review this resource manually or split long reference material into smaller resources, then rerun comparison.",
+                requires_review=True,
+                analysis_method="deterministic",
+                uncertainty="high",
+                severity_rationale="The report intentionally skipped a bounded comparison; missing findings must not be interpreted as semantic equivalence.",
+            ))
+            continue
         matcher = difflib.SequenceMatcher(a=left_lines, b=right_lines, autojunk=False)
         for tag, i1, i2, j1, j2 in matcher.get_opcodes():
             if tag == "equal":
