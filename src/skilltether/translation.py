@@ -12,7 +12,7 @@ import urllib.request
 from pathlib import Path
 from typing import Protocol
 
-from .analysis import inspect_package, package_fingerprint
+from .analysis import (\n    MAX_EXPLICIT_TOKEN_CHARS, MAX_EXPLICIT_TOKENS, MAX_POLICY_PATTERNS,\n    MAX_POLICY_REGEX_CHARS, inspect_package, package_fingerprint,\n)
 from .models import FileFingerprint
 
 ELIGIBLE_SUFFIXES = {".md", ".mdx", ".txt", ".rst"}
@@ -171,13 +171,19 @@ def _mask_protected_spans(
     # Collect matches independently, then resolve overlaps by earliest start and
     # longest span. Regex alternation is left-biased, so a single combined pattern
     # can accidentally protect only a prefix when configured identifiers overlap.
+    if len(extra_patterns or []) > MAX_POLICY_PATTERNS:
+        raise ValueError(f"Protected-token policy exceeds {MAX_POLICY_PATTERNS} patterns")
+    if len([token for token in (explicit_tokens or []) if token]) > MAX_EXPLICIT_TOKENS:
+        raise ValueError(f"Protected-token policy exceeds {MAX_EXPLICIT_TOKENS} explicit tokens")
+    if any(len(token) > MAX_EXPLICIT_TOKEN_CHARS for token in (explicit_tokens or []) if token):
+        raise ValueError(f"Explicit protected tokens must be at most {MAX_EXPLICIT_TOKEN_CHARS} characters")
     patterns: list[re.Pattern[str]] = [re.compile(MASK_SPAN.pattern)]
     for item in extra_patterns or []:
         regex = item.get("regex")
         if not isinstance(regex, str):
             raise ValueError("Every protected-token policy entry needs a regex string")
-        if len(regex) > 1000:
-            raise ValueError("Protected-token policy regex exceeds the 1000-character limit")
+        if len(regex) > MAX_POLICY_REGEX_CHARS:
+            raise ValueError(f"Protected-token policy regex exceeds the {MAX_POLICY_REGEX_CHARS}-character limit")
         try:
             custom = re.compile(regex)
         except re.error as exc:
