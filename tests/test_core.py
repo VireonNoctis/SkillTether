@@ -283,3 +283,68 @@ def test_named_pipe_is_rejected_without_blocking_package_inspection(tmp_path: Pa
         item.code == "SPECIAL_FILE_NOT_ALLOWED" and item.path == "assets/pipe"
         for item in findings
     )
+
+
+
+def test_overlapping_explicit_identifiers_choose_the_longest_span() -> None:
+    class CapturingAdapter:
+        name = "capturing"
+        remote = False
+
+        def __init__(self) -> None:
+            self.received = ""
+
+        def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+            self.received = text
+            return text
+
+    adapter = CapturingAdapter()
+    source = "Use TOOL_NAME and TOOL."
+    translated = translate_markdown(
+        source, adapter, "en", "fr",
+        explicit_tokens=["TOOL", "TOOL_NAME"],
+    )
+
+    assert translated == source
+    assert adapter.received.count("SKTETHEROPAQUE") == 2
+    assert "TOOL_NAME" not in adapter.received
+    assert "TOOL" not in adapter.received
+
+
+def test_placeholder_namespace_collision_does_not_consume_source_text() -> None:
+    class CapturingAdapter:
+        name = "capturing"
+        remote = False
+
+        def __init__(self) -> None:
+            self.received = ""
+
+        def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+            self.received = text
+            return text
+
+    adapter = CapturingAdapter()
+    source = "Literal SKTETHEROPAQUE00000END and API_TOKEN."
+    translated = translate_markdown(
+        source, adapter, "en", "fr", explicit_tokens=["API_TOKEN"],
+    )
+
+    assert translated == source
+    assert "_SKTETHEROPAQUE00000END" in adapter.received
+    assert "SKTETHEROPAQUE00000END and" in adapter.received
+
+
+def test_zero_width_policy_regex_on_real_text_is_rejected() -> None:
+    class IdentityLikeAdapter:
+        name = "identity-like"
+        remote = False
+
+        def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+            return text
+
+    with pytest.raises(ValueError, match="empty span"):
+        translate_markdown(
+            "This is a critical instruction.",
+            IdentityLikeAdapter(), "en", "fr",
+            extra_patterns=[{"category": "lookahead", "regex": r"(?=critical)"}],
+        )
