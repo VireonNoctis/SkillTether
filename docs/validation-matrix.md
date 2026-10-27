@@ -25,6 +25,8 @@
 | Comparison complexity | Repeated-line source/target exceeds diff-pair budget | Explicit high-uncertainty finding; no silent semantic pass |
 | Added instructions | Target contains new imperative not in source | Unexpected addition warning |
 | Provider privacy | Provider disabled or mock provider configured | No network call without explicit setup |
+| Translation workload budget | Whole package exceeds request-count or aggregate outbound-byte cap | Rejected during local preflight before any provider call |
+| HTTP aggregate response budget | Provider responses cumulatively exceed the configured response cap | Adapter reads only the remaining budget plus one byte and fails closed |
 | Review evidence | Critical finding approved, then deferred | Approval is blocked until a newer consistent approval event exists |
 | Invariant source evidence | Manifest quote/path/line range is stale, missing, or beyond current source | Deterministic critical finding; approval remains blocked until the manifest is corrected and comparison rerun |
 | Signed report integrity | Signed report field is edited before export | HMAC verification rejects the report and no output package is published |
