@@ -20,7 +20,7 @@ The normative format reference is the [official Agent Skills specification](http
 Record original file path, type, size, hash, filesystem mode, encoding where detectable, frontmatter metadata, link targets, and referenced resources. Bound per-file/aggregate bytes and directory traversal. Avoid reading or executing a script merely to translate its surrounding documentation.
 
 ## Protected-span model
-Each span has path, source range, category, exact literal or matching rule, criticality, and policy. Categories may include tool names, commands, file paths, environment variables, URLs, code, safety constraints, numeric limits, and identifiers. A rule must be able to distinguish a literal code example from narrative prose.
+Each span has path, source range, category, exact literal or matching rule, criticality, and policy. Categories may include tool names, commands, file paths, environment variables, URLs, code, safety constraints, numeric limits, and identifiers. A rule must be able to distinguish a literal code example from narrative prose. Policy regexes are size/count bounded and screened for common catastrophic-backtracking shapes; this heuristic is not a proof of safe complexity.
 
 ## Invariant model
 Represent an invariant as a stable ID, source text or reference, category, condition, required/forbidden action, threshold or limit if relevant, criticality, reviewer, and status. Findings must point back to the relevant source and target ranges.
