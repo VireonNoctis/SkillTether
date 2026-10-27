@@ -10,8 +10,44 @@ from pathlib import Path
 
 from .models import ComparisonReport
 from .safeio import read_bounded_regular_file
+from .redaction import redact_sensitive_text
 
 MAX_REPORT_BYTES = 50 * 1024 * 1024
+
+
+def _redact_path_map(values: dict[str, str]) -> dict[str, str]:
+    """Redact credential-like path components without persisting the original key."""
+    safe_values: dict[str, str] = {}
+    for index, (path, digest) in enumerate(sorted(values.items()), start=1):
+        safe_path = redact_sensitive_text(path)
+        if safe_path != path:
+            safe_path = f"[REDACTED_PATH_{index:05d}]"
+        if safe_path in safe_values:
+            safe_path = f"{safe_path}_{index:05d}"
+        safe_values[safe_path] = digest
+    return safe_values
+
+
+def _redact_report(report: ComparisonReport) -> ComparisonReport:
+    """Return a report copy with common credential forms removed from persisted strings."""
+    safe = report.model_copy(deep=True)
+    safe.translation_provider = (
+        redact_sensitive_text(safe.translation_provider)
+        if safe.translation_provider is not None else None
+    )
+    safe.source_files = _redact_path_map(safe.source_files)
+    safe.target_files = _redact_path_map(safe.target_files)
+    safe.limitations = [redact_sensitive_text(item) for item in safe.limitations]
+    for finding in safe.findings:
+        for field in ("path", "message", "rationale", "original_context", "target_context",
+                      "proposed_change", "reviewer", "review_note", "rule_id", "severity_rationale"):
+            value = getattr(finding, field)
+            if isinstance(value, str):
+                setattr(finding, field, redact_sensitive_text(value))
+        for event in finding.review_history:
+            event.reviewer = redact_sensitive_text(event.reviewer)
+            event.note = redact_sensitive_text(event.note)
+    return safe
 
 
 def _atomic_write_text(output: Path, content: str) -> Path:
@@ -40,7 +76,8 @@ def _atomic_write_text(output: Path, content: str) -> Path:
 
 def write_json_report(report: ComparisonReport, path: str | Path) -> Path:
     output = Path(path).expanduser()
-    payload = json.dumps(report.model_dump(mode="json"), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    safe_report = _redact_report(report)
+    payload = json.dumps(safe_report.model_dump(mode="json"), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     if len(payload.encode("utf-8")) > MAX_REPORT_BYTES:
         raise ValueError(f"Report exceeds the {MAX_REPORT_BYTES}-byte safety limit")
     return _atomic_write_text(output, payload)
@@ -52,7 +89,7 @@ def read_json_report(path: str | Path) -> ComparisonReport:
 
 
 def _fenced_context(value: str, limit: int = 4000) -> str:
-    context = value[:limit]
+    context = redact_sensitive_text(value[:limit])
     backtick_run = max((len(match.group(0)) for match in re.finditer(r"`+", context)), default=0)
     tilde_run = max((len(match.group(0)) for match in re.finditer(r"~+", context)), default=0)
     marker = "`" if backtick_run < tilde_run else "~"
@@ -68,6 +105,7 @@ def _markdown_escape(value: object) -> str:
 
 def write_markdown_report(report: ComparisonReport, path: str | Path) -> Path:
     output = Path(path).expanduser()
+    report = _redact_report(report)
     lines = [
         "# SkillTether comparison report", "",
         f"- Tool version: {report.tool_version}",
