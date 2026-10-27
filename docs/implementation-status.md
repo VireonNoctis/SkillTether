@@ -12,7 +12,7 @@
 - Provider-neutral translation protocol, identity adapter, and explicit-consent JSON HTTP bridge.
 - Markdown prose masking for frontmatter, code fences, inline code, URLs, link destinations, HTML tags, and basic line-prefix syntax.
 - Line-block, token, file-path, non-text resource hash, and human-authored invariant findings.
-- Atomically written mode-0600 (POSIX) JSON/Markdown reports; output-path guards to preserve source/candidate packages; stable IDs and fingerprints; explicit rule/method/uncertainty/severity rationale; chronological review history; approval gates requiring consistent reviewer decisions with rationale; JSON Schema validation tests; and optional fail-on-review CI exit semantics.
+- Atomically written mode-0600 (POSIX) JSON/Markdown reports; bounded regular-file reads for config/report inputs; output-path guards; file-mode-aware fingerprints; explicit rule/method/uncertainty/severity rationale; chronological review history; common-credential redaction on finding/report persistence; JSON Schema validation tests; and optional fail-on-review CI exit semantics.
 - Optional local SQLite metadata history with fingerprint/locale/metadata validation, private file permissions, and no text payload columns; pytest/Hypothesis/JSON Schema tests and GitHub Actions CI.
 
 ## Deliberately not claimed
@@ -25,6 +25,7 @@
 - No automatic protected-token rename mapping, full Markdown AST translation, complete shell/JavaScript/PowerShell parser, or optional Svelte review UI yet.
 - Semantic inference remains a human-reviewed workflow, not an automatic safe/unsafe classifier.
 - Review history improves accountability but is not a cryptographic signature or protection against deliberate edits to a report file.
+- Credential redaction covers selected common patterns only; it is not a secret scanner and cannot guarantee sensitive material has been removed.
 
 ## Current specification assumptions
 
