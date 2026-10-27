@@ -15,6 +15,11 @@
 | Omitted sections | Paragraph, list item, or reference file removed | Missing-content finding |
 | Added instructions | Target contains new imperative not in source | Unexpected addition warning |
 | Provider privacy | Provider disabled or mock provider configured | No network call without explicit setup |
+| Review evidence | Critical finding approved, then deferred | Approval is blocked until a newer consistent approval event exists |
+| Review audit | Bare approved disposition without history or rationale | Approval gate rejects missing review evidence |
+| Review input privacy | Note contains obvious credential material | Note is rejected without echoing the credential |
+| Review rendering | Note contains HTML/Markdown control syntax | Markdown report fences the untrusted note |
+| Report compatibility | Existing v1.0 finding omits additive evidence fields | Legacy report still parses; bare approval is not treated as an audited approval |
 | Hostile content | HTML-like text, huge Markdown, path traversal strings | Safe parsing and rendering |
 
 ## Evaluation protocol
