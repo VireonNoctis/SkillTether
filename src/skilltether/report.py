@@ -10,6 +10,8 @@ from pathlib import Path
 
 from .models import ComparisonReport
 
+MAX_REPORT_BYTES = 50 * 1024 * 1024
+
 
 def _atomic_write_text(output: Path, content: str) -> Path:
     """Atomically replace a report without following a destination symlink."""
@@ -38,11 +40,18 @@ def _atomic_write_text(output: Path, content: str) -> Path:
 def write_json_report(report: ComparisonReport, path: str | Path) -> Path:
     output = Path(path).expanduser()
     payload = json.dumps(report.model_dump(mode="json"), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    if len(payload.encode("utf-8")) > MAX_REPORT_BYTES:
+        raise ValueError(f"Report exceeds the {MAX_REPORT_BYTES}-byte safety limit")
     return _atomic_write_text(output, payload)
 
 
 def read_json_report(path: str | Path) -> ComparisonReport:
-    return ComparisonReport.model_validate_json(Path(path).read_text(encoding="utf-8"))
+    report_path = Path(path).expanduser()
+    with report_path.open("rb") as stream:
+        raw = stream.read(MAX_REPORT_BYTES + 1)
+    if len(raw) > MAX_REPORT_BYTES:
+        raise ValueError(f"Report exceeds the {MAX_REPORT_BYTES}-byte safety limit")
+    return ComparisonReport.model_validate_json(raw)
 
 
 def _fenced_context(value: str, limit: int = 4000) -> str:
