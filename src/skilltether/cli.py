@@ -338,7 +338,9 @@ def cmd_approve(args: argparse.Namespace) -> int:
     temp_parent = Path(tempfile.mkdtemp(prefix=f".{output.name}.approved-", dir=output.parent))
     temp_package = temp_parent / output.name
     try:
-        shutil.copytree(target, temp_package, symlinks=False)
+        # Preserve a late-arriving symlink in the private staging tree. The
+        # post-copy fingerprint check then rejects it without reading through it.
+        shutil.copytree(target, temp_package, symlinks=True)
         if _fingerprint_path(temp_package) != report.target_fingerprint:
             raise RuntimeError("Approved output fingerprint mismatch; nothing was published")
         os.replace(temp_package, output)
