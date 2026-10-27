@@ -3,9 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import yaml
 
+from skilltether.cli import main
 from skilltether.compare import compare_packages
 from skilltether.models import Invariant, InvariantManifest
+from skilltether.report import write_json_report
 
 
 def make_package(root: Path, instruction: str) -> Path:
@@ -156,3 +159,49 @@ def test_unanchored_invariants_remain_supported_when_optional_refs_are_omitted(
         finding.code == "INVARIANT_SOURCE_REFERENCE_INVALID"
         for finding in report.findings
     )
+
+
+def test_approval_cannot_override_stale_source_reference(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = make_package(
+        tmp_path / "source" / "sample-skill",
+        "You must not run deploy without approval.",
+    )
+    target = make_package(
+        tmp_path / "target" / "sample-skill",
+        "You must not run deploy without approval.",
+    )
+    (target / "references").mkdir()
+    (target / "references" / "old.md").write_text(
+        "Never deploy without approval.\\n", encoding="utf-8",
+    )
+    manifest = reviewed_manifest(Invariant(
+        id="INV-SOURCE-BLOCK",
+        statement="Never deploy without approval.",
+        source_path="references/old.md",
+        source_lines=(1, 1),
+        source_text="Never deploy without approval.",
+        reviewed=True,
+        reviewer="qa-reviewer",
+    ))
+    manifest_path = tmp_path / "invariants.yaml"
+    manifest_path.write_text(
+        yaml.safe_dump(manifest.model_dump(mode="json", exclude_none=True), sort_keys=False),
+        encoding="utf-8",
+    )
+    report = compare_packages(source, target, manifest, target_locale="fr")
+    report_path = tmp_path / "report.json"
+    write_json_report(report, report_path)
+    output = tmp_path / "approved" / "sample-skill"
+
+    result = main([
+        "approve", str(source), str(target),
+        "--report", str(report_path),
+        "--output", str(output),
+        "--invariants", str(manifest_path),
+    ])
+
+    assert result == 2
+    assert "invalid source references" in capsys.readouterr().err
+    assert not output.exists()
