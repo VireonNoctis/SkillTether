@@ -384,3 +384,64 @@ def test_directory_count_limit_is_enforced(tmp_path: Path, monkeypatch: pytest.M
 
     with pytest.raises(ValueError, match="directory safety limit"):
         analysis.inspect_package(package)
+
+
+
+def test_invariant_numbers_in_frontmatter_do_not_satisfy_instruction_context(tmp_path: Path) -> None:
+    source = make_package(
+        tmp_path / "source" / "sample-skill",
+        "You must not use more than 3 retries.",
+    )
+    target = tmp_path / "target" / "sample-skill"
+    target.mkdir(parents=True)
+    (target / "SKILL.md").write_text(
+        "---\\nname: sample-skill\\ndescription: A 3-step retry workflow.\\n---\\n\\n"
+        "# Retry guidance\\nUse five retries.\\n",
+        encoding="utf-8",
+    )
+    invariant = Invariant(
+        id="RETRIES-3", statement="Do not exceed 3 retries.",
+        category="numeric_limit", severity="critical",
+        source_path="SKILL.md", source_lines=(7, 7),
+        source_text="You must not use more than 3 retries.",
+        expected_numbers=["3"], reviewed=True, reviewer="qa-reviewer",
+    )
+    report = compare_packages(source, target, reviewed_manifest(invariant))
+    finding = next(
+        item for item in report.findings
+        if item.code == "INVARIANT_REQUIRED_TOKEN_MISSING" and "3" in item.message
+    )
+
+    assert finding.target_line == 7
+    assert finding.analysis_method == "heuristic"
+    assert finding.uncertainty == "high"
+    assert finding.target_context == "Use five retries."
+
+
+def test_forbidden_token_elsewhere_is_uncertain_not_a_context_confirmed_violation(tmp_path: Path) -> None:
+    source = make_package(
+        tmp_path / "source" / "sample-skill",
+        "Do not include SECRET_TOKEN when describing the public endpoint.",
+    )
+    target = make_package(
+        tmp_path / "target" / "sample-skill",
+        "The public endpoint must accept requests only.\\n\\n"
+        "A glossary lists SECRET_TOKEN as a separate identifier.",
+    )
+    invariant = Invariant(
+        id="PUBLIC-ENDPOINT", statement="Do not include SECRET_TOKEN when describing the public endpoint.",
+        category="safety_constraint", severity="high",
+        source_path="SKILL.md",
+        source_text="Do not include SECRET_TOKEN when describing the public endpoint.",
+        forbidden_tokens=["SECRET_TOKEN"], reviewed=True, reviewer="qa-reviewer",
+    )
+    report = compare_packages(source, target, reviewed_manifest(invariant))
+    codes = {item.code for item in report.findings}
+
+    assert "INVARIANT_FORBIDDEN_TOKEN_CONTEXT_UNCERTAIN" in codes
+    assert "INVARIANT_FORBIDDEN_TOKEN_PRESENT" not in codes
+    finding = next(item for item in report.findings if item.code == "INVARIANT_FORBIDDEN_TOKEN_CONTEXT_UNCERTAIN")
+    assert finding.analysis_method == "heuristic"
+    assert finding.uncertainty == "high"
+    assert finding.target_context == "The public endpoint must accept requests only."
+    assert finding.target_line == 6
