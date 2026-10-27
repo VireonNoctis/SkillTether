@@ -11,7 +11,7 @@
 - Provider-neutral translation protocol, identity adapter, and explicit-consent JSON HTTP bridge.
 - Markdown prose masking for frontmatter, code fences, inline code, URLs, link destinations, HTML tags, and basic line-prefix syntax.
 - Line-block, token, file-path, and human-authored invariant findings.
-- JSON and Markdown reports, stable finding IDs, source/target plus manifest/policy fingerprints, adapter provenance, review dispositions, and fingerprint-gated atomic approval export.
+- JSON and Markdown reports, stable finding IDs, source/target plus manifest/policy fingerprints, adapter provenance, explicit rule/method/uncertainty/severity rationale, append-only-in-report review history, and approval gates that require consistent reviewer decisions with rationale.
 - Optional local SQLite metadata history, pytest/Hypothesis tests, and GitHub Actions CI.
 
 ## Deliberately not claimed
@@ -23,6 +23,7 @@
 - No bundled vendor SDK, API key management, hosted translation service, or built-in credentials.
 - No automatic protected-token rename mapping, full Markdown AST translation, complete shell/JavaScript/PowerShell parser, or optional Svelte review UI yet.
 - Semantic inference remains a human-reviewed workflow, not an automatic safe/unsafe classifier.
+- Review history improves accountability but is not a cryptographic signature or protection against deliberate edits to a report file.
 
 ## Current specification assumptions
 
