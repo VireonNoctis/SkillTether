@@ -157,10 +157,11 @@ Run skilltether COMMAND --help for flags. For CI runs that should fail when huma
 - [Validation matrix](docs/validation-matrix.md)
 - [Implementation status and limits](docs/implementation-status.md)
 - [Review evidence and approval gates](docs/review-audit.md)
+- [Agent Skills specification boundary](docs/spec-compatibility.md)
 
 ## Research references
 
-- [Agent Skills specification](https://agentskills.io/specification)
+- [Official Agent Skills specification](https://agentskills.io/specification)
 - [Agent Skills reference implementation](https://github.com/agentskills/agentskills)
 - [RFC 5646 — Tags for Identifying Languages](https://www.rfc-editor.org/rfc/rfc5646)
 - [JSON Schema](https://json-schema.org/)
