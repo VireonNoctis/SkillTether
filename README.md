@@ -8,16 +8,16 @@ SkillTether is a local-first localization and integrity-checking CLI for Agent S
 
 ## Included in this MVP
 
-- Read-only package inventory with SHA-256 hashes, bounded file sizes/counts, UTF-8 detection, and symlink rejection.
+- Read-only package inventory with SHA-256 hashes, bounded per-file and aggregate sizes, bounded directory/file counts and depth, UTF-8 detection, symlink rejection, and special-file rejection.
 - SKILL.md YAML-frontmatter checks: required fields, name syntax and directory identity, description length, compatibility, metadata types, and body presence.
 - Local Markdown links and image assets, in-document fragments, and conventional scripts/references/assets/resources path checks. External URLs are not fetched.
 - Static syntax checks for Python scripts and JSON/YAML/TOML/XML resources; scripts are parsed, never executed.
 - Protected-span detection for fenced/inline code, URLs, environment variables, command flags, paths, plus configurable regexes and explicit identifiers.
 - A human-authored YAML invariant manifest with categories for safety constraints, mandatory conditions, negation, numeric limits, preconditions, and decision rules.
-- Line-block, protected-token, package-path, and invariant findings with stable rule IDs, explicit deterministic/heuristic method labels, uncertainty states, severity rationale, source/target context, and reviewer disposition.
+- Line-block, protected-token, package-path, and invariant findings with stable rule IDs, explicit deterministic/heuristic method labels, uncertainty states, severity rationale, source/target context, and reviewer disposition. Byte changes to non-text resources are also detected.
 - Chronological review history with mandatory reviewer identifiers and non-empty rationale; approval requires the latest decision to match a consistent audit history.
 - A provider-neutral adapter protocol, an identity adapter for local pipeline tests, and an optional generic JSON-over-HTTPS adapter. No provider is called by default.
-- Atomic candidate output, a separate explicit approval/export command, JSON and Markdown reports, and local SQLite run metadata without document text or credentials.
+- Atomic candidate output, separate explicit approval/export, atomic private JSON/Markdown reports, report-path guards that protect source/candidate packages, actual JSON Schema regression checks, and local SQLite run metadata without document text or credentials.
 - pytest and Hypothesis regression fixtures, plus GitHub Actions CI.
 
 The optional Svelte + TypeScript review UI is intentionally deferred until the report contracts are stable.
@@ -120,7 +120,7 @@ Approval checks source/candidate/manifest/policy fingerprints against the review
 | skilltether review REPORT FINDING_ID ... | Record approved/rejected/deferred human disposition |
 | skilltether approve SOURCE TARGET --report REPORT --output OUTPUT | Export only a reviewed, fingerprint-matched candidate |
 
-Run skilltether COMMAND --help for flags.
+Run skilltether COMMAND --help for flags. For CI runs that should fail when human review remains necessary, use `compare --fail-on-review` or `translate --fail-on-review`; without the flag, reports can be generated while preserving the existing structural exit-code behavior.
 
 ## Integrity model
 
