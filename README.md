@@ -18,6 +18,7 @@ SkillTether is a local-first localization and integrity-checking CLI for Agent S
 - Chronological review history with mandatory reviewer identifiers and non-empty rationale; approval requires the latest decision to match a consistent audit history.
 - A provider-neutral adapter protocol, an identity adapter for local pipeline tests, and an optional generic JSON-over-HTTPS adapter. No provider is called by default.
 - Atomic candidate output, separate explicit approval/export, atomic private JSON/Markdown reports, output-path guards that protect source/candidate packages, bounded reads for manifests/policies/reports/history, actual JSON Schema regression checks, and private SQLite run metadata without document text or credentials.
+- Redaction of common credential patterns in finding evidence and persisted reports, plus explicit limits explaining that this is not a complete secret scanner.
 - pytest and Hypothesis regression fixtures, plus GitHub Actions CI.
 
 The optional Svelte + TypeScript review UI is intentionally deferred until the report contracts are stable.
@@ -141,6 +142,7 @@ Run skilltether COMMAND --help for flags. For CI runs that should fail when huma
 - External URLs are not fetched, so network reachability and remote content are outside the default offline check.
 - Source hashes and the candidate are checked, but this is not a sandbox for hostile operating-system-level inputs.
 - The generic HTTP adapter is a bridge contract, not a translation service. Configure a service you trust.
+- Credential redaction is a high-confidence guardrail, not a complete secret scanner. Do not put credentials into skill content, policy files, or reviewer notes; unfamiliar token formats may not be detected.
 - The report is reproducible from fingerprints (including filesystem mode), versioned rules, and stable finding IDs; generated timestamps naturally vary.
 - Review history is a local audit aid, not a cryptographic signature: it cannot authenticate reviewer identity or prevent deliberate report-file edits.
 
