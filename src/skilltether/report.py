@@ -3,20 +3,42 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import re
+import tempfile
 from pathlib import Path
 
 from .models import ComparisonReport
 
 
+def _atomic_write_text(output: Path, content: str) -> Path:
+    """Atomically replace a report without following a destination symlink."""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    if output.exists() and output.is_dir():
+        raise IsADirectoryError(f"Report output is a directory: {output}")
+    descriptor, temporary = tempfile.mkstemp(prefix=f".{output.name}.", suffix=".tmp", dir=output.parent)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as stream:
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if os.name == "posix":
+            os.chmod(temporary, 0o600)
+        # os.replace replaces a symlink itself instead of following it. The content
+        # is fully written before the destination name is switched into place.
+        os.replace(temporary, output)
+    finally:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+    return output
+
+
 def write_json_report(report: ComparisonReport, path: str | Path) -> Path:
     output = Path(path).expanduser()
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(
-        json.dumps(report.model_dump(mode="json"), ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    return output
+    payload = json.dumps(report.model_dump(mode="json"), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    return _atomic_write_text(output, payload)
 
 
 def read_json_report(path: str | Path) -> ComparisonReport:
@@ -26,7 +48,7 @@ def read_json_report(path: str | Path) -> ComparisonReport:
 def _fenced_context(value: str, limit: int = 4000) -> str:
     context = value[:limit]
     backtick_run = max((len(match.group(0)) for match in re.finditer(r"`+", context)), default=0)
-    tilde_run = max((len(match.group(0)) for match in __import__("re").finditer(r"~+", context)), default=0)
+    tilde_run = max((len(match.group(0)) for match in re.finditer(r"~+", context)), default=0)
     marker = "`" if backtick_run < tilde_run else "~"
     fence = marker * max(3, (backtick_run if marker == "`" else tilde_run) + 1)
     return f"{fence}text\n{context}\n{fence}"
@@ -34,7 +56,6 @@ def _fenced_context(value: str, limit: int = 4000) -> str:
 
 def write_markdown_report(report: ComparisonReport, path: str | Path) -> Path:
     output = Path(path).expanduser()
-    output.parent.mkdir(parents=True, exist_ok=True)
     lines = [
         "# SkillTether comparison report", "",
         f"- Tool version: {report.tool_version}",
@@ -96,5 +117,4 @@ def write_markdown_report(report: ComparisonReport, path: str | Path) -> Path:
                 ])
     lines.extend(["## Limitations", ""])
     lines.extend(f"- {html.escape(item)}" for item in report.limitations)
-    output.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return output
+    return _atomic_write_text(output, "\n".join(lines) + "\n")
