@@ -11,6 +11,7 @@ def read_bounded_regular_file(
     *,
     max_bytes: int,
     purpose: str = "Input file",
+    require_private_mode: bool = False,
 ) -> bytes:
     """Read a regular file without following a final symlink or blocking on a FIFO.
 
@@ -34,6 +35,8 @@ def read_bounded_regular_file(
         opened = os.fstat(descriptor)
         if not stat.S_ISREG(opened.st_mode):
             raise ValueError(f"{purpose} changed to a non-regular filesystem entry while opening")
+        if require_private_mode and os.name == "posix" and stat.S_IMODE(opened.st_mode) & 0o077:
+            raise ValueError(f"{purpose} permissions are too broad; set mode 0600")
         chunks: list[bytes] = []
         total = 0
         while total <= max_bytes:
