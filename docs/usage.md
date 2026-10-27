@@ -64,6 +64,8 @@ The identity adapter is for testing the pipeline, not for producing a real trans
 
 A candidate directory must not exist and must have the same leaf directory name as the source package. Source and output may not overlap. Candidate construction uses a temporary sibling and publishes only when all translation calls finish and structural validation passes.
 
+For CI workflows, add `--fail-on-review` to `compare` or `translate` to return exit status 1 when the report recommends human review or leaves semantic status unknown. Without this opt-in flag, commands retain their existing structural-failure exit semantics while still recording review findings.
+
 To rerun comparison after manifest edits or reviewer changes:
 
 ~~~sh
