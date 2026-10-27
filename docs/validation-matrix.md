@@ -11,6 +11,8 @@
 | Special filesystem entry | Named pipe, socket, device, or symlink is present | Critical structural finding; special files are never read |
 | Output path integrity | Report path inside package or reached through a symlink alias | Command refuses before writing; package remains unchanged |
 | Frontmatter | Missing required field, invalid YAML, wrong field type | Explicit validation failure |
+| Agent Skills optional fields | Optional license/compatibility/metadata/allowed-tools are valid | No false requirement to include fields; correct types are accepted |
+| Extension metadata | Unknown client-specific field appears | Low-severity notice, not an automatic blocking error |
 | Exact identifiers | Command, path, tool name changed | Protected-token finding |
 | Negation | “Do” changed to “do not”, or negation removed | Critical review warning |
 | Modal strength | “Must” weakened to “may” | Invariant review warning |
