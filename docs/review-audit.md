@@ -20,6 +20,12 @@ New findings include:
 
 These fields explain how a finding was produced; they do not score semantic equivalence. A deterministic mismatch is evidence that a particular condition was detected, not proof that the translation is unsafe. A heuristic warning is not a semantic verdict. Human review remains necessary for critical instructions.
 
+## Optional cryptographic report seal
+
+Reports can be sealed with HMAC-SHA256 using a local key created by `skilltether init-signing-key`. The signature covers the canonical JSON report payload, excluding the two signature metadata fields. When a signed report is reviewed, the CLI verifies it with the supplied key before appending the decision and then re-signs the resulting report. Approval with `--signing-key` requires a valid seal; an already signed report cannot be changed through the review command without its matching key.
+
+This is a symmetric integrity seal, not a digital signature: anyone who holds the key can forge a new valid report. Keep keys private, restrict access, distribute them only through an approved secret-management process, and back them up securely. A lost key prevents future verification/re-signing. Unsigned reports remain supported when signing is not explicitly required.
+
 ## Report credential redaction
 
 Finding construction and report writers redact common credential forms such as credential assignments, bearer/basic tokens, common provider-token prefixes, and complete or truncated PEM private-key blocks. Credential-like reviewer notes and history provider/status labels are rejected rather than persisted. Credential-like path-map keys are replaced with placeholders.
