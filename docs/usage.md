@@ -62,6 +62,8 @@ skilltether translate ./sample-skill /tmp/candidate/sample-skill \
 
 The identity adapter is for testing the pipeline, not for producing a real translation. For a configured HTTP bridge, set --adapter http-json --endpoint URL --allow-remote.
 
+Inline Markdown delimiters, link/image destinations, reference-link identifiers, checkbox tokens, escaped punctuation, table pipes, and hard line breaks are masked as exact-once placeholders. The provider can translate link labels and table-cell prose, while SkillTether rejects missing, duplicated, or reordered Markdown syntax markers before it writes translated text. Fenced code, frontmatter, indented code, and reference-definition lines remain unchanged. This is a conservative lexical safeguard, not a full Markdown/MDX AST transformation; unusual nested constructs still require comparison and human review.
+
 A candidate directory must not exist and must have the same leaf directory name as the source package. Source and output may not overlap. Candidate construction uses a temporary sibling, preserves rather than follows symlinks during staging, and revalidates the staged bytes and permission metadata before writing translated text. It publishes only when all translation calls finish and structural validation passes. Approval export also preserves late-arriving symlinks during staging and rejects a fingerprint mismatch before publishing.
 
 For CI workflows, add `--fail-on-review` to `compare` or `translate` to return exit status 1 when the report recommends human review or leaves semantic status unknown. Without this opt-in flag, commands retain their existing structural-failure exit semantics while still recording review findings.
