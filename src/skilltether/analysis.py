@@ -22,6 +22,8 @@ from .models import FileFingerprint, ProtectedToken, new_finding
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
 MAX_PACKAGE_FILES = 5000
+MAX_PACKAGE_DIRECTORIES = 5000
+MAX_PACKAGE_BYTES = 100 * 1024 * 1024
 TEXT_SUFFIXES = {".md", ".mdx", ".txt", ".rst"}
 SCRIPT_SUFFIXES = {".py", ".sh", ".bash", ".js", ".ts", ".ps1", ".bat"}
 RESOURCE_REFERENCE = re.compile(r"(?<![A-Za-z0-9/:])(?P<path>(?:\.\.?/)*(?:scripts|references|assets|resources)/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*)")
@@ -59,12 +61,19 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
     findings = []
     texts: dict[str, str] = {}
     count = 0
+    directory_count = 0
+    total_bytes = 0
 
     for current, dirs, names in os.walk(root_path, followlinks=False):
         current_path = Path(current)
         safe_dirs = []
         for dirname in sorted(dirs):
+            directory_count += 1
+            if directory_count > MAX_PACKAGE_DIRECTORIES:
+                raise ValueError(f"Package exceeds the {MAX_PACKAGE_DIRECTORIES}-directory safety limit")
             item = current_path / dirname
+            if len(item.relative_to(root_path).parts) > 128:
+                raise ValueError("Package directory depth exceeds the 128-level safety limit")
             if item.is_symlink():
                 findings.append(new_finding(
                     "SYMLINK_NOT_ALLOWED", "critical", "package_integrity",
@@ -116,6 +125,14 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
                         path=rel, proposed_change="Review and split or explicitly handle this resource.",
                     ))
                     continue
+                if total_bytes + opened.st_size > MAX_PACKAGE_BYTES:
+                    findings.append(new_finding(
+                        "PACKAGE_TOO_LARGE", "critical", "package_integrity",
+                        f"Package content exceeds the {MAX_PACKAGE_BYTES}-byte aggregate safety limit.",
+                        "Per-file bounds do not prevent a package containing thousands of individually valid but collectively excessive files.",
+                        path=rel, proposed_change="Reduce the package to the supported aggregate size and rerun validation.",
+                    ))
+                    continue
                 chunks: list[bytes] = []
                 total = 0
                 while total <= MAX_FILE_BYTES:
@@ -133,6 +150,14 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
                         path=rel, proposed_change="Stabilize the resource and rerun validation.",
                     ))
                     continue
+                if total_bytes + len(data) > MAX_PACKAGE_BYTES:
+                    findings.append(new_finding(
+                        "PACKAGE_TOO_LARGE", "critical", "package_integrity",
+                        f"Package content exceeds the {MAX_PACKAGE_BYTES}-byte aggregate safety limit while being read.",
+                        "A resource changed after the initial size check and exceeded the aggregate read budget.",
+                        path=rel, proposed_change="Stabilize and reduce the package, then rerun validation.",
+                    ))
+                    continue
             except OSError as exc:
                 findings.append(new_finding(
                     "FILE_READ_ERROR", "high", "package_integrity",
@@ -144,6 +169,7 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
             finally:
                 if descriptor is not None:
                     os.close(descriptor)
+            total_bytes += len(data)
             encoding = None
             try:
                 text = data.decode("utf-8")
