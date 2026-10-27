@@ -544,3 +544,81 @@ def test_comparison_skips_over_budget_line_matching_with_explicit_uncertainty(
     assert all(item.analysis_method == "deterministic" for item in findings)
     assert all(item.uncertainty == "high" and item.requires_review for item in findings)
     assert report.semantic_status == "review_recommended"
+
+
+
+def test_official_optional_skill_fields_are_optional_and_validate_when_present(tmp_path: Path) -> None:
+    package = tmp_path / "sample-skill"
+    package.mkdir()
+    (package / "SKILL.md").write_text(
+        "\n".join([
+            "---",
+            "name: sample-skill",
+            "description: A sample skill that validates optional Agent Skills fields.",
+            "license: Apache-2.0",
+            "compatibility: Requires Python 3.13 and a local filesystem.",
+            "metadata:",
+            "  author: example-team",
+            '  version: "1.0"',
+            "allowed-tools: Bash(git:*) Read",
+            "---",
+            "",
+            "# Instructions",
+            "",
+            "Use the documented workflow.",
+            "",
+        ]),
+        encoding="utf-8",
+    )
+
+    _inventory, findings, _texts = inspect_package(package)
+
+    assert not {
+        "LICENSE_INVALID", "COMPATIBILITY_INVALID", "METADATA_INVALID", "ALLOWED_TOOLS_INVALID",
+    } & {item.code for item in findings}
+    assert not [item for item in findings if item.severity in ("high", "critical")]
+
+
+@pytest.mark.parametrize(
+    "field,value,expected_code",
+    [
+        ("license", "[not, a, string]", "LICENSE_INVALID"),
+        ("compatibility", "[python, git]", "COMPATIBILITY_INVALID"),
+        ("metadata", "{author: 7}", "METADATA_INVALID"),
+        ("allowed-tools", "[Read, Bash]", "ALLOWED_TOOLS_INVALID"),
+    ],
+)
+def test_invalid_optional_skill_frontmatter_types_are_reported(
+    tmp_path: Path, field: str, value: str, expected_code: str,
+) -> None:
+    package = tmp_path / "sample-skill"
+    package.mkdir()
+    (package / "SKILL.md").write_text(
+        "\n".join([
+            "---", "name: sample-skill", "description: A skill.",
+            f"{field}: {value}", "---", "", "# Instructions", "", "Follow the instructions.", "",
+        ]),
+        encoding="utf-8",
+    )
+
+    _inventory, findings, _texts = inspect_package(package)
+
+    assert expected_code in {item.code for item in findings}
+
+
+def test_unknown_frontmatter_extension_is_warning_not_blocking_error(tmp_path: Path) -> None:
+    package = tmp_path / "sample-skill"
+    package.mkdir()
+    (package / "SKILL.md").write_text(
+        "\n".join([
+            "---", "name: sample-skill", "description: A valid skill.",
+            "client-extension: enabled", "---", "", "# Instructions", "", "Follow the instructions.", "",
+        ]),
+        encoding="utf-8",
+    )
+
+    _inventory, findings, _texts = inspect_package(package)
+    unknown = next(item for item in findings if item.code == "FRONTMATTER_UNKNOWN_FIELDS")
+
+    assert unknown.severity == "low"
+    assert not [item for item in findings if item.severity in ("high", "critical")]
