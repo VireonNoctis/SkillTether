@@ -5,19 +5,10 @@ cryptographic signature and must not be treated as proof of reviewer identity.
 """
 from __future__ import annotations
 
-import re
 from datetime import datetime, timezone
 
 from .models import Disposition, Finding, ReviewEvent
-
-# High-confidence credential forms only. Notes are stored in reports, so reject
-# obvious credentials instead of echoing or persisting them in an audit trail.
-_SECRET_PATTERNS = (
-    re.compile(r"(?i)\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|client[_-]?secret)\b\s*[:=]\s*\S{8,}"),
-    re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,})\b"),
-    re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}"),
-    re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
-)
+from .redaction import redact_sensitive_text
 
 def record_review(
     finding: Finding,
@@ -38,7 +29,7 @@ def record_review(
         raise ValueError("Reviewer identifier must be 200 characters or fewer")
     if len(note) > 4000:
         raise ValueError("Review note must be 4000 characters or fewer")
-    if any(pattern.search(note) for pattern in _SECRET_PATTERNS):
+    if redact_sensitive_text(note) != note:
         raise ValueError("Review note resembles credential material; remove secrets and retry")
 
     timestamp = recorded_at or datetime.now(timezone.utc)
