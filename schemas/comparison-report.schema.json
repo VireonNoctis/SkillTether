@@ -25,6 +25,8 @@
     "target_files": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^[a-f0-9]{64}$" } },
     "structural_status": { "enum": ["pass", "fail", "unsupported", "error"] },
     "semantic_status": { "enum": ["no_issue_detected", "review_recommended", "unknown"] },
+    "integrity_algorithm": { "enum": ["hmac-sha256", null] },
+    "integrity_signature": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
     "limitations": { "type": "array", "items": { "type": "string" } },
     "findings": {
       "type": "array",
@@ -71,5 +73,27 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "integrity_algorithm": { "const": "hmac-sha256" } },
+        "required": ["integrity_algorithm"]
+      },
+      "then": {
+        "properties": { "integrity_signature": { "type": "string", "pattern": "^[a-f0-9]{64}$" } },
+        "required": ["integrity_signature"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "integrity_signature": { "type": "string" } },
+        "required": ["integrity_signature"]
+      },
+      "then": {
+        "properties": { "integrity_algorithm": { "const": "hmac-sha256" } },
+        "required": ["integrity_algorithm"]
+      }
+    }
+  ]
 }
