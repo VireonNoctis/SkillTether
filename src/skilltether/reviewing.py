@@ -69,9 +69,11 @@ def has_audited_approval(finding: Finding) -> bool:
     ):
         return False
 
-    expected: Disposition = "pending"
-    for event in finding.review_history:
-        if event.previous_disposition != expected:
+    # The first recorded event may start from a legacy report disposition. Once
+    # the audit trail exists, every subsequent event must follow the prior event.
+    expected: Disposition = finding.review_history[0].disposition
+    for index, event in enumerate(finding.review_history):
+        if index > 0 and event.previous_disposition != expected:
             return False
         expected = event.disposition
 
