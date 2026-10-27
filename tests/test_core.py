@@ -257,8 +257,8 @@ def test_binary_asset_byte_changes_are_review_findings(tmp_path: Path) -> None:
     target = make_package(tmp_path / "target" / "sample-skill", "A skill with an image.")
     (source / "assets").mkdir()
     (target / "assets").mkdir()
-    (source / "assets" / "icon.png").write_bytes(b"\\x89PNG\\r\\n\\x1a\\nsource")
-    (target / "assets" / "icon.png").write_bytes(b"\\x89PNG\\r\\n\\x1a\\ntarget")
+    (source / "assets" / "icon.png").write_bytes(b"\x89PNG\r\n\x1a\nsource")
+    (target / "assets" / "icon.png").write_bytes(b"\x89PNG\r\n\x1a\ntarget")
 
     report = compare_packages(source, target, reviewed_manifest())
     changed = [item for item in report.findings if item.code == "PACKAGE_RESOURCE_CHANGED"]
