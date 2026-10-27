@@ -36,6 +36,14 @@ MASK_SPAN = re.compile(
     r"|[A-Za-z]:\x5c[^ ]+"
     r"|(?:[.][.]/|[.]/|(?:[A-Za-z0-9_.-]+/)+)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*"
 )
+# Keep Markdown punctuation opaque while allowing text between delimiters to
+# translate. These are lexical safeguards, not a complete CommonMark parser.
+MARKDOWN_SYNTAX = re.compile(
+    r"\\[\\\x60*{}\[\]()#+.!_|>~-]"
+    r"|\[[ xX]\]"
+    r"|\]\[[^\]\r\n]*\]"
+    r"|!\[|\]\(|\*\*|__|~~|\x60|\[|\]|\(|\)|\*|_|~|\|| {2,}$"
+)
 
 
 class TranslationAdapter(Protocol):
@@ -172,7 +180,7 @@ def translate_markdown(
             continue
         if (
             not stripped or line.startswith("    ") or line.startswith("\t")
-            or stripped.startswith("|") or re.match(r"^\s{0,3}\[[^\]]+\]:", line)
+            or re.match(r"^\s{0,3}\[[^\]]+\]:", line)
             or stripped.startswith("<!--") or stripped.startswith("<!DOCTYPE")
             or re.match(r"^\s*</?[A-Za-z][^>]*>\s*$", line)
         ):
@@ -187,22 +195,59 @@ def translate_markdown(
         if not re.search(r"[A-Za-zÀ-ɏΑ-ϿЀ-ӿ]", prose):
             output.append(line)
             continue
-        masked, replacements = _mask_protected_spans(prose, extra_patterns, explicit_tokens)
+        masked, protected_replacements = _mask_protected_spans(prose, extra_patterns, explicit_tokens)
         if not masked.strip():
             output.append(line)
             continue
+        masked, syntax_replacements = _mask_markdown_syntax(masked)
+        replacements = protected_replacements + syntax_replacements
         translated = adapter.translate(masked, source_locale, target_locale)
         if not isinstance(translated, str):
             raise RuntimeError("Translation adapter returned a non-string result")
         for marker, _original in replacements:
             if translated.count(marker) != 1:
                 raise RuntimeError("Translation adapter altered or duplicated a protected placeholder; no output was published")
+        # Syntax delimiters are order-sensitive (for example the opening and
+        # closing markers around emphasis). Providers may not reorder them.
+        syntax_markers = [marker for marker, _original in syntax_replacements]
+        syntax_positions = [translated.find(marker) for marker in syntax_markers]
+        if syntax_positions != sorted(syntax_positions):
+            raise RuntimeError("Translation adapter reordered Markdown syntax placeholders; no output was published")
         for marker, original in replacements:
             translated = translated.replace(marker, original)
         output.append(prefix + translated + ending)
     if in_frontmatter and not frontmatter_closed:
         raise ValueError("Unclosed SKILL.md frontmatter; refusing to translate malformed input")
     return "".join(output)
+
+
+def _mask_markdown_syntax(text: str) -> tuple[str, list[tuple[str, str]]]:
+    """Replace Markdown delimiters with exact-once, order-checked placeholders.
+
+    Text between delimiters remains translatable. Reference-link identifiers and
+    task-list checkbox tokens are preserved as a whole. The caller verifies both
+    exact-once occurrence and source order before restoring the original tokens.
+    """
+    matches = list(MARKDOWN_SYNTAX.finditer(text))
+    if not matches:
+        return text, []
+
+    prefix = "SKTETHERSYNTAX"
+    while prefix in text:
+        prefix += "X"
+
+    replacements: list[tuple[str, str]] = []
+    output: list[str] = []
+    cursor = 0
+    for index, match in enumerate(matches):
+        output.append(text[cursor:match.start()])
+        marker = f"{prefix}{index:05d}END"
+        original = match.group(0)
+        replacements.append((marker, original))
+        output.append(marker)
+        cursor = match.end()
+    output.append(text[cursor:])
+    return "".join(output), replacements
 
 
 def _mask_protected_spans(
