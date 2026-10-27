@@ -479,3 +479,9 @@ def test_report_read_and_write_sizes_are_bounded(tmp_path: Path, monkeypatch: py
     with pytest.raises(ValueError, match="safety limit"):
         write_json_report(comparison(critical_finding()), out)
     assert not out.exists()
+
+    from skilltether.report import write_markdown_report
+    markdown_out = tmp_path / "not-written.md"
+    with pytest.raises(ValueError, match="safety limit"):
+        write_markdown_report(comparison(critical_finding()), markdown_out)
+    assert not markdown_out.exists()
