@@ -81,7 +81,7 @@ Open the report and review all critical/uncertain entries in their full context.
 skilltether review ./review/report.json FINDING_ID --disposition approved --reviewer reviewer-id --note "Reasoned review"
 ~~~
 
-Run the command separately for each finding. To change a disposition, run it again with approved, rejected, or deferred. If the source/candidate changes after the report is created, the fingerprint check fails and comparison must be rerun.
+Run the command separately for each finding and provide a meaningful, non-empty `--note`. The note should explain the decision without copying skill content or credentials. Obvious credential-like note values are rejected. Each invocation appends a timestamped decision, retaining prior approvals, rejections, and deferrals. To change a disposition, run it again with approved, rejected, or deferred. If the source/candidate changes after the report is created, the fingerprint check fails and comparison must be rerun.
 
 ~~~sh
 skilltether approve ./sample-skill /tmp/candidate/sample-skill \
@@ -94,7 +94,7 @@ Export requires a passing structural report, current source/candidate/manifest/p
 
 ## Reports and local history
 
-JSON reports are intended for tooling; Markdown reports escape context before presenting it. Findings have stable IDs based on evidence and key metadata. A generated timestamp and provider output may differ between runs.
+JSON reports are intended for tooling; Markdown reports fence untrusted context and review notes before presenting them. New findings include a rule ID, detection method, explicit uncertainty state, and severity rationale. Review history is preserved within one report; rerunning comparison creates a new report and requires new review decisions. A generated timestamp and provider output may differ between runs.
 
 SQLite history defaults to ~/.skilltether/history.sqlite3. It contains run timestamps, provider name, locales, status, and package fingerprints—not translated prose, source content, API credentials, or authorization headers. Pass --history-db to select another local database.
 
