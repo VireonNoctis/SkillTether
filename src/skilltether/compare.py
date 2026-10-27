@@ -261,6 +261,55 @@ def compare_packages(
                 requires_review=True,
             ))
         for invariant in manifest.invariants:
+            # Human review metadata is only useful when its source evidence still
+            # anchors to this exact source package. Stale paths, line ranges, or
+            # excerpts are deterministic integrity issues, not semantic guesses.
+            source_reference_problem: str | None = None
+            source_doc = source_text.get(invariant.source_path)
+            if invariant.source_path not in source_inventory:
+                source_reference_problem = "source path does not exist in the current source package"
+            elif source_doc is None:
+                source_reference_problem = "source path is not available as decoded UTF-8 text"
+            elif invariant.source_lines:
+                source_lines = source_doc.splitlines()
+                start_line, end_line = invariant.source_lines
+                if end_line > len(source_lines):
+                    source_reference_problem = (
+                        f"source line range {start_line}-{end_line} exceeds the current "
+                        f"{len(source_lines)}-line resource"
+                    )
+                elif invariant.source_text is not None:
+                    actual_excerpt = "\n".join(
+                        line.strip() for line in source_lines[start_line - 1:end_line]
+                    )
+                    declared_excerpt = "\n".join(
+                        line.strip() for line in invariant.source_text.splitlines()
+                    )
+                    if actual_excerpt != declared_excerpt:
+                        source_reference_problem = (
+                            "source_text no longer matches the declared source_lines range"
+                        )
+            elif invariant.source_text and invariant.source_text not in source_doc:
+                source_reference_problem = (
+                    "source_text is not present in the current source resource"
+                )
+
+            if source_reference_problem:
+                findings.append(new_finding(
+                    "INVARIANT_SOURCE_REFERENCE_INVALID", "critical", "semantic_invariant",
+                    f"Invariant {invariant.id!r} has stale or invalid source evidence: {source_reference_problem}.",
+                    "Human-reviewed invariants must remain anchored to the current source package; a stale quote or line range can cause reviewers to approve the wrong instruction.",
+                    path=invariant.source_path,
+                    source_line=invariant.source_lines[0] if invariant.source_lines else None,
+                    original_context=invariant.source_text or invariant.statement,
+                    proposed_change="Correct source_path, source_lines, and/or source_text to match the current source, then rerun comparison and review the updated manifest.",
+                    requires_review=True,
+                    analysis_method="deterministic",
+                    uncertainty="none",
+                    severity_rationale="The declared source reference can be checked deterministically and does not match the current package; approval must be blocked until corrected.",
+                ))
+                continue
+
             if not invariant.reviewed:
                 findings.append(new_finding(
                     "INVARIANT_NOT_HUMAN_REVIEWED", "critical", "semantic_invariant",
