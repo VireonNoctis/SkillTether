@@ -445,3 +445,40 @@ def test_forbidden_token_elsewhere_is_uncertain_not_a_context_confirmed_violatio
     assert finding.uncertainty == "high"
     assert finding.target_context == "The public endpoint must accept requests only."
     assert finding.target_line == 8
+
+
+
+def test_mask_rejects_malformed_direct_policy_inputs() -> None:
+    with pytest.raises(ValueError, match="list of mappings"):
+        translate_markdown(
+            "Translate this sentence.", IdentityAdapter(), "en", "fr",
+            extra_patterns=["not-a-pattern-mapping"],  # type: ignore[list-item]
+        )
+    with pytest.raises(ValueError, match="list of strings"):
+        translate_markdown(
+            "Translate this sentence.", IdentityAdapter(), "en", "fr",
+            explicit_tokens=[object()],  # type: ignore[list-item]
+        )
+
+
+def test_policy_loader_rejects_oversized_regex_and_too_many_patterns(tmp_path: Path) -> None:
+    import yaml
+    from skilltether.analysis import MAX_POLICY_PATTERNS, load_policy
+
+    too_long = tmp_path / "too-long.yaml"
+    too_long.write_text(yaml.safe_dump({
+        "policy_version": "1.0",
+        "patterns": [{"category": "custom", "regex": "a" * 1001}],
+        "explicit_tokens": [],
+    }), encoding="utf-8")
+    with pytest.raises(ValueError, match="exceeds 1000 characters"):
+        load_policy(too_long)
+
+    too_many = tmp_path / "too-many.yaml"
+    too_many.write_text(yaml.safe_dump({
+        "policy_version": "1.0",
+        "patterns": [{"category": "custom", "regex": f"PATTERN_{i}"} for i in range(MAX_POLICY_PATTERNS + 1)],
+        "explicit_tokens": [],
+    }), encoding="utf-8")
+    with pytest.raises(ValueError, match="exceeds 128 patterns"):
+        load_policy(too_many)
