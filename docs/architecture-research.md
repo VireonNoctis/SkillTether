@@ -12,6 +12,10 @@ Inventory package → parse structure → identify protected spans → apply con
 - Svelte + TypeScript as a later optional review interface.
 - pytest, property-based tests, and GitHub Actions for regressions and adversarial fixtures.
 
+## Specification boundary
+
+The normative format reference is the [official Agent Skills specification](https://agentskills.io/specification). Keep required frontmatter and optional-field rules aligned with that source. See [specification boundary and additional safeguards](spec-compatibility.md) for the distinction between base-format requirements and SkillTether operational checks.
+
 ## Package inventory
 Record original file path, type, size, hash, filesystem mode, encoding where detectable, frontmatter metadata, link targets, and referenced resources. Bound per-file/aggregate bytes and directory traversal. Avoid reading or executing a script merely to translate its surrounding documentation.
 
