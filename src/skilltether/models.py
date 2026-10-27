@@ -10,16 +10,16 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 Severity = Literal["info", "low", "medium", "high", "critical"]
 Disposition = Literal["pending", "approved", "rejected", "deferred"]
+AnalysisMethod = Literal["deterministic", "heuristic", "human_review", "unknown"]
+Uncertainty = Literal["none", "low", "medium", "high", "unknown"]
 InvariantCategory = Literal[
     "safety_constraint", "mandatory_condition", "negation", "numeric_limit",
     "precondition", "decision_rule", "other",
 ]
 _BCP47_SHAPE = re.compile(r"^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$")
 
-
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
-
 
 class FileFingerprint(StrictModel):
     path: str
@@ -28,13 +28,11 @@ class FileFingerprint(StrictModel):
     encoding: str | None = None
     kind: str
 
-
 class ProtectedToken(StrictModel):
     path: str
     category: str
     value: str
     line: int = Field(ge=1)
-
 
 class Invariant(StrictModel):
     id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
@@ -62,7 +60,6 @@ class Invariant(StrictModel):
             raise ValueError("source_lines must be a valid inclusive line range")
         return self
 
-
 class InvariantManifest(StrictModel):
     manifest_version: Literal["1.0"] = "1.0"
     source_locale: str
@@ -87,6 +84,33 @@ class InvariantManifest(StrictModel):
             raise ValueError("invariant IDs must be unique")
         return self
 
+class ReviewEvent(StrictModel):
+    """One attributable review action; history is auditable but not cryptographically signed."""
+
+    recorded_at: str
+    previous_disposition: Disposition
+    disposition: Disposition
+    reviewer: str = Field(min_length=1, max_length=200)
+    note: str = Field(min_length=1, max_length=4000)
+
+    @field_validator("recorded_at")
+    @classmethod
+    def timestamp_is_timezone_aware(cls, value: str) -> str:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError("recorded_at must be an ISO-8601 timestamp") from exc
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise ValueError("recorded_at must include a timezone")
+        return value
+
+    @field_validator("reviewer", "note")
+    @classmethod
+    def required_review_text_is_not_blank(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("reviewer and review note must not be blank")
+        return normalized
 
 class Finding(StrictModel):
     id: str
@@ -105,7 +129,12 @@ class Finding(StrictModel):
     disposition: Disposition = "pending"
     reviewer: str | None = None
     review_note: str | None = None
-
+    # Optional additive fields keep earlier 1.0 JSON reports readable.
+    rule_id: str | None = None
+    analysis_method: AnalysisMethod = "unknown"
+    uncertainty: Uncertainty = "unknown"
+    severity_rationale: str = ""
+    review_history: list[ReviewEvent] = Field(default_factory=list)
 
 class ComparisonReport(StrictModel):
     report_version: Literal["1.0"] = "1.0"
@@ -130,24 +159,58 @@ class ComparisonReport(StrictModel):
         kwargs.setdefault("generated_at", datetime.now(timezone.utc).isoformat())
         return cls(**kwargs)
 
+_HEURISTIC_CODES = {
+    "CONTENT_OMITTED", "CONTENT_ADDED", "LINE_CHANGED",
+    "INVARIANT_TARGET_CONTEXT_UNCERTAIN", "INVARIANT_NEGATION_UNCERTAIN",
+    "INVARIANT_MODALITY_UNCERTAIN",
+}
+_HUMAN_REVIEW_CODES = {
+    "CRITICAL_INVARIANT_REVIEW_REQUIRED", "INVARIANT_MANIFEST_MISSING",
+    "INVARIANT_MANIFEST_UNREVIEWED", "INVARIANT_NOT_HUMAN_REVIEWED",
+}
+_SEVERITY_RATIONALE = {
+    "critical": "Could alter a safety constraint, machine-facing behavior, or an approval prerequisite; fail closed pending explicit review.",
+    "high": "May break package integrity or change required operational content; focused review is warranted.",
+    "medium": "May introduce unintended operational detail or compatibility risk; confirm the change is intentional.",
+    "low": "Indicates a possible format or client-compatibility issue without evidence of direct breakage.",
+    "info": "Records a difference as evidence; the rule does not by itself establish semantic harm.",
+}
 
 def new_finding(
     code: str, severity: Severity, category: str, message: str, rationale: str,
     *, path: str | None = None, source_line: int | None = None,
     target_line: int | None = None, original_context: str | None = None,
     target_context: str | None = None, proposed_change: str | None = None,
-    requires_review: bool = False,
+    requires_review: bool = False, rule_id: str | None = None,
+    analysis_method: AnalysisMethod | None = None, uncertainty: Uncertainty | None = None,
+    severity_rationale: str | None = None,
 ) -> Finding:
-    """Create a deterministic finding ID so repeated runs can be compared."""
+    """Create a stable finding with explicit rule provenance and uncertainty metadata."""
     identity = "\\0".join(
         [code, path or "", str(source_line or ""), str(target_line or ""),
          message, original_context or "", target_context or ""]
     )
     suffix = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:12]
+    if analysis_method is None:
+        analysis_method = (
+            "human_review" if code in _HUMAN_REVIEW_CODES
+            else "heuristic" if code in _HEURISTIC_CODES
+            else "deterministic"
+        )
+    if uncertainty is None:
+        uncertainty = {
+            "deterministic": "none",
+            "heuristic": "high",
+            "human_review": "unknown",
+            "unknown": "unknown",
+        }[analysis_method]
     return Finding(
         id=f"{code.lower()}-{suffix}", code=code, severity=severity,
         category=category, message=message, rationale=rationale,
         path=path, source_line=source_line, target_line=target_line,
         original_context=original_context, target_context=target_context,
         proposed_change=proposed_change, requires_review=requires_review,
+        rule_id=rule_id or code, analysis_method=analysis_method,
+        uncertainty=uncertainty,
+        severity_rationale=severity_rationale or _SEVERITY_RATIONALE[severity],
     )
