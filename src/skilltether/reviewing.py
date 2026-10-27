@@ -13,9 +13,9 @@ from .models import Disposition, Finding, ReviewEvent
 # High-confidence credential forms only. Notes are stored in reports, so reject
 # obvious credentials instead of echoing or persisting them in an audit trail.
 _SECRET_PATTERNS = (
-    re.compile(r"(?i)\${ch}(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|client[_-]?secret)\${ch}\${ch}*[:=]\${ch}*\${ch}{8,}"),
-    re.compile(r"\${ch}(?:gh[pousr]_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,})\${ch}"),
-    re.compile(r"(?i)\${ch}Bearer\${ch}+[A-Za-z0-9._~+/=-]{12,}"),
+    re.compile(r"(?i)\b(?:api[_-]?key|access[_-]?token|refresh[_-]?token|password|client[_-]?secret)\b\s*[:=]\s*\S{8,}"),
+    re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,})\b"),
+    re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{12,}"),
     re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
 )
 
