@@ -51,6 +51,9 @@ def package_fingerprint(files: dict[str, FileFingerprint]) -> str:
         digest.update(path.encode("utf-8"))
         digest.update(b"\0")
         digest.update(files[path].sha256.encode("ascii"))
+        digest.update(b"\0mode:")
+        mode = files[path].mode
+        digest.update(("unknown" if mode is None else format(mode, "04o")).encode("ascii"))
         digest.update(b"\n")
     return digest.hexdigest()
 
@@ -213,6 +216,7 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
             inventory[rel] = FileFingerprint(
                 path=rel, size_bytes=len(data), sha256=sha256_bytes(data),
                 encoding=encoding, kind=path.suffix.lower().lstrip(".") or "file",
+                mode=stat.S_IMODE(opened.st_mode),
             )
 
     if "SKILL.md" not in inventory:
