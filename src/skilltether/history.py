@@ -8,6 +8,8 @@ import stat
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .redaction import redact_sensitive_text
+
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 _BCP47_SHAPE = re.compile(r"^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$")
 _SAFE_METADATA = re.compile(r"^[^\x00-\x1f\x7f-\x9f]{1,128}$")
@@ -28,6 +30,8 @@ def _validate_metadata(
     for label, value in (("provider", provider), ("status", status)):
         if not isinstance(value, str) or not _SAFE_METADATA.fullmatch(value):
             raise ValueError(f"History {label} must be 1–128 printable characters without control characters")
+        if redact_sensitive_text(value) != value:
+            raise ValueError(f"History {label} resembles credential material and cannot be persisted")
 
 
 def _prepare_private_database(path: Path) -> None:
