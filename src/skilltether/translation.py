@@ -284,7 +284,18 @@ def translate_package(
     temp_root = Path(tempfile.mkdtemp(prefix=f".{output_root.name}.candidate-", dir=output_root.parent))
     temp_package = temp_root / output_root.name
     try:
-        shutil.copytree(source_root, temp_package, symlinks=False)
+        # Preserve a symlink that appears after the initial inventory instead of
+        # dereferencing it while staging. Verify the staged bytes and metadata before
+        # any translated content is written into the temporary package.
+        shutil.copytree(source_root, temp_package, symlinks=True)
+        copied_inventory, copied_findings, _copied_text = inspect_package(temp_package)
+        copied_blocking = [f for f in copied_findings if f.severity in ("high", "critical")]
+        if copied_blocking:
+            codes = ", ".join(sorted({f.code for f in copied_blocking}))
+            raise RuntimeError(f"Source package changed or became unsafe while staging: {codes}")
+        if package_fingerprint(copied_inventory) != before:
+            raise RuntimeError("Source package changed while staging; candidate discarded")
+
         translated_count = 0
         for rel, original_text in sorted(source_text.items()):
             if Path(rel).suffix.lower() not in ELIGIBLE_SUFFIXES:
