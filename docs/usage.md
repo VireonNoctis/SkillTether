@@ -50,7 +50,7 @@ class TranslationAdapter(Protocol):
         ...
 ~~~
 
-The built-in identity adapter sends nothing and leaves prose unchanged. The generic HTTP adapter sends POST JSON with source text and locale tags and accepts a JSON object containing a string field named text. Remote use requires both an endpoint and explicit --allow-remote consent; production endpoints must use HTTPS. The payload does not include file paths, invariant manifests, scripts, or binary assets, but eligible prose may contain sensitive information. Use only an approved endpoint.
+The built-in identity adapter sends nothing and leaves prose unchanged. The generic HTTP adapter sends POST JSON with source text and locale tags and accepts a JSON object containing a string field named text. Remote use requires both an endpoint and explicit --allow-remote consent; production endpoints must use HTTPS. The payload does not include file paths, invariant manifests, scripts, or binary assets, but eligible prose may contain sensitive information. Use only an approved endpoint. Outbound JSON requests and responses are each capped at 2 MiB per translated line. The timeout must be positive and no more than five minutes, and URLs with userinfo, query parameters, or fragments are rejected. These bounds do not replace review of the provider's data-handling practices.
 
 ## Translate and compare
 
