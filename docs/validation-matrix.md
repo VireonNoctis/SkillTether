@@ -14,6 +14,7 @@
 | Agent Skills optional fields | Optional license/compatibility/metadata/allowed-tools are valid | No false requirement to include fields; correct types are accepted |
 | Extension metadata | Unknown client-specific field appears | Low-severity notice, not an automatic blocking error |
 | Exact identifiers | Command, path, tool name changed | Protected-token finding |
+| Protected-token order | Same command flags/identifiers remain present but their order changes | High-severity, high-uncertainty review finding; unchanged order is a negative case |
 | Negation | “Do” changed to “do not”, or negation removed | Critical review warning |
 | Modal strength | “Must” weakened to “may” | Invariant review warning |
 | Threshold | Number, time, or limit changed | Difference and rationale shown |
