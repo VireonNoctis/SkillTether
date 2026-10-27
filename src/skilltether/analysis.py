@@ -17,6 +17,7 @@ import yaml
 from markdown_it import MarkdownIt
 
 from .yamlio import safe_load_unique
+from .safeio import read_bounded_regular_file
 
 from .models import FileFingerprint, ProtectedToken, new_finding
 
@@ -24,6 +25,8 @@ MAX_FILE_BYTES = 10 * 1024 * 1024
 MAX_PACKAGE_FILES = 5000
 MAX_PACKAGE_DIRECTORIES = 5000
 MAX_PACKAGE_BYTES = 100 * 1024 * 1024
+MAX_POLICY_FILE_BYTES = 4 * 1024 * 1024
+MAX_MANIFEST_FILE_BYTES = 4 * 1024 * 1024
 MAX_POLICY_PATTERNS = 128
 MAX_EXPLICIT_TOKENS = 2048
 MAX_POLICY_REGEX_CHARS = 1000
@@ -556,7 +559,10 @@ def extract_protected_tokens(
 def load_policy(path: str | Path | None) -> tuple[list[dict[str, str]], list[str]]:
     if path is None:
         return [], []
-    data = safe_load_unique(Path(path).read_text(encoding="utf-8"))
+    raw = read_bounded_regular_file(
+        path, max_bytes=MAX_POLICY_FILE_BYTES, purpose="Protected-token policy",
+    )
+    data = safe_load_unique(raw.decode("utf-8"))
     if not isinstance(data, dict):
         raise ValueError("Protected-token policy must be a YAML or JSON mapping")
     patterns = data.get("patterns", [])
