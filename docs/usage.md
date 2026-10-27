@@ -118,7 +118,7 @@ skilltether approve ./source/sample-skill ./candidate/sample-skill \
   --invariants ./invariants.yaml --signing-key ~/.skilltether/report-signing.key
 ~~~
 
-A signed report must be verified before it can be edited through the `review` command, and the updated report is re-signed. When `approve --signing-key` is supplied, unsigned reports are rejected. Signed reports cannot be rewritten without the matching key. Key files must be regular, non-symlink files with at least 32 bytes; on POSIX systems their permissions must not grant group/other access.
+You can verify a sealed report without changing it or exporting a package with `skilltether verify-report ./review/report.json --signing-key ~/.skilltether/report-signing.key`. A signed report must be verified before it can be edited through the `review` command, and the updated report is re-signed. When `approve --signing-key` is supplied, unsigned reports are rejected. Signed reports cannot be rewritten without the matching key. Key files must be regular, non-symlink files with at least 32 bytes; on POSIX systems their permissions must not grant group/other access.
 
 HMAC provides integrity detection while the key stays private, not reviewer identity or non-repudiation. Anyone who obtains the key can alter and re-sign a report. Unsigned reports remain supported for existing workflows unless signing is required explicitly.
 
