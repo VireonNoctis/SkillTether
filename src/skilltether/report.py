@@ -11,6 +11,7 @@ from pathlib import Path
 from .models import ComparisonReport
 from .safeio import read_bounded_regular_file
 from .redaction import redact_sensitive_text
+from .signing import sign_payload, verify_payload
 
 MAX_REPORT_BYTES = 50 * 1024 * 1024
 
@@ -74,10 +75,42 @@ def _atomic_write_text(output: Path, content: str) -> Path:
     return output
 
 
-def write_json_report(report: ComparisonReport, path: str | Path) -> Path:
+def verify_report_signature(
+    report: ComparisonReport,
+    signing_key: str | Path | None = None,
+    *,
+    require_signature: bool = False,
+) -> bool:
+    """Verify an HMAC seal, fail closed for signed reports without the key."""
+    safe_report = _redact_report(report)
+    payload = safe_report.model_dump(mode="json")
+    has_signature = bool(payload.get("integrity_signature"))
+    if not has_signature:
+        if require_signature:
+            raise ValueError("A signed report is required for this operation")
+        return False
+    if signing_key is None:
+        raise ValueError("Report is HMAC-signed; supply --signing-key to verify or update it")
+    if not verify_payload(payload, signing_key):
+        raise ValueError("Report signature verification failed; the report may have been modified")
+    return True
+
+
+def write_json_report(
+    report: ComparisonReport,
+    path: str | Path,
+    *,
+    signing_key: str | Path | None = None,
+) -> Path:
     output = Path(path).expanduser()
     safe_report = _redact_report(report)
-    payload = json.dumps(safe_report.model_dump(mode="json"), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    data = safe_report.model_dump(mode="json")
+    if signing_key is not None:
+        data["integrity_algorithm"] = "hmac-sha256"
+        data["integrity_signature"] = sign_payload(data, signing_key)
+    elif data.get("integrity_signature"):
+        raise ValueError("Cannot rewrite a signed report without its signing key")
+    payload = json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     if len(payload.encode("utf-8")) > MAX_REPORT_BYTES:
         raise ValueError(f"Report exceeds the {MAX_REPORT_BYTES}-byte safety limit")
     return _atomic_write_text(output, payload)
@@ -116,6 +149,7 @@ def write_markdown_report(report: ComparisonReport, path: str | Path) -> Path:
         f"- Translation provider: {_markdown_escape(report.translation_provider or '(not recorded)')}",
         f"- Invariant manifest fingerprint: {report.invariant_manifest_fingerprint or '(not supplied)'}",
         f"- Protected policy fingerprint: {report.protected_policy_fingerprint}",
+        f"- Report integrity: {report.integrity_algorithm or 'unsigned'}",
         f"- Findings: {len(report.findings)}", "",
         "> This report detects risks; it does not prove semantic equivalence or safety.", "",
         "## Review queue", "",
