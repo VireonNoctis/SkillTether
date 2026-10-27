@@ -240,7 +240,25 @@ def compare_packages(
                     requires_review=True,
                 ))
                 continue
-            target_context = _find_invariant_context(target_doc, invariant.source_text or invariant.statement)
+            # For SKILL.md, align against the instruction body rather than allowing
+            # metadata values to masquerade as translated instruction context.
+            context_doc = target_doc
+            context_offset = 1
+            if invariant.source_path == "SKILL.md":
+                target_lines = target_doc.splitlines()
+                closing = next(
+                    (index for index in range(1, len(target_lines)) if target_lines[index].strip() == "---"),
+                    None,
+                ) if target_lines and target_lines[0].strip() == "---" else None
+                if closing is not None:
+                    context_doc = "\\n".join(target_lines[closing + 1:])
+                    context_offset = closing + 2
+            alignment = _find_invariant_context(context_doc, invariant.source_text or invariant.statement)
+            if alignment is None:
+                target_line, target_context = None, None
+            else:
+                relative_line, target_context = alignment
+                target_line = context_offset + relative_line - 1
             if invariant.severity == "high" and target_context is None:
                 findings.append(new_finding(
                     "INVARIANT_TARGET_CONTEXT_UNCERTAIN", "high", "semantic_invariant",
@@ -253,31 +271,55 @@ def compare_packages(
                     requires_review=True,
                 ))
             for expected in dict.fromkeys(invariant.required_tokens + invariant.expected_numbers):
-                needs_context_match = expected in invariant.expected_numbers
-                missing = expected not in target_doc or (
-                    needs_context_match and (not target_context or expected not in target_context)
-                )
-                if expected and missing:
+                missing_from_document = expected not in target_doc
+                missing_from_context = not target_context or expected not in target_context
+                if expected and (missing_from_document or missing_from_context):
                     findings.append(new_finding(
                         "INVARIANT_REQUIRED_TOKEN_MISSING", invariant.severity, "semantic_invariant",
                         f"Invariant {invariant.id!r} requires {expected!r}, which is absent from the document or matched target context.",
                         "A required literal or numeric bound must be present in the appropriate instruction, not merely elsewhere in the package.",
                         path=invariant.source_path,
                         source_line=invariant.source_lines[0] if invariant.source_lines else None,
+                        target_line=target_line,
                         original_context=invariant.source_text or invariant.statement,
-                        target_context=target_context,
+                        target_line=target_line,\n                    target_context=target_context,
                         proposed_change=f"Restore {expected!r} in the corresponding target instruction if required, or revise the manifest after human review.",
                         requires_review=True,
+                        analysis_method="deterministic" if missing_from_document else "heuristic",
+                        uncertainty="none" if missing_from_document else "high",
                     ))
             for forbidden in invariant.forbidden_tokens:
-                if forbidden and forbidden in target_doc:
+                if not forbidden or forbidden not in target_doc:
+                    continue
+                if target_context and forbidden in target_context:
                     findings.append(new_finding(
                         "INVARIANT_FORBIDDEN_TOKEN_PRESENT", invariant.severity, "semantic_invariant",
-                        f"Invariant {invariant.id!r} forbids a token present in the target ({forbidden!r}).",
-                        "The target contains a value that this reviewed invariant says must not appear.",
-                        path=invariant.source_path, original_context=invariant.source_text or invariant.statement,
-                        proposed_change="Remove the forbidden value or revise the invariant after human review.",
+                        f"Invariant {invariant.id!r} forbids a token found in the aligned target context ({forbidden!r}).",
+                        "The approximate context matcher located the forbidden literal in the instruction excerpt; confirm the surrounding linguistic and example context.",
+                        path=invariant.source_path,
+                        source_line=invariant.source_lines[0] if invariant.source_lines else None,
+                        target_line=target_line,
+                        original_context=invariant.source_text or invariant.statement,
+                        target_line=target_line,\n                    target_context=target_context,
+                        proposed_change="Review the aligned instruction and remove the forbidden value if the invariant applies in this context.",
                         requires_review=True,
+                        analysis_method="heuristic",
+                        uncertainty="high",
+                    ))
+                else:
+                    findings.append(new_finding(
+                        "INVARIANT_FORBIDDEN_TOKEN_CONTEXT_UNCERTAIN", invariant.severity, "semantic_invariant",
+                        f"Invariant {invariant.id!r} forbids {forbidden!r}, which occurs in the target file but was not found in the aligned instruction context.",
+                        "A document-wide match may be an unrelated example or another instruction; do not treat it as a confirmed invariant violation without contextual review.",
+                        path=invariant.source_path,
+                        source_line=invariant.source_lines[0] if invariant.source_lines else None,
+                        target_line=target_line,
+                        original_context=invariant.source_text or invariant.statement,
+                        target_line=target_line,\n                    target_context=target_context,
+                        proposed_change="Locate the corresponding target instruction and confirm whether the forbidden literal violates this invariant.",
+                        requires_review=True,
+                        analysis_method="heuristic",
+                        uncertainty="high",
                     ))
             unconfigured_marker_types = []
             if invariant.negation_required and not invariant.negation_markers:
@@ -290,7 +332,7 @@ def compare_packages(
                     f"Invariant {invariant.id!r} requires locale-specific marker configuration for {', '.join(unconfigured_marker_types)}.",
                     "Marker checks cannot run until appropriate target-language negation/mandatory markers are explicitly configured.",
                     path=invariant.source_path, original_context=invariant.source_text or invariant.statement,
-                    target_context=target_context,
+                    target_line=target_line,\n                    target_context=target_context,
                     proposed_change="Configure locale-specific markers with a qualified reviewer, then rerun comparison.",
                     requires_review=True,
                 ))
@@ -302,7 +344,7 @@ def compare_packages(
                     f"Invariant {invariant.id!r} requires a target-language negation marker in the matched instruction, but none was detected confidently.",
                     "Negation loss or reversal can invert a safety instruction; global marker presence elsewhere in the package is not sufficient.",
                     path=invariant.source_path, original_context=invariant.source_text or invariant.statement,
-                    target_context=target_context,
+                    target_line=target_line,\n                    target_context=target_context,
                     proposed_change="Inspect the corresponding target sentence manually and update locale-specific markers only after review.",
                     requires_review=True,
                 ))
@@ -310,11 +352,11 @@ def compare_packages(
                 not target_context or not any(marker in target_context for marker in invariant.mandatory_markers)
             ):
                 findings.append(new_finding(
-                    "INVARIANT_MODALITY_UNCERTAIN", "critical", "semantic_invariant",
+                    "INVARIANT_MODALITY_UNCERTAIN", "INVARIANT_FORBIDDEN_TOKEN_CONTEXT_UNCERTAIN", "critical", "semantic_invariant",
                     f"Invariant {invariant.id!r} requires a mandatory marker in the matched target instruction, but none was detected confidently.",
                     "A mandatory instruction may have been weakened; global marker presence elsewhere in the package is not enough to establish modality.",
                     path=invariant.source_path, original_context=invariant.source_text or invariant.statement,
-                    target_context=target_context,
+                    target_line=target_line,\n                    target_context=target_context,
                     proposed_change="Review modal strength in context and configure target-language markers deliberately.",
                     requires_review=True,
                 ))
@@ -326,7 +368,7 @@ def compare_packages(
                     path=invariant.source_path,
                     source_line=invariant.source_lines[0] if invariant.source_lines else None,
                     original_context=invariant.source_text or invariant.statement,
-                    target_context=target_context,
+                    target_line=target_line,\n                    target_context=target_context,
                     proposed_change="Have a qualified human compare the complete source and target contexts, then disposition this finding.",
                     requires_review=True,
                 ))
@@ -354,15 +396,15 @@ def compare_packages(
     )
 
 
-def _find_invariant_context(text: str, statement: str) -> str | None:
-    """Return a small target excerpt by approximate word overlap, not a semantic verdict."""
+def _find_invariant_context(text: str, statement: str) -> tuple[int, str] | None:
+    """Return (1-based line number, excerpt) by approximate word overlap, not semantics."""
     words = {word.lower() for word in re.findall(r"[A-Za-z0-9_-]{4,}", statement)}
     if not words:
         return None
     lines = text.splitlines()
     scored = [
-        (len(words & {w.lower() for w in re.findall(r"[A-Za-z0-9_-]{4,}", line)}), i, line)
-        for i, line in enumerate(lines)
+        (len(words & {word.lower() for word in re.findall(r"[A-Za-z0-9_-]{4,}", line)}), index, line)
+        for index, line in enumerate(lines, start=1)
     ]
-    score, _index, line = max(scored, default=(0, 0, ""))
-    return line[:1000] if score > 0 else None
+    score, line_number, line = max(scored, default=(0, 1, ""))
+    return (line_number, line[:1000]) if score > 0 else None
