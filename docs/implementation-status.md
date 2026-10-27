@@ -30,4 +30,4 @@
 
 ## Current specification assumptions
 
-The base Agent Skills contract requires a SKILL.md with YAML frontmatter containing non-empty name and description. Name syntax and description length are checked; common optional fields are recognized. Unknown frontmatter fields are flagged at low severity to allow client extensions. Check the upstream specification when updating the validator contract.
+The validator contract is cross-referenced in [docs/spec-compatibility.md](spec-compatibility.md) and the [official Agent Skills specification](https://agentskills.io/specification). Base-format rules are kept distinct from additional SkillTether operational safeguards; optional fields stay optional, and unknown frontmatter fields receive low-severity review notices rather than automatic blocking failures.
