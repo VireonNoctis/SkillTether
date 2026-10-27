@@ -10,7 +10,7 @@ from pathlib import Path
 
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
 _BCP47_SHAPE = re.compile(r"^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$")
-_SAFE_METADATA = re.compile(r"^[^\\x00-\\x1f\\x7f-\\x9f]{1,128}$")
+_SAFE_METADATA = re.compile(r"^[^\x00-\x1f\x7f-\x9f]{1,128}$")
 
 
 def default_history_path() -> Path:
