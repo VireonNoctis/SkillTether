@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 
 from .models import ComparisonReport
+from .safeio import read_bounded_regular_file
 
 MAX_REPORT_BYTES = 50 * 1024 * 1024
 
@@ -46,11 +47,7 @@ def write_json_report(report: ComparisonReport, path: str | Path) -> Path:
 
 
 def read_json_report(path: str | Path) -> ComparisonReport:
-    report_path = Path(path).expanduser()
-    with report_path.open("rb") as stream:
-        raw = stream.read(MAX_REPORT_BYTES + 1)
-    if len(raw) > MAX_REPORT_BYTES:
-        raise ValueError(f"Report exceeds the {MAX_REPORT_BYTES}-byte safety limit")
+    raw = read_bounded_regular_file(path, max_bytes=MAX_REPORT_BYTES, purpose="JSON report")
     return ComparisonReport.model_validate_json(raw)
 
 
@@ -132,4 +129,7 @@ def write_markdown_report(report: ComparisonReport, path: str | Path) -> Path:
                 ])
     lines.extend(["## Limitations", ""])
     lines.extend(f"- {_markdown_escape(item)}" for item in report.limitations)
-    return _atomic_write_text(output, "\n".join(lines) + "\n")
+    markdown = "\n".join(lines) + "\n"
+    if len(markdown.encode("utf-8")) > MAX_REPORT_BYTES:
+        raise ValueError(f"Markdown report exceeds the {MAX_REPORT_BYTES}-byte safety limit")
+    return _atomic_write_text(output, markdown)
