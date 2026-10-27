@@ -18,6 +18,7 @@
 | Conditional logic | “Only if” or prerequisite removed | Review finding |
 | Harmless rephrase | Non-critical prose rewritten with same invariant | No structural false alarm where rules can determine equivalence |
 | Omitted sections | Paragraph, list item, or reference file removed | Missing-content finding |
+| Comparison complexity | Repeated-line source/target exceeds diff-pair budget | Explicit high-uncertainty finding; no silent semantic pass |
 | Added instructions | Target contains new imperative not in source | Unexpected addition warning |
 | Provider privacy | Provider disabled or mock provider configured | No network call without explicit setup |
 | Review evidence | Critical finding approved, then deferred | Approval is blocked until a newer consistent approval event exists |
