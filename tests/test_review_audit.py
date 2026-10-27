@@ -676,3 +676,18 @@ def test_signed_approval_requires_matching_key_even_for_valid_unsigned_report(tm
 
     assert result == 2
     assert not output.exists()
+
+
+
+def test_review_rejects_credential_like_reviewer_identifier_without_echoing_it() -> None:
+    secret = "api_key=veryPrivateCredentialValue_123456789"
+
+    with pytest.raises(ValueError, match="Reviewer identifier resembles credential material") as error:
+        record_review(
+            critical_finding(),
+            disposition="approved",
+            reviewer=secret,
+            note="Reviewed the current source and target context.",
+        )
+
+    assert secret not in str(error.value)
