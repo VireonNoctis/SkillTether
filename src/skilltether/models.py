@@ -37,6 +37,8 @@ class ProtectedToken(StrictModel):
     category: str
     value: str
     line: int = Field(ge=1)
+    # Column is additive/internal evidence for deterministic ordering of spans.
+    column: int | None = Field(default=None, ge=0)
 
 class Invariant(StrictModel):
     id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
