@@ -104,10 +104,31 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
                     path=rel, proposed_change="Replace the symlink with a regular in-package resource.",
                 ))
                 continue
+            # Reject special entries before open to avoid invoking device-specific
+            # open behavior. Recheck the descriptor after opening to narrow the race
+            # between lstat and open; O_NOFOLLOW and O_NONBLOCK add platform safeguards.
+            try:
+                entry_stat = path.lstat()
+            except OSError as exc:
+                findings.append(new_finding(
+                    "FILE_STAT_ERROR", "high", "package_integrity",
+                    f"Unable to lstat package entry: {exc.__class__.__name__}.",
+                    "An unreadable entry cannot be safely classified or fingerprinted.",
+                    path=rel,
+                ))
+                continue
+            if not stat.S_ISREG(entry_stat.st_mode):
+                findings.append(new_finding(
+                    "SPECIAL_FILE_NOT_ALLOWED", "critical", "package_integrity",
+                    "Package contains a non-regular filesystem entry.",
+                    "Devices, sockets, and named pipes are not ordinary skill resources and must not be opened or read.",
+                    path=rel, proposed_change="Replace this entry with a regular file or directory.",
+                ))
+                continue
+
             # Open without following a final-component symlink and without blocking on
-            # FIFOs. fstat the opened descriptor (not the path) to avoid trusting a
-            # stale path-level stat result. Read at most MAX_FILE_BYTES + 1 bytes so
-            # a file that grows after fstat cannot bypass the resource bound.
+            # FIFOs. fstat the opened descriptor (not the path) to narrow TOCTOU risk.
+            # Read at most MAX_FILE_BYTES + 1 bytes so a growing file remains bounded.
             descriptor = None
             try:
                 flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
