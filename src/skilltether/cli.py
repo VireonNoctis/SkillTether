@@ -15,7 +15,7 @@ from pydantic import ValidationError
 from . import __version__
 from .analysis import inspect_package, load_policy, package_fingerprint
 from .compare import compare_packages, fingerprint_manifest, fingerprint_policy, load_invariant_manifest
-from .history import record_event
+from .history import default_history_path, record_event
 from .models import Invariant, InvariantManifest
 from .report import read_json_report, write_json_report, write_markdown_report
 from .translation import HttpJsonAdapter, IdentityAdapter, translate_package
@@ -57,6 +57,23 @@ def _show_findings(findings) -> None:
 def _fingerprint_path(root: Path) -> str:
     inventory, _findings, _texts = inspect_package(root)
     return package_fingerprint(inventory)
+
+
+def _ensure_outputs_outside_packages(
+    outputs: list[Path], packages: list[Path], *, label: str,
+) -> list[Path]:
+    """Prevent report/history outputs from overwriting or polluting skill packages."""
+    resolved_outputs = [Path(item).expanduser().resolve() for item in outputs]
+    if len(set(resolved_outputs)) != len(resolved_outputs):
+        raise ValueError(f"{label} output paths must be distinct")
+    resolved_packages = [Path(item).expanduser().resolve() for item in packages]
+    for output in resolved_outputs:
+        for package in resolved_packages:
+            if output == package or output in package.parents or package in output.parents:
+                raise ValueError(
+                    f"{label} output must be outside source/candidate package directories: {output}"
+                )
+    return resolved_outputs
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
@@ -137,14 +154,20 @@ def cmd_compare(args: argparse.Namespace) -> int:
         _validate_locale_tag(args.target_locale)
     source = Path(args.source).expanduser().resolve(strict=True)
     target = Path(args.target).expanduser().resolve(strict=True)
+    requested_outputs = [Path(args.out).expanduser()]
+    if args.markdown:
+        requested_outputs.append(Path(args.markdown).expanduser())
+    report_outputs = _ensure_outputs_outside_packages(
+        requested_outputs, [source, target], label="Report",
+    )
     manifest = _manifest_arg(args.invariants, source)
     report = compare_packages(
         source, target, manifest, target_locale=args.target_locale,
         policy_path=args.policy,
     )
-    write_json_report(report, args.out)
+    write_json_report(report, report_outputs[0])
     if args.markdown:
-        write_markdown_report(report, args.markdown)
+        write_markdown_report(report, report_outputs[1])
     _show_findings(report.findings)
     print(f"Report: {args.out}")
     print(f"Structural status: {report.structural_status}; semantic status: {report.semantic_status}")
@@ -162,6 +185,12 @@ def cmd_translate(args: argparse.Namespace) -> int:
     _validate_locale_tag(args.target_locale)
     source = Path(args.source).expanduser().resolve(strict=True)
     output = Path(args.output).expanduser().resolve()
+    report_requested = Path(args.report).expanduser() if args.report else output.with_name(output.name + ".report.json")
+    history_requested = Path(args.history_db).expanduser() if args.history_db else default_history_path()
+    output_paths = _ensure_outputs_outside_packages(
+        [report_requested, history_requested], [source, output], label="Report/history",
+    )
+    report_path, history_path = output_paths
     if args.adapter == "identity":
         adapter = IdentityAdapter()
         print("Using the identity adapter: no prose will be translated; this exercises the safe pipeline only.")
@@ -182,14 +211,13 @@ def cmd_translate(args: argparse.Namespace) -> int:
         source, output, manifest, target_locale=args.target_locale, policy_path=args.policy,
     )
     report.translation_provider = adapter.name
-    report_path = Path(args.report).expanduser() if args.report else output.with_name(output.name + ".report.json")
     write_json_report(report, report_path)
     history_path = record_event(
         source_fingerprint=package_fingerprint(source_inventory),
         target_fingerprint=package_fingerprint(target_inventory),
         source_locale=args.source_locale, target_locale=args.target_locale,
         provider=adapter.name, status="candidate_written",
-        database=args.history_db,
+        database=history_path,
     )
     print(f"Candidate package: {output}")
     print(f"Translated text files changed: {changed}")
