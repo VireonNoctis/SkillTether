@@ -23,6 +23,9 @@ from .regex_safety import validate_policy_regex
 ELIGIBLE_SUFFIXES = {".md", ".mdx", ".txt", ".rst"}
 MAX_TRANSLATION_REQUEST_BYTES = 2 * 1024 * 1024
 MAX_TRANSLATION_RESPONSE_BYTES = 2 * 1024 * 1024
+MAX_TRANSLATION_REQUESTS = 10_000
+MAX_TRANSLATION_TOTAL_REQUEST_BYTES = 10 * 1024 * 1024
+MAX_TRANSLATION_TOTAL_RESPONSE_BYTES = 10 * 1024 * 1024
 MAX_TRANSLATION_TIMEOUT_SECONDS = 300.0
 FENCE = re.compile(r"^\s{0,3}(\x60{3,}|~{3,})")
 PREFIX = re.compile(r"^(\s*(?:(?:#{1,6}|>)\s+|[-*+]\s+|\d+[.)]\s+)?)(.*?)(\r?\n?)$")
@@ -83,6 +86,11 @@ class HttpJsonAdapter:
             raise ValueError("Do not put credentials, query parameters, or fragments in the translation endpoint URL")
         self.endpoint = endpoint
         self.timeout = timeout
+        # The adapter also enforces aggregate limits when used directly outside
+        # translate_package's whole-package preflight.
+        self._request_count = 0
+        self._total_request_bytes = 0
+        self._total_response_bytes = 0
 
     def translate(self, text: str, source_locale: str, target_locale: str) -> str:
         body = json.dumps({
@@ -90,8 +98,24 @@ class HttpJsonAdapter:
         }, ensure_ascii=False).encode("utf-8")
         if len(body) > MAX_TRANSLATION_REQUEST_BYTES:
             raise RuntimeError(
-                f"Translation provider request exceeds the {MAX_TRANSLATION_REQUEST_BYTES}-byte safety limit"
+                f"Translation provider request exceeds the {MAX_TRANSLATION_REQUEST_BYTES}-byte per-request safety limit"
             )
+        if self._request_count + 1 > MAX_TRANSLATION_REQUESTS:
+            raise RuntimeError(
+                f"Translation provider request count exceeds the {MAX_TRANSLATION_REQUESTS}-request total safety limit"
+            )
+        if self._total_request_bytes + len(body) > MAX_TRANSLATION_TOTAL_REQUEST_BYTES:
+            raise RuntimeError(
+                f"Translation provider aggregate request bytes exceed the {MAX_TRANSLATION_TOTAL_REQUEST_BYTES}-byte safety limit"
+            )
+        remaining_response_bytes = MAX_TRANSLATION_TOTAL_RESPONSE_BYTES - self._total_response_bytes
+        if remaining_response_bytes <= 0:
+            raise RuntimeError(
+                f"Translation provider aggregate response bytes exceed the {MAX_TRANSLATION_TOTAL_RESPONSE_BYTES}-byte safety limit"
+            )
+        response_limit = min(MAX_TRANSLATION_RESPONSE_BYTES, remaining_response_bytes)
+        self._request_count += 1
+        self._total_request_bytes += len(body)
         request = urllib.request.Request(
             self.endpoint, data=body,
             headers={"Content-Type": "application/json", "Accept": "application/json"},
@@ -100,11 +124,14 @@ class HttpJsonAdapter:
         try:
             opener = urllib.request.build_opener(_NoRedirect())
             with opener.open(request, timeout=self.timeout) as response:
-                raw = response.read(MAX_TRANSLATION_RESPONSE_BYTES + 1)
+                raw = response.read(response_limit + 1)
         except (urllib.error.URLError, TimeoutError) as exc:
             raise RuntimeError(f"Translation provider request failed: {exc.__class__.__name__}") from exc
-        if len(raw) > MAX_TRANSLATION_RESPONSE_BYTES:
-            raise RuntimeError(f"Translation provider response exceeds the {MAX_TRANSLATION_RESPONSE_BYTES}-byte safety limit")
+        self._total_response_bytes += len(raw)
+        if len(raw) > response_limit:
+            raise RuntimeError(
+                "Translation provider response exceeds the remaining per-request or aggregate response-byte safety limit"
+            )
         try:
             payload = json.loads(raw.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -252,6 +279,37 @@ def _mask_protected_spans(
     return "".join(output), replacements
 
 
+class _TranslationBudgetPreflight:
+    """Identity adapter that counts the exact masked JSON requests without networking."""
+
+    name = "local-budget-preflight"
+    remote = False
+
+    def __init__(self) -> None:
+        self.request_count = 0
+        self.total_request_bytes = 0
+
+    def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+        body = json.dumps({
+            "text": text, "source_locale": source_locale, "target_locale": target_locale,
+        }, ensure_ascii=False).encode("utf-8")
+        if len(body) > MAX_TRANSLATION_REQUEST_BYTES:
+            raise RuntimeError(
+                f"Translation package has a single request exceeding the {MAX_TRANSLATION_REQUEST_BYTES}-byte limit; no provider request was sent"
+            )
+        if self.request_count + 1 > MAX_TRANSLATION_REQUESTS:
+            raise RuntimeError(
+                f"Translation package exceeds the {MAX_TRANSLATION_REQUESTS}-request safety limit; no provider request was sent"
+            )
+        if self.total_request_bytes + len(body) > MAX_TRANSLATION_TOTAL_REQUEST_BYTES:
+            raise RuntimeError(
+                f"Translation package exceeds the {MAX_TRANSLATION_TOTAL_REQUEST_BYTES}-byte aggregate request budget; no provider request was sent"
+            )
+        self.request_count += 1
+        self.total_request_bytes += len(body)
+        return text
+
+
 def translate_package(
     source: str | Path, output: str | Path, adapter: TranslationAdapter,
     source_locale: str, target_locale: str,
@@ -279,6 +337,18 @@ def translate_package(
         codes = ", ".join(sorted({f.code for f in severe}))
         raise ValueError(f"Source package has blocking validation findings: {codes}")
     before = package_fingerprint(source_inventory)
+
+    # Preflight the complete translation workload with a no-network adapter. This
+    # catches per-request, aggregate-byte, and call-count limits before the first
+    # provider receives any portion of a large package.
+    budget_probe = _TranslationBudgetPreflight()
+    for rel, original_text in sorted(source_text.items()):
+        if Path(rel).suffix.lower() not in ELIGIBLE_SUFFIXES:
+            continue
+        translate_markdown(
+            original_text, budget_probe, source_locale, target_locale,
+            extra_patterns=protected_patterns, explicit_tokens=explicit_tokens,
+        )
 
     output_root.parent.mkdir(parents=True, exist_ok=True)
     temp_root = Path(tempfile.mkdtemp(prefix=f".{output_root.name}.candidate-", dir=output_root.parent))
