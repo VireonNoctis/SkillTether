@@ -485,3 +485,49 @@ def test_report_read_and_write_sizes_are_bounded(tmp_path: Path, monkeypatch: py
     with pytest.raises(ValueError, match="safety limit"):
         write_markdown_report(comparison(critical_finding()), markdown_out)
     assert not markdown_out.exists()
+
+
+
+def test_json_and_markdown_reports_redact_credential_like_text_and_paths(tmp_path: Path) -> None:
+    from skilltether.report import write_markdown_report
+
+    api_secret = "veryPrivateCredentialValue_123456789"
+    provider_token = "ghp_" + "A" * 30
+    finding = critical_finding()
+    # Simulate a legacy/imported report whose context bypassed new_finding.
+    finding.original_context = f"api_key='{api_secret}'"
+    finding.target_context = f"Authorization: Bearer {provider_token}"
+    report = comparison(finding)
+    report.source_files = {f"references/api_key={api_secret}/guide.md": "b" * 64}
+    json_path = tmp_path / "redacted.json"
+    markdown_path = tmp_path / "redacted.md"
+
+    write_json_report(report, json_path)
+    write_markdown_report(report, markdown_path)
+
+    serialized = json_path.read_text(encoding="utf-8")
+    markdown = markdown_path.read_text(encoding="utf-8")
+    for raw_secret in (api_secret, provider_token):
+        assert raw_secret not in serialized
+        assert raw_secret not in markdown
+    assert "[REDACTED_PATH_" in serialized
+    assert "[REDACTED]" in serialized
+
+
+def test_new_finding_redacts_credentials_before_constructing_evidence() -> None:
+    from skilltether.models import new_finding
+
+    api_secret = "veryPrivateCredentialValue_123456789"
+    token = "sk-" + "Z" * 30
+    finding = new_finding(
+        "LINE_CHANGED", "high", "line_diff",
+        f"An api_key={api_secret} was included.",
+        f"Credential token {token}",
+        original_context=f"password='{api_secret}'",
+        target_context=f"Bearer {token}",
+    )
+
+    assert api_secret not in finding.message
+    assert api_secret not in (finding.original_context or "")
+    assert token not in (finding.target_context or "")
+    assert "[REDACTED]" in (finding.original_context or "")
