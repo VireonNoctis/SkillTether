@@ -228,7 +228,17 @@ def _mask_markdown_syntax(text: str) -> tuple[str, list[tuple[str, str]]]:
     task-list checkbox tokens are preserved as a whole. The caller verifies both
     exact-once occurrence and source order before restoring the original tokens.
     """
-    matches = list(MARKDOWN_SYNTAX.finditer(text))
+    # Do not re-mask punctuation inside opaque placeholders created by
+    # _mask_protected_spans (which may start with underscores on collisions).
+    opaque_iter = iter(re.finditer(r"_*SKTETHEROPAQUE\d{5}END", text))
+    current_opaque = next(opaque_iter, None)
+    matches = []
+    for match in MARKDOWN_SYNTAX.finditer(text):
+        while current_opaque is not None and current_opaque.end() <= match.start():
+            current_opaque = next(opaque_iter, None)
+        if current_opaque is not None and current_opaque.start() <= match.start() < current_opaque.end():
+            continue
+        matches.append(match)
     if not matches:
         return text, []
 
