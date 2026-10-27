@@ -317,7 +317,9 @@ def validate_skill_markdown(root: Path, text: str) -> list:
             path="SKILL.md",
         ))
     compatibility = metadata.get("compatibility")
-    if compatibility is not None and (not isinstance(compatibility, str) or len(compatibility) > 500):
+    if compatibility is not None and (
+        not isinstance(compatibility, str) or not compatibility.strip() or len(compatibility) > 500
+    ):
         findings.append(new_finding(
             "COMPATIBILITY_INVALID", "high", "frontmatter",
             "compatibility must be a string of at most 500 characters.",
