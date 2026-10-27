@@ -542,3 +542,137 @@ def test_redaction_removes_truncated_private_key_blocks() -> None:
 
     assert "PRIVATEKEYDATA" not in redacted
     assert redacted == "[REDACTED_PRIVATE_KEY]"
+
+
+
+def _write_minimal_reviewed_manifest(path: Path) -> None:
+    path.write_text(
+        "\n".join([
+            'manifest_version: "1.0"',
+            "source_locale: en",
+            "target_locale: fr",
+            "manifest_reviewed: true",
+            "manifest_reviewer: qa-reviewer",
+            "invariants: []",
+            "",
+        ]),
+        encoding="utf-8",
+    )
+
+
+def _write_identical_skill_package(root: Path) -> Path:
+    root.mkdir(parents=True)
+    (root / "SKILL.md").write_text(
+        "\n".join(["---", "name: sample-skill", "description: A test skill.", "---", "", "Instructions.", ""]),
+        encoding="utf-8",
+    )
+    return root
+
+
+def test_signed_compare_review_and_approve_flow(tmp_path: Path) -> None:
+    from skilltether.report import read_json_report, verify_report_signature
+    from skilltether.signing import create_signing_key
+
+    source = _write_identical_skill_package(tmp_path / "source" / "sample-skill")
+    target = _write_identical_skill_package(tmp_path / "target" / "sample-skill")
+    manifest = tmp_path / "invariants.yaml"
+    _write_minimal_reviewed_manifest(manifest)
+    key = create_signing_key(tmp_path / "report.key")
+    report = tmp_path / "review.json"
+
+    compare_result = main([
+        "compare", str(source), str(target),
+        "--invariants", str(manifest), "--out", str(report),
+        "--signing-key", str(key),
+    ])
+    assert compare_result == 0
+    assert verify_report_signature(read_json_report(report), key, require_signature=True)
+
+    output = tmp_path / "approved" / "sample-skill"
+    approve_result = main([
+        "approve", str(source), str(target),
+        "--report", str(report), "--output", str(output),
+        "--invariants", str(manifest), "--signing-key", str(key),
+    ])
+
+    assert approve_result == 0
+    assert (output / "SKILL.md").is_file()
+    assert (output / "SKILL.md").read_bytes() == (target / "SKILL.md").read_bytes()
+
+
+def test_approve_rejects_tampered_signed_report_before_export(tmp_path: Path) -> None:
+    import json
+
+    from skilltether.signing import create_signing_key
+
+    source = _write_identical_skill_package(tmp_path / "source" / "sample-skill")
+    target = _write_identical_skill_package(tmp_path / "target" / "sample-skill")
+    manifest = tmp_path / "invariants.yaml"
+    _write_minimal_reviewed_manifest(manifest)
+    key = create_signing_key(tmp_path / "report.key")
+    report = tmp_path / "review.json"
+    assert main([
+        "compare", str(source), str(target),
+        "--invariants", str(manifest), "--out", str(report),
+        "--signing-key", str(key),
+    ]) == 0
+
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    payload["semantic_status"] = "review_recommended"
+    report.write_text(json.dumps(payload), encoding="utf-8")
+    output = tmp_path / "approved" / "sample-skill"
+    result = main([
+        "approve", str(source), str(target),
+        "--report", str(report), "--output", str(output),
+        "--invariants", str(manifest), "--signing-key", str(key),
+    ])
+
+    assert result == 2
+    assert not output.exists()
+
+
+def test_review_resigns_existing_signed_report_and_retains_history(tmp_path: Path) -> None:
+    from skilltether.report import read_json_report, verify_report_signature, write_json_report
+    from skilltether.signing import create_signing_key
+
+    key = create_signing_key(tmp_path / "report.key")
+    report_path = tmp_path / "review.json"
+    finding = critical_finding()
+    write_json_report(comparison(finding), report_path, signing_key=key)
+
+    result = main([
+        "review", str(report_path), finding.id,
+        "--disposition", "approved", "--reviewer", "reviewer-1",
+        "--note", "Compared source and target context.", "--signing-key", str(key),
+    ])
+
+    assert result == 0
+    reviewed = read_json_report(report_path)
+    assert len(reviewed.findings[0].review_history) == 1
+    assert reviewed.findings[0].disposition == "approved"
+    assert verify_report_signature(reviewed, key, require_signature=True)
+
+
+def test_signed_approval_requires_matching_key_even_for_valid_unsigned_report(tmp_path: Path) -> None:
+    from skilltether.signing import create_signing_key
+
+    source = _write_identical_skill_package(tmp_path / "source" / "sample-skill")
+    target = _write_identical_skill_package(tmp_path / "target" / "sample-skill")
+    manifest = tmp_path / "invariants.yaml"
+    _write_minimal_reviewed_manifest(manifest)
+    report = tmp_path / "unsigned.json"
+    assert main([
+        "compare", str(source), str(target),
+        "--invariants", str(manifest), "--out", str(report),
+    ]) == 0
+
+    key = create_signing_key(tmp_path / "report.key")
+    output = tmp_path / "approved" / "sample-skill"
+    result = main([
+        "approve", str(source), str(target),
+        "--report", str(report), "--output", str(output),
+        "--invariants", str(manifest), "--signing-key", str(key),
+    ])
+
+    assert result == 2
+    assert not output.exists()
