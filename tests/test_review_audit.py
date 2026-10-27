@@ -92,6 +92,24 @@ def test_manually_set_approved_disposition_without_history_is_not_approval_evide
     assert not has_audited_approval(finding)
 
 
+def test_legacy_approval_can_be_re_reviewed_and_start_a_history() -> None:
+    finding = critical_finding()
+    finding.disposition = "approved"
+    finding.reviewer = "old-reviewer"
+    finding.review_note = "Legacy report has no decision history."
+    assert not has_audited_approval(finding)
+
+    event = record_review(
+        finding,
+        disposition="approved",
+        reviewer="reviewer-2",
+        note="Re-reviewed the current source and target context.",
+        recorded_at=datetime(2026, 10, 27, 12, 10, tzinfo=timezone.utc),
+    )
+    assert event.previous_disposition == "approved"
+    assert has_audited_approval(finding)
+
+
 @pytest.mark.parametrize("reviewer,note", [
     (" ", "A useful explanation."),
     ("reviewer-1", "  "),
