@@ -531,3 +531,14 @@ def test_new_finding_redacts_credentials_before_constructing_evidence() -> None:
     assert api_secret not in (finding.original_context or "")
     assert token not in (finding.target_context or "")
     assert "[REDACTED]" in (finding.original_context or "")
+
+
+
+def test_redaction_removes_truncated_private_key_blocks() -> None:
+    from skilltether.redaction import redact_sensitive_text
+
+    partial = "-----BEGIN PRIVATE KEY-----\n" + ("PRIVATEKEYDATA" * 100)
+    redacted = redact_sensitive_text(partial)
+
+    assert "PRIVATEKEYDATA" not in redacted
+    assert redacted == "[REDACTED_PRIVATE_KEY]"
