@@ -499,3 +499,29 @@ def test_empty_optional_compatibility_is_rejected_when_present(tmp_path: Path) -
     _inventory, findings, _texts = inspect_package(package)
 
     assert any(item.code == "COMPATIBILITY_INVALID" for item in findings)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX permission mode semantics are required")
+def test_file_mode_changes_are_fingerprinted_and_reported(tmp_path: Path) -> None:
+    source = make_package(tmp_path / "source" / "sample-skill")
+    target = make_package(tmp_path / "target" / "sample-skill")
+    for package in (source, target):
+        scripts = package / "scripts"
+        scripts.mkdir()
+        (scripts / "tool.py").write_text("print('hello')\n", encoding="utf-8")
+    (source / "scripts" / "tool.py").chmod(0o644)
+    (target / "scripts" / "tool.py").chmod(0o755)
+
+    source_inventory, _source_findings, _source_text = inspect_package(source)
+    target_inventory, _target_findings, _target_text = inspect_package(target)
+    assert package_fingerprint(source_inventory) != package_fingerprint(target_inventory)
+
+    report = compare_packages(source, target, reviewed_manifest())
+    mode_findings = [item for item in report.findings if item.code == "PACKAGE_FILE_MODE_CHANGED"]
+
+    assert len(mode_findings) == 1
+    assert mode_findings[0].path == "scripts/tool.py"
+    assert mode_findings[0].severity == "high"
+    assert mode_findings[0].original_context == "mode:0644"
+    assert mode_findings[0].target_context == "mode:0755"
+    assert mode_findings[0].requires_review
