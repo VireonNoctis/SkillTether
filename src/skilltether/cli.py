@@ -13,7 +13,7 @@ import yaml
 from pydantic import ValidationError
 
 from . import __version__
-from .analysis import inspect_package, load_policy, package_fingerprint
+from .analysis import inspect_package, load_policy, normalize_package_root, package_fingerprint
 from .compare import compare_packages, fingerprint_manifest, fingerprint_policy, load_invariant_manifest
 from .history import default_history_path, record_event
 from .models import Invariant, InvariantManifest
@@ -156,7 +156,7 @@ def cmd_init_signing_key(args: argparse.Namespace) -> int:
 
 
 def cmd_init_manifest(args: argparse.Namespace) -> int:
-    source = Path(args.source).expanduser().resolve(strict=True)
+    source = normalize_package_root(args.source)
     manifest = _suggest_invariants(source, args.source_locale, args.target_locale)
     output = Path(args.out).expanduser()
     if output.exists():
@@ -172,8 +172,8 @@ def cmd_init_manifest(args: argparse.Namespace) -> int:
 def cmd_compare(args: argparse.Namespace) -> int:
     if args.target_locale:
         _validate_locale_tag(args.target_locale)
-    source = Path(args.source).expanduser().resolve(strict=True)
-    target = Path(args.target).expanduser().resolve(strict=True)
+    source = normalize_package_root(args.source)
+    target = normalize_package_root(args.target)
     requested_outputs = [Path(args.out).expanduser()]
     if args.markdown:
         requested_outputs.append(Path(args.markdown).expanduser())
@@ -208,7 +208,7 @@ def _validate_locale_tag(value: str) -> str:
 def cmd_translate(args: argparse.Namespace) -> int:
     _validate_locale_tag(args.source_locale)
     _validate_locale_tag(args.target_locale)
-    source = Path(args.source).expanduser().resolve(strict=True)
+    source = normalize_package_root(args.source)
     output = Path(args.output).expanduser().resolve()
     report_requested = Path(args.report).expanduser() if args.report else output.with_name(output.name + ".report.json")
     history_requested = Path(args.history_db).expanduser() if args.history_db else default_history_path()
@@ -281,8 +281,8 @@ def cmd_review(args: argparse.Namespace) -> int:
 
 
 def cmd_approve(args: argparse.Namespace) -> int:
-    source = Path(args.source).expanduser().resolve(strict=True)
-    target = Path(args.target).expanduser().resolve(strict=True)
+    source = normalize_package_root(args.source)
+    target = normalize_package_root(args.target)
     report_path = Path(args.report).expanduser().resolve(strict=True)
     output = Path(args.output).expanduser().resolve()
     if args.signing_key:
