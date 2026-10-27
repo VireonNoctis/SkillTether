@@ -434,6 +434,54 @@ def compare_packages(
                     requires_review=True,
                 ))
 
+    # Count-preserving reordering is a distinct risk from token deletion. A
+    # changed sequence can alter CLI option/operand relationships even when every
+    # token is still present, so ask for review without claiming semantic certainty.
+    source_machine: dict[str, list] = {}
+    target_machine: dict[str, list] = {}
+    for item in source_token_objects:
+        if item.category in CODE_CATEGORIES:
+            source_machine.setdefault(item.path, []).append(item)
+    for item in target_token_objects:
+        if item.category in CODE_CATEGORIES:
+            target_machine.setdefault(item.path, []).append(item)
+    for path in sorted(set(source_machine) & set(target_machine)):
+        left_tokens = sorted(
+            source_machine[path],
+            key=lambda item: (item.line, item.column if item.column is not None else 0, item.category, item.value),
+        )
+        right_tokens = sorted(
+            target_machine[path],
+            key=lambda item: (item.line, item.column if item.column is not None else 0, item.category, item.value),
+        )
+        left_sequence = [(item.category, item.value) for item in left_tokens]
+        right_sequence = [(item.category, item.value) for item in right_tokens]
+        if Counter(left_sequence) != Counter(right_sequence) or left_sequence == right_sequence:
+            continue
+        first_difference = next(
+            (index for index, (left_item, right_item) in enumerate(zip(left_sequence, right_sequence, strict=True))
+             if left_item != right_item),
+            None,
+        )
+        if first_difference is None:
+            continue
+        left_item = left_tokens[first_difference]
+        right_item = right_tokens[first_difference]
+        source_lines = source_text[path].splitlines()
+        target_lines = target_text[path].splitlines()
+        original_context = source_lines[left_item.line - 1][:1000] if left_item.line <= len(source_lines) else left_item.value
+        target_context = target_lines[right_item.line - 1][:1000] if right_item.line <= len(target_lines) else right_item.value
+        findings.append(new_finding(
+            "PROTECTED_TOKEN_ORDER_CHANGED", "high", "protected_token",
+            "The target changes the order of protected machine-facing tokens while retaining the same token multiset.",
+            "Counts alone do not preserve order-sensitive command arguments or operand relationships. This heuristic cannot determine whether the reordering is harmless in context.",
+            path=path, source_line=left_item.line, target_line=right_item.line,
+            original_context=original_context, target_context=target_context,
+            proposed_change="Restore source order or document and approve the intended reordering after reviewing the full instruction.",
+            requires_review=True, analysis_method="heuristic", uncertainty="high",
+            severity_rationale="A reordered command flag, identifier, or path can change operational behavior; the heuristic requires human review rather than asserting semantic failure.",
+        ))
+
     structural_bad = any(finding.code in FATAL_STRUCTURE_CODES for finding in findings)
     semantic_review = any(f.requires_review or f.severity in ("medium", "high", "critical") for f in findings)
     return ComparisonReport.create(
