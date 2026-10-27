@@ -73,6 +73,25 @@ def compare_packages(
     manifest_fingerprint = fingerprint_manifest(manifest)
 
     source_paths, target_paths = set(source_inventory), set(target_inventory)
+    for path in sorted(source_paths & target_paths):
+        source_mode = source_inventory[path].mode
+        target_mode = target_inventory[path].mode
+        if source_mode is None or target_mode is None or source_mode == target_mode:
+            continue
+        executable_changed = bool((source_mode ^ target_mode) & 0o111)
+        findings.append(new_finding(
+            "PACKAGE_FILE_MODE_CHANGED",
+            "high" if executable_changed else "medium",
+            "package_integrity",
+            f"Target changes filesystem permission bits for {path!r}.",
+            "Executable bits and read/write permissions can affect how scripts are launched or which package content is accessible.",
+            path=path,
+            original_context=f"mode:{source_mode:04o}",
+            target_context=f"mode:{target_mode:04o}",
+            proposed_change="Restore the original mode or explicitly review and document the intended permission change.",
+            requires_review=True,
+        ))
+
     for missing in sorted(source_paths - target_paths):
         severity = "critical" if missing == "SKILL.md" else "high"
         findings.append(new_finding(
