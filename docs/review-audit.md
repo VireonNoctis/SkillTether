@@ -4,7 +4,7 @@
 
 A report disposition alone is not enough to export a package. Earlier report files could be edited so that a finding said `approved` without preserving who made the decision or why. That undermines reviewability even when source, target, manifest, and policy fingerprints still match.
 
-For every finding that requires review or is critical, the current disposition must be `approved` and match the final review-history event. The history must be internally consistent: its first prior disposition is `pending`, and each event's prior disposition matches the preceding event. Each event carries a timezone-aware ISO-8601 timestamp, reviewer identifier, decision, and non-empty rationale.
+For every finding that requires review or is critical, the current disposition must be `approved` and match the final review-history event. The history must be internally consistent: the first event records the report's disposition when tracking began (which may be a legacy value), and each later event's prior disposition matches the preceding event. Each event carries a timezone-aware ISO-8601 timestamp, reviewer identifier, decision, and non-empty rationale.
 
 The `skilltether review` command appends a decision instead of discarding earlier decisions. Changing a decision creates another event. Rejected and deferred decisions remain blockers until a later explicit approval is recorded.
 
