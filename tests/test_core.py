@@ -525,3 +525,22 @@ def test_file_mode_changes_are_fingerprinted_and_reported(tmp_path: Path) -> Non
     assert mode_findings[0].original_context == "mode:0644"
     assert mode_findings[0].target_context == "mode:0755"
     assert mode_findings[0].requires_review
+
+
+
+def test_comparison_skips_over_budget_line_matching_with_explicit_uncertainty(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skilltether.compare as compare
+
+    source = make_package(tmp_path / "source" / "sample-skill", "Line one.\nLine two.\n")
+    target = make_package(tmp_path / "target" / "sample-skill", "Target one.\nTarget two.\n")
+    monkeypatch.setattr(compare, "MAX_DIFF_LINE_CELLS", 1)
+
+    report = compare.compare_packages(source, target, reviewed_manifest())
+    findings = [item for item in report.findings if item.code == "TEXT_DIFF_COMPLEXITY_LIMIT"]
+
+    assert findings
+    assert all(item.analysis_method == "deterministic" for item in findings)
+    assert all(item.uncertainty == "high" and item.requires_review for item in findings)
+    assert report.semantic_status == "review_recommended"
