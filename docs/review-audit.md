@@ -20,6 +20,12 @@ New findings include:
 
 These fields explain how a finding was produced; they do not score semantic equivalence. A deterministic mismatch is evidence that a particular condition was detected, not proof that the translation is unsafe. A heuristic warning is not a semantic verdict. Human review remains necessary for critical instructions.
 
+## Report credential redaction
+
+Finding construction and report writers redact common credential forms such as credential assignments, bearer/basic tokens, common provider-token prefixes, and complete or truncated PEM private-key blocks. Credential-like reviewer notes and history provider/status labels are rejected rather than persisted. Credential-like path-map keys are replaced with placeholders.
+
+This is only a high-confidence guardrail, not comprehensive secret detection. It does not establish that a skill, finding, or report contains no sensitive information. Do not put credentials or unrelated private data into a skill package or review note, and inspect the report before sharing it.
+
 ## Privacy and trust boundary
 
 Reviewer notes must be non-empty and are capped at 4,000 characters. The CLI rejects several high-confidence credential forms, including common API-key/password assignments, bearer tokens, GitHub-style tokens, and private-key headers. This is a narrow guardrail, not a secret scanner: do not paste private skill content, credentials, or unrelated sensitive data into reviewer notes.
