@@ -205,7 +205,7 @@ def test_report_schema_validates_actual_serialized_report(tmp_path: Path) -> Non
     report = comparison(critical_finding())
     errors = sorted(validator.iter_errors(report.model_dump(mode="json")), key=lambda error: list(error.absolute_path))
 
-    assert not errors, "\\n".join(f"{list(error.absolute_path)}: {error.message}" for error in errors)
+    assert not errors, "\n".join(f"{list(error.absolute_path)}: {error.message}" for error in errors)
 
 
 def test_report_schema_rejects_unknown_severity_value() -> None:
@@ -370,7 +370,7 @@ def test_compare_fail_on_review_is_an_optional_ci_gate(tmp_path: Path) -> None:
     for package in (source, target):
         package.mkdir(parents=True)
         (package / "SKILL.md").write_text(
-            f"---\\nname: sample-skill\\ndescription: A skill.\\n---\\n\\nInstructions.\\n",
+            f"---\nname: sample-skill\ndescription: A skill.\n---\n\nInstructions.\n",
             encoding="utf-8",
         )
 
@@ -390,7 +390,7 @@ def test_compare_fail_on_review_is_an_optional_ci_gate(tmp_path: Path) -> None:
 def test_terminal_findings_collapse_untrusted_control_characters(capsys: pytest.CaptureFixture[str]) -> None:
     from skilltether.cli import _show_findings
 
-    message = f"unsafe{chr(27)}[31mred{chr(27)}[0m\\nforged"
+    message = f"unsafe{chr(27)}[31mred{chr(27)}[0m\nforged"
     _show_findings([new_finding(
         "UNTRUSTED_TEST", "high", "test", message, "A test message with terminal controls.",
         path="name" + chr(27) + "[2J",
@@ -398,7 +398,7 @@ def test_terminal_findings_collapse_untrusted_control_characters(capsys: pytest.
     output = capsys.readouterr().out
 
     assert chr(27) not in output
-    assert "\\nforged" not in output
+    assert "\nforged" not in output
     assert "unsafe" in output and "forged" in output
 
 
@@ -409,7 +409,7 @@ def test_report_path_guard_catches_symlink_inside_source_package(tmp_path: Path)
     for package in (source, target):
         package.mkdir(parents=True)
         (package / "SKILL.md").write_text(
-            f"---\\nname: sample-skill\\ndescription: A skill.\\n---\\n\\nInstructions.\\n",
+            f"---\nname: sample-skill\ndescription: A skill.\n---\n\nInstructions.\n",
             encoding="utf-8",
         )
     external = tmp_path / "external.json"
@@ -434,7 +434,7 @@ def test_report_path_guard_catches_external_alias_to_source_package(tmp_path: Pa
     for package in (source, target):
         package.mkdir(parents=True)
         (package / "SKILL.md").write_text(
-            f"---\\nname: sample-skill\\ndescription: A skill.\\n---\\n\\nInstructions.\\n",
+            f"---\nname: sample-skill\ndescription: A skill.\n---\n\nInstructions.\n",
             encoding="utf-8",
         )
     alias_parent = tmp_path / "source-alias"
