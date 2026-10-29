@@ -13,7 +13,8 @@ SkillTether is a local-first CLI for validating and localizing [Agent Skills](ht
 - **Track operational invariants:** create a draft YAML manifest for requirements, negations, numeric limits, prerequisites, and decision rules. A human must curate and approve every invariant.
 - **Localize Markdown carefully:** mask syntax and opaque regions, enforce provider response budgets, and reject altered placeholders or parser-visible structure changes. This is a structural guard—not a complete Markdown/MDX AST transformation.
 - **Keep decisions auditable:** generate JSON/Markdown reports, retain review history and rationale, and require fingerprint-matched evidence before exporting an approved candidate.
-- **Make remote translation opt-in:** the default identity adapter sends no content. The generic JSON adapter requires an endpoint and explicit `--allow-remote` consent.
+- **Make remote translation opt-in:** the default identity adapter sends no content. The generic JSON adapter requires an endpoint and explicit `--allow-remote` consent; per-line and aggregate limits bound provider output.
+- **Keep local run metadata minimal:** optional SQLite history stores fingerprints and run metadata, not source/target document text.
 - **Support report integrity:** optionally seal JSON reports using a local HMAC-SHA256 key and verify the seal before review or approval.
 
 See the [requirements-to-code readiness audit](docs/readiness-audit.md) for the traceability matrix and known gaps.
@@ -114,17 +115,17 @@ Approval checks the current fingerprints and review evidence, rejects structural
 
 ### Optional: seal review reports
 
-Create a private key once and keep it outside the skill package and source control:
+Create a private key once in the user's configuration directory, outside the repository and skill package:
 
 ~~~sh
-skilltether init-signing-key --out ./private/report-signing.key
+skilltether init-signing-key --out ~/.skilltether/report-signing.key
 ~~~
 
-Pass `--signing-key ./private/report-signing.key` when creating the comparison report, then verify it with:
+Pass `--signing-key ~/.skilltether/report-signing.key` when creating the comparison report, then verify it with:
 
 ~~~sh
 skilltether verify-report ./review/report.json \
-  --signing-key ./private/report-signing.key
+  --signing-key ~/.skilltether/report-signing.key
 ~~~
 
 Use the same key with `review` and `approve` for a signed report. HMAC detects report edits only while the key remains private; it does not authenticate reviewer identity or provide non-repudiation.
