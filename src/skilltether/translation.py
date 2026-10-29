@@ -508,8 +508,6 @@ def translate_package(
     resolved_output = output_root.resolve()
     if not source_root.is_dir():
         raise ValueError("Source package must be a directory")
-    if output_root.exists():
-        raise FileExistsError(f"Candidate output already exists: {output_root}")
     if output_root.name != source_root.name:
         raise ValueError(
             "Candidate directory basename must match the source skill package name; "
@@ -522,6 +520,8 @@ def translate_package(
             or candidate in source_root.parents
         ):
             raise ValueError("Source and output directories must be separate and non-overlapping")
+    if output_root.exists():
+        raise FileExistsError(f"Candidate output already exists: {output_root}")
 
     source_inventory, validation_findings, source_text = inspect_package(source_root)
     severe = [f for f in validation_findings if f.severity in ("high", "critical")]
