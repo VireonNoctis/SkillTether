@@ -15,6 +15,14 @@ def test_reads_regular_file_exactly_at_limit(tmp_path: Path) -> None:
     assert read_bounded_regular_file(path, max_bytes=6) == b"abcdef"
 
 
+def test_binary_read_preserves_crlf_and_windows_text_sentinel_bytes(tmp_path: Path) -> None:
+    path = tmp_path / "binary.dat"
+    payload = b"prefix\r\n\x1a\nsuffix\x00\xff"
+    path.write_bytes(payload)
+
+    assert read_bounded_regular_file(path, max_bytes=1024) == payload
+
+
 def test_rejects_file_over_byte_limit(tmp_path: Path) -> None:
     path = tmp_path / "input.txt"
     path.write_bytes(b"abcdefg")
