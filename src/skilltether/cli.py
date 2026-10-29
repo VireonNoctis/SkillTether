@@ -104,9 +104,30 @@ def _suggest_invariants(source_root: Path, source_locale: str, target_locale: st
     if "SKILL.md" not in texts:
         raise ValueError("Cannot suggest invariants without a readable SKILL.md")
     suggestions: list[Invariant] = []
+    fence_character: str | None = None
+    fence_length = 0
     for line_no, line in enumerate(texts["SKILL.md"].splitlines(), start=1):
+        fence_match = re.match(r"^\s{0,3}(`{3,}|~{3,})", line)
+        if fence_character is not None:
+            # Ignore every line inside fenced examples until a compatible closing
+            # fence. A command example is not an instruction for this skill's user.
+            if (
+                fence_match
+                and fence_match.group(1)[0] == fence_character
+                and len(fence_match.group(1)) >= fence_length
+                and not line[fence_match.end():].strip()
+            ):
+                fence_character = None
+                fence_length = 0
+            continue
+        if fence_match:
+            marker = fence_match.group(1)
+            fence_character = marker[0]
+            fence_length = len(marker)
+            continue
+
         stripped = line.strip()
-        if not stripped or stripped.startswith("#") or stripped.startswith("|") or stripped.startswith("~~~"):
+        if not stripped or stripped.startswith("#") or stripped.startswith("|"):
             continue
         if not CUE_PATTERN.search(stripped):
             continue
