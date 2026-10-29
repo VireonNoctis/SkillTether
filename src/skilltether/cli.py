@@ -180,13 +180,42 @@ def cmd_init_signing_key(args: argparse.Namespace) -> int:
 def cmd_init_manifest(args: argparse.Namespace) -> int:
     source = normalize_package_root(args.source)
     manifest = _suggest_invariants(source, args.source_locale, args.target_locale)
-    output = Path(args.out).expanduser()
-    if output.exists():
-        raise FileExistsError(f"Manifest output already exists: {output}; choose a new path so reviewed rules are not overwritten")
+    output = Path(os.path.abspath(Path(args.out).expanduser()))
+    _ensure_outputs_outside_packages([output], [source], label="Invariant manifest")
+    if output.exists() or output.is_symlink():
+        raise FileExistsError(
+            f"Manifest output already exists: {output}; choose a new path so reviewed rules are not overwritten"
+        )
     output.parent.mkdir(parents=True, exist_ok=True)
-    payload = manifest.model_dump(mode="json", exclude_none=True)
-    output.write_text(yaml.safe_dump(payload, allow_unicode=True, sort_keys=False), encoding="utf-8")
-    print(f"Wrote {len(manifest.invariants)} draft invariant candidates to {output}")
+    payload = yaml.safe_dump(
+        manifest.model_dump(mode="json", exclude_none=True),
+        allow_unicode=True,
+        sort_keys=False,
+    )
+    # Stage beside the destination and publish with replace: this never follows
+    # a final-component symlink, including one introduced after the preflight.
+    import tempfile
+
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{output.name}.manifest-", suffix=".tmp", dir=output.parent,
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if output.exists() or output.is_symlink():
+            raise FileExistsError(
+                f"Manifest output appeared during generation: {output}; choose a new path"
+            )
+        os.replace(temporary, output)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+    print(f"Wrote {len(manifest.invariants)} draft invariant candidates to {_terminal_safe(output)}")
     print("Review every candidate and its locale-specific markers before setting manifest_reviewed=true.")
     return 0
 
