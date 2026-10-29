@@ -187,6 +187,52 @@ def test_http_adapter_bounds_responses_by_remaining_aggregate_budget(
     assert read_limits == [9]
 
 
+def test_custom_adapter_per_line_response_limit_prevents_candidate_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skilltether.translation as translation
+
+    source = make_package(tmp_path / "source" / "sample-skill", "Short line.")
+    output = tmp_path / "candidate" / "sample-skill"
+
+    class OversizedAdapter:
+        name = "oversized-custom-adapter"
+        remote = False
+
+        def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+            return "x" * 17
+
+    monkeypatch.setattr(translation, "MAX_TRANSLATION_RESPONSE_BYTES", 16)
+    with pytest.raises(RuntimeError, match="per-line safety limit"):
+        translate_package(source, output, OversizedAdapter(), "en", "fr")
+    assert not output.exists()
+
+
+def test_custom_adapter_aggregate_response_budget_is_enforced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skilltether.translation as translation
+
+    source = make_package(
+        tmp_path / "source" / "sample-skill",
+        "Short one.\nShort two.",
+    )
+    output = tmp_path / "candidate" / "sample-skill"
+
+    class RepeatedOutputAdapter:
+        name = "aggregate-budget-adapter"
+        remote = False
+
+        def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+            return "bonjour"
+
+    monkeypatch.setattr(translation, "MAX_TRANSLATION_RESPONSE_BYTES", 100)
+    monkeypatch.setattr(translation, "MAX_TRANSLATION_TOTAL_RESPONSE_BYTES", 10)
+    with pytest.raises(RuntimeError, match="aggregate response bytes exceed"):
+        translate_package(source, output, RepeatedOutputAdapter(), "en", "fr")
+    assert not output.exists()
+
+
 def test_identity_translation_still_passes_preflight_and_creates_candidate(
     tmp_path: Path,
 ) -> None:
