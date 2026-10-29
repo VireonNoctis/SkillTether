@@ -253,7 +253,7 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
     for rel, text in sorted(texts.items()):
         findings.extend(validate_resource_syntax(rel, text))
         if Path(rel).suffix.lower() in TEXT_SUFFIXES:
-            findings.extend(validate_local_links(root_path, rel, text))
+            findings.extend(validate_local_links(root_path, rel, text, text_snapshot=texts))
         findings.extend(validate_referenced_resources(root_path, rel, text, findings))
     return inventory, findings, texts
 
@@ -382,7 +382,10 @@ def validate_skill_markdown(root: Path, text: str) -> list:
     return findings
 
 
-def validate_local_links(root: Path, rel_path: str, text: str) -> list:
+def validate_local_links(
+    root: Path, rel_path: str, text: str,
+    *, text_snapshot: dict[str, str] | None = None,
+) -> list:
     findings = []
     parsed = MarkdownIt("commonmark", {"html": False}).parse(text)
     for token in parsed:
@@ -393,7 +396,21 @@ def validate_local_links(root: Path, rel_path: str, text: str) -> list:
             href = attrs.get("href") if child.type == "link_open" else attrs.get("src")
             if not href:
                 continue
-            parsed_url = urlsplit(href)
+            try:
+                parsed_url = urlsplit(href)
+            except ValueError:
+                findings.append(new_finding(
+                    "LOCAL_LINK_URL_INVALID", "medium", "links",
+                    "A Markdown link has malformed URL syntax and could not be checked.",
+                    "Malformed URL syntax can confuse link resolution across Markdown consumers; the validator should report the input rather than crash.",
+                    path=rel_path,
+                    proposed_change="Correct the URL or confirm the intended client-specific syntax.",
+                    requires_review=True,
+                    analysis_method="deterministic",
+                    uncertainty="none",
+                    severity_rationale="The URL parser deterministically rejected the literal; whether a target client accepts it still needs contextual review.",
+                ))
+                continue
             if parsed_url.scheme or href.startswith("//"):
                 continue
             decoded = unquote(parsed_url.path)
@@ -417,10 +434,19 @@ def validate_local_links(root: Path, rel_path: str, text: str) -> list:
                 ))
                 continue
             if parsed_url.fragment and destination.is_file():
-                try:
-                    target_text = destination.read_text(encoding="utf-8")
-                except (OSError, UnicodeDecodeError):
-                    continue
+                target_rel = destination.relative_to(root.resolve()).as_posix()
+                target_text = (text_snapshot or {}).get(target_rel)
+                if target_text is None:
+                    # Preserve support for callers that validate one document in
+                    # isolation, but keep fallback reads bounded and non-following.
+                    try:
+                        target_bytes = read_bounded_regular_file(
+                            destination, max_bytes=MAX_FILE_BYTES,
+                            purpose="Local link fragment target",
+                        )
+                        target_text = target_bytes.decode("utf-8")
+                    except (OSError, UnicodeDecodeError, ValueError):
+                        continue
                 fragments = set(re.findall(r"\bid\s*=\s*['\"]([^'\"]+)", target_text, re.I))
                 fragments.update(re.findall(r"\bname\s*=\s*['\"]([^'\"]+)", target_text, re.I))
                 for heading in re.finditer(r"^#{1,6}\s+(.+?)\s*#*\s*$", target_text, re.M):
