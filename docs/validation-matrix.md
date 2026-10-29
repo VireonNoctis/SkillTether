@@ -10,7 +10,8 @@
 | URL fragment encoding | Local fragment contains percent-encoded characters | Decode fragment before comparing detected anchors/headings |
 | Fragment target safety | Local anchor target is already in bounded package inventory | Reuse snapshot; fallback read is bounded and does not follow final symlink |
 | BCP 47 extlang cardinality | Language tag contains one to three structural extlang subtags; a fourth appears before following components | One to three are accepted by grammar; excess extlang sequence is rejected |
-| Coverage floor | Aggregate branch-aware coverage falls below 80% | GitHub Actions fails the coverage-report step |
+| Coverage floor | Aggregate branch-aware coverage falls below 80% | Linux GitHub Actions job fails the coverage-report step |
+| Official reference validator | Valid and intentionally invalid baseline skill fixtures | Pinned `skills-ref` CLI accepts the valid fixture and returns its documented invalid-skill exit code for the invalid fixture; tool stays out of runtime dependencies |
 | Invariant manifest output path | Destination is inside source, already exists, is a symlink, or appears during publication | Refuse write; preserve source and destination target |
 | Approval output symlink | Requested approved-output path is a final-component symlink, including a broken symlink | Refuse approval before report access or publication |
 | Invariant suggestion examples | Fenced, indented, or recognized HTML code examples contain imperative words/numbers | Do not emit those code-example lines as invariant candidates; candidates remain unreviewed |
