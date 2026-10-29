@@ -114,17 +114,9 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
             count += 1
             if count > MAX_PACKAGE_FILES:
                 raise ValueError(f"Package exceeds the {MAX_PACKAGE_FILES}-file safety limit")
-            if path.is_symlink():
-                findings.append(new_finding(
-                    "SYMLINK_NOT_ALLOWED", "critical", "package_integrity",
-                    "Package contains a symbolic-link file.",
-                    "The package must be deterministic and confined to its root.",
-                    path=rel, proposed_change="Replace the symlink with a regular in-package resource.",
-                ))
-                continue
-            # Reject special entries before open to avoid invoking device-specific
-            # open behavior. Recheck the descriptor after opening to narrow the race
-            # between lstat and open; O_NOFOLLOW and O_NONBLOCK add platform safeguards.
+            # Classify with one lstat call inside the error boundary. Calling
+            # Path.is_symlink() first would perform a second lstat outside that
+            # boundary and could let permission/race errors abort the whole scan.
             try:
                 entry_stat = path.lstat()
             except OSError as exc:
@@ -135,6 +127,17 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
                     path=rel,
                 ))
                 continue
+            if stat.S_ISLNK(entry_stat.st_mode):
+                findings.append(new_finding(
+                    "SYMLINK_NOT_ALLOWED", "critical", "package_integrity",
+                    "Package contains a symbolic-link file.",
+                    "The package must be deterministic and confined to its root.",
+                    path=rel, proposed_change="Replace the symlink with a regular in-package resource.",
+                ))
+                continue
+            # Reject special entries before open to avoid invoking device-specific
+            # open behavior. Recheck the descriptor after opening to narrow the race;
+            # O_NOFOLLOW is platform-dependent so identity is also compared below.
             if not stat.S_ISREG(entry_stat.st_mode):
                 findings.append(new_finding(
                     "SPECIAL_FILE_NOT_ALLOWED", "critical", "package_integrity",
@@ -152,6 +155,18 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
                 flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
                 descriptor = os.open(path, flags)
                 opened = os.fstat(descriptor)
+                if entry_stat.st_ino and opened.st_ino and (
+                    entry_stat.st_dev != opened.st_dev or entry_stat.st_ino != opened.st_ino
+                ):
+                    findings.append(new_finding(
+                        "FILE_IDENTITY_CHANGED", "high", "package_integrity",
+                        "A package entry changed identity between lstat and open.",
+                        "The opened descriptor may refer to a replacement file or a symlink target rather than the entry that was classified.",
+                        path=rel,
+                        proposed_change="Stabilize the package tree and rerun validation.",
+                        requires_review=True,
+                    ))
+                    continue
                 if not stat.S_ISREG(opened.st_mode):
                     findings.append(new_finding(
                         "SPECIAL_FILE_NOT_ALLOWED", "critical", "package_integrity",
