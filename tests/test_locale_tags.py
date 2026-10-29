@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from skilltether.locale_tags import validate_bcp47_tag
+from skilltether.cli import _validate_locale_tag
 
 
 @pytest.mark.parametrize(
@@ -67,3 +68,9 @@ def test_case_insensitive_duplicate_singletons_and_variants_are_rejected() -> No
         validate_bcp47_tag("en-a-foo-A-bar")
     with pytest.raises(ValueError, match="duplicate variant"):
         validate_bcp47_tag("de-1901-1901")
+
+
+def test_cli_uses_bcp47_validator_and_returns_original_case() -> None:
+    assert _validate_locale_tag("zh-Hans-CN") == "zh-Hans-CN"
+    with pytest.raises(ValueError, match="IANA registry membership"):
+        _validate_locale_tag("en-u")
