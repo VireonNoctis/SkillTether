@@ -20,7 +20,7 @@ This is a traceability audit, not a semantic-safety certification. “Implemente
 | Treat a skill as a directory/package, not a single string | `src/skilltether/analysis.py:inspect_package`, `translation.py:translate_package`, `cli.py:cmd_approve` | `tests/test_copy_race.py`, `tests/test_root_symlink.py`, `tests/test_safeio.py`, package fingerprint tests in `tests/test_core.py` | **Implemented / tested.** Inventory is bounded and source/candidate/output are kept separate. OS/filesystem race behavior remains platform-dependent. |
 | Validate expected text encodings | `analysis.py:inspect_package` | `test_non_utf8_expected_text_resources_are_reported`; `test_binary_asset_is_not_misclassified_as_invalid_text` | **Implemented / tested.** Known text/script suffixes that are not UTF-8 produce findings; other binary assets remain fingerprinted as binary. Suffix classification is conventional rather than content-type proof. |
 | Validate required `SKILL.md` frontmatter and Agent Skills name rules | `analysis.py:_frontmatter`, `validate_skill_markdown`; `docs/spec-compatibility.md` | `tests/test_core.py`: malformed/duplicate YAML, missing fields, wrong types, optional fields and unknown fields | **Implemented / tested** for documented fields and name/directory identity. Compare periodically with the normative spec and reference validator. |
-| Preserve optional-field compatibility and unknown extensions | `analysis.py:validate_skill_markdown` | valid optional-field and unknown-field tests in `tests/test_core.py` | **Implemented / tested.** Unknown fields warn rather than block; client-specific meanings are not inferred. |
+| Preserve optional-field compatibility and unknown extensions | `analysis.py:validate_skill_markdown` | valid optional-field and unknown-field tests in `tests/test_core.py`; `tests/fixtures/valid-optional-skill/SKILL.md` | **Implemented / tested.** Unknown fields warn rather than block; client-specific meanings are not inferred. The optional metadata fixture is checked against both SkillTether and the pinned reference CLI in CI. |
 | Check local links, fragments, images, and conventional resource references | `analysis.py:validate_local_links`, `validate_referenced_resources` | broken-link and missing-resource tests in `tests/test_core.py` | **Partial.** External URLs are not fetched; Markdown heading slug recognition is heuristic. This audit adds table parsing, percent-decoded fragments, malformed-URL findings, and bounded snapshot reuse. |
 | Parse Markdown while preserving content structure | `translation.py:translate_markdown`, `_markdown_structure_signature`; `compare.py` line diff | syntax, tables, placeholders, HTML blocks and injected-link regressions in `tests/test_core.py` | **Partial.** Lexical masking plus parser-visible structure signature, not a complete CommonMark/MDX AST transformer. Extension-specific syntax still needs review. |
 | Preserve scripts, assets, relative paths, and permissions | `analysis.py:inspect_package`, `compare.py` | `tests/test_copy_race.py`, asset/mode tests in `tests/test_core.py` | **Implemented / tested** for inventory, hashes, modes, path integrity, and non-execution. Static parser coverage is limited to selected formats; shell/JS/PowerShell semantics are not fully parsed. |
@@ -54,6 +54,7 @@ This is a traceability audit, not a semantic-safety certification. “Implemente
 10. **Windows byte preservation:** raw package/file reads and signing-key reads use binary mode so CRLF and Ctrl-Z bytes do not corrupt hashes, aggregate-budget accounting, or HMAC key length.
 11. **History locale parity:** SQLite history uses the same BCP 47 structural validator as CLI/manifests/reports instead of a looser shape regex.
 12. **Reference-validator check:** CI runs a separately pinned `skills-ref` valid/invalid fixture smoke test without adding it to SkillTether's runtime dependencies.
+13. **Optional-field reference comparison:** CI checks a valid fixture with `license`, `compatibility`, `metadata`, and experimental `allowed-tools` against both SkillTether and the pinned reference CLI.
 
 Each item has or is receiving a regression fixture in the same pull request. These fixes count as release-verified only when CI passes on the resulting head.
 
@@ -75,15 +76,15 @@ Each item has or is receiving a regression fixture in the same pull request. The
 
 ## Latest verification snapshot
 
-- Verified PR head: `1556cde73d35946ba1db9be19204629c43f13bfd`.
+- Verified matrix head: `1556cde73d35946ba1db9be19204629c43f13bfd`.
 - GitHub Actions matrix and reference-conformance run: [40870914531](https://github.com/VireonNoctis/SkillTether/actions/runs/40870914531).
 - Regression/property-based suite: **214 passed in all six OS/Python combinations** (Ubuntu, macOS, Windows × Python 3.13 and 3.14).
 - Linux/macOS measured coverage: **86%** across 2,072 statements and 844 branches (237 statements missed; 157 partial branches); Windows measured 85%.
-- Linux module coverage highlights: CLI 83%, package analysis 80%, comparison 84%, translation 85%, report writing 96%, safe I/O 96%, locale-tag validation 97%.
-- JSON Schema syntax/protected-token policy checks and bundled valid-skill validation passed across the matrix. The pinned `skills-ref@v0.0.1` reference-conformance smoke job passed against valid and invalid fixtures.
+- Linux module coverage highlights: CLI 84%, package analysis 81%, comparison 84%, translation 86%, report writing 96%, safe I/O 96%, locale-tag validation 97%.
+- JSON Schema syntax/protected-token policy checks and the existing bundled valid-skill fixture passed across the matrix. The pinned `skills-ref@v0.0.1` reference-conformance smoke job passed against valid and invalid fixtures.
 - CI enforces an 80% aggregate coverage floor on Linux only. Other jobs report coverage without a per-OS threshold; no per-module floors are enforced. Coverage is evidence of exercised code, not proof of correctness.
 
-This run validates the current PR head, byte-exact file reads/key loading, invariant suggestion regression corpus, output-symlink guards, and the pinned reference-validator smoke test. Any later source/test change still needs its own passing CI run before release.
+This was the last fully green matrix before the optional-metadata reference fixture was added. The run validates binary-mode file reads/key loading, invariant-suggestion regression corpus, output-symlink guards, and pinned reference-validator integration; the added fixture is awaiting current-head CI before release claims are updated.
 ## Acceptance gate
 
 A release candidate should pass the current CI suite; include traceable tests for each newly implemented rule plus a hard negative; preserve source-package fingerprints; validate schemas and bundled fixtures; document coverage and cross-platform limits; and leave critical or ambiguous semantic changes for explicit human review. No single score should be presented as a “safe translation” certificate.
