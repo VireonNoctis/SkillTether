@@ -45,7 +45,7 @@ def test_well_formed_bcp47_tags_are_preserved_without_canonicalization(tag: str)
         "en-a-b",
         "en-a-bbb-a-ccc",
         "de-DE-1901-1901",
-        "en-abc-def-ghi",
+        "en-abc-def-ghi-jkl",
         "zh-abc-def-ghi-jkl",
         "en-GB-US",
         "en-x-",
