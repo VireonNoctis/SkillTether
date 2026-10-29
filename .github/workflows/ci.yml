@@ -48,3 +48,30 @@ jobs:
           PY
       - name: Validate bundled fixture package
         run: skilltether validate tests/fixtures/valid-skill
+
+  reference-conformance:
+    # The upstream skills-ref README describes this as a demonstration/reference
+    # implementation. Pin it for a non-runtime compatibility smoke check only.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Go for the reference CLI
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+      - name: Install pinned Agent Skills reference validator
+        run: go install github.com/skills-repos/agentskills/skills-ref/cmd/skills-ref@v0.0.1
+      - name: Check a valid and invalid fixture against skills-ref
+        run: |
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          skills-ref --version
+          skills-ref validate tests/fixtures/valid-skill
+          set +e
+          skills-ref validate tests/fixtures/invalid-skill
+          status=$?
+          set -e
+          if [[ "$status" -ne 1 ]]; then
+            echo "Expected skills-ref to return 1 for the invalid fixture, got $status" >&2
+            exit 1
+          fi
