@@ -19,6 +19,9 @@
 | Special filesystem entry | Named pipe, socket, device, or symlink is present | Critical structural finding; special files are never read |
 | Output path integrity | Report path inside package or reached through a symlink alias | Command refuses before writing; package remains unchanged |
 | Frontmatter | Missing required field, invalid YAML, wrong field type | Explicit validation failure |
+| Draft invariant false positive | Rule-like words inside tilde/backtick code fences or a line over 1,200 characters | Example content/long line is not emitted as a candidate; manifest remains unreviewed |
+| Text resource encoding | Invalid UTF-8 in Markdown/script resource versus invalid bytes in `.bin` asset | Expected text/script suffix reports an encoding finding; binary asset is not called malformed text |
+| Manifest output race | Destination exists or appears during generation | Create-only publication refuses the destination and leaves it unchanged |
 | Agent Skills optional fields | Optional license/compatibility/metadata/allowed-tools are valid | No false requirement to include fields; correct types are accepted |
 | BCP 47 language tags | Languages, scripts, regions, variants, extensions, private-use and grandfathered tags | Structurally well-formed tags accepted without rewriting; malformed ordering, empty extension values, duplicate variants/singletons rejected |
 | Locale registry boundary | Unknown but syntactically valid subtags | Accepted without claiming IANA registry validity or canonicalization |
