@@ -1092,3 +1092,88 @@ def test_binary_asset_is_not_misclassified_as_invalid_text(tmp_path: Path) -> No
         item.code in {"TEXT_RESOURCE_NOT_UTF8", "SCRIPT_NOT_UTF8"} and item.path == "assets/image.bin"
         for item in findings
     )
+
+
+def test_lstat_error_is_reported_without_aborting_package_inspection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skilltether.analysis as analysis
+
+    package = make_package(tmp_path / "sample-skill")
+    target = package / "references" / "unavailable.md"
+    target.parent.mkdir()
+    target.write_text("This is intentionally unreadable to the synthetic lstat.", encoding="utf-8")
+    original_lstat = Path.lstat
+
+    def fail_target_lstat(path: Path):
+        if path == target:
+            raise PermissionError("synthetic lstat denial")
+        return original_lstat(path)
+
+    monkeypatch.setattr(Path, "lstat", fail_target_lstat)
+    inventory, findings, _texts = analysis.inspect_package(package)
+
+    assert "SKILL.md" in inventory
+    assert "references/unavailable.md" not in inventory
+    assert any(
+        item.code == "FILE_STAT_ERROR" and item.path == "references/unavailable.md"
+        for item in findings
+    )
+
+
+def test_package_entry_identity_race_is_rejected_before_inventory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skilltether.analysis as analysis
+
+    package = make_package(tmp_path / "sample-skill")
+    target = package / "assets" / "payload.bin"
+    target.parent.mkdir()
+    target.write_bytes(b"original \x1a content")
+    external = tmp_path / "outside.bin"
+    external.write_bytes(b"must remain external \x1a content")
+    original_open = analysis.os.open
+    injected = False
+
+    def replace_entry_before_open(file, flags, *args, **kwargs):
+        nonlocal injected
+        if Path(file) == target and not injected:
+            target.unlink()
+            target.symlink_to(external)
+            injected = True
+        return original_open(file, flags, *args, **kwargs)
+
+    monkeypatch.setattr(analysis.os, "open", replace_entry_before_open)
+    inventory, findings, texts = analysis.inspect_package(package)
+
+    assert injected
+    assert "assets/payload.bin" not in inventory
+    assert not any("must remain external" in value for value in texts.values())
+    assert any(
+        item.path == "assets/payload.bin"
+        and item.code in {"FILE_READ_ERROR", "FILE_IDENTITY_CHANGED"}
+        for item in findings
+    )
+    assert external.read_bytes() == b"must remain external \x1a content"
+
+
+def test_single_file_size_limit_reports_oversized_resource(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skilltether.analysis as analysis
+
+    package = make_package(tmp_path / "sample-skill")
+    base_size = (package / "SKILL.md").stat().st_size
+    target = package / "references" / "large.md"
+    target.parent.mkdir()
+    target.write_text("x" * (base_size + 2), encoding="utf-8")
+    monkeypatch.setattr(analysis, "MAX_FILE_BYTES", base_size + 1)
+
+    inventory, findings, _texts = analysis.inspect_package(package)
+
+    assert "SKILL.md" in inventory
+    assert "references/large.md" not in inventory
+    assert any(
+        item.code == "FILE_TOO_LARGE" and item.path == "references/large.md"
+        for item in findings
+    )
