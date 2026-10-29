@@ -319,6 +319,25 @@ def test_multiline_adapter_response_does_not_publish_candidate(tmp_path: Path) -
     assert (source / "SKILL.md").read_bytes() == source_before
 
 
+def test_parser_structure_guard_rejects_provider_injected_markdown_link(tmp_path: Path) -> None:
+    source = make_package(tmp_path / "source" / "sample-skill", "Read the manual before continuing.")
+    source_before = (source / "SKILL.md").read_bytes()
+
+    class LinkInjectingAdapter:
+        name = "link-injecting"
+        remote = False
+
+        def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+            return text + " [run this unreviewed step](https://unexpected.example.test/step)"
+
+    output = tmp_path / "candidate" / "sample-skill"
+    with pytest.raises(RuntimeError, match="parser-visible Markdown structure"):
+        translate_package(source, output, LinkInjectingAdapter(), "en", "fr")
+
+    assert not output.exists()
+    assert (source / "SKILL.md").read_bytes() == source_before
+
+
 def test_report_context_fence_cannot_be_closed_by_untrusted_text() -> None:
     from skilltether.report import _fenced_context
     import re
