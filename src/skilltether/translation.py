@@ -153,6 +153,52 @@ class HttpJsonAdapter:
         return result
 
 
+def _validate_translation_output(value: object) -> tuple[str, int]:
+    """Bound and validate adapter text before it can affect a candidate package."""
+    if not isinstance(value, str):
+        raise RuntimeError("Translation adapter returned a non-string result")
+    if len(value) > MAX_TRANSLATION_RESPONSE_BYTES:
+        raise RuntimeError(
+            f"Translation adapter response exceeds the {MAX_TRANSLATION_RESPONSE_BYTES}-byte per-line safety limit"
+        )
+    if any(char in value for char in ("\r", "\n", "\v", "\f", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029")):
+        raise RuntimeError(
+            "Translation adapter returned a multiline result for a single Markdown line; no output was published"
+        )
+    if any((ord(char) < 32 and char != "\t") or ord(char) == 127 for char in value):
+        raise RuntimeError("Translation adapter returned unsupported control characters")
+    try:
+        encoded_size = len(value.encode("utf-8"))
+    except UnicodeEncodeError as exc:
+        raise RuntimeError("Translation adapter returned invalid Unicode text") from exc
+    if encoded_size > MAX_TRANSLATION_RESPONSE_BYTES:
+        raise RuntimeError(
+            f"Translation adapter response exceeds the {MAX_TRANSLATION_RESPONSE_BYTES}-byte per-line safety limit"
+        )
+    return value, encoded_size
+
+
+class _TranslationOutputBudgetAdapter:
+    """Apply the aggregate response budget to every adapter, including custom ones."""
+
+    def __init__(self, adapter: TranslationAdapter) -> None:
+        self.adapter = adapter
+        self.name = adapter.name
+        self.remote = adapter.remote
+        self.total_response_bytes = 0
+
+    def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+        result, size = _validate_translation_output(
+            self.adapter.translate(text, source_locale, target_locale)
+        )
+        if self.total_response_bytes + size > MAX_TRANSLATION_TOTAL_RESPONSE_BYTES:
+            raise RuntimeError(
+                f"Translation adapter aggregate response bytes exceed the {MAX_TRANSLATION_TOTAL_RESPONSE_BYTES}-byte safety limit"
+            )
+        self.total_response_bytes += size
+        return result
+
+
 def translate_markdown(
     text: str, adapter: TranslationAdapter, source_locale: str, target_locale: str,
     extra_patterns: list[dict[str, str]] | None = None,
@@ -232,13 +278,9 @@ def translate_markdown(
             continue
         masked, syntax_replacements = _mask_markdown_syntax(masked)
         replacements = protected_replacements + syntax_replacements
-        translated = adapter.translate(masked, source_locale, target_locale)
-        if not isinstance(translated, str):
-            raise RuntimeError("Translation adapter returned a non-string result")
-        if "\n" in translated or "\r" in translated:
-            raise RuntimeError(
-                "Translation adapter returned a multiline result for a single Markdown line; no output was published"
-            )
+        translated, _translated_size = _validate_translation_output(
+            adapter.translate(masked, source_locale, target_locale)
+        )
         for marker, _original in replacements:
             if translated.count(marker) != 1:
                 raise RuntimeError("Translation adapter altered or duplicated a protected placeholder; no output was published")
@@ -509,11 +551,12 @@ def translate_package(
             raise RuntimeError("Source package changed while staging; candidate discarded")
 
         translated_count = 0
+        output_budget_adapter = _TranslationOutputBudgetAdapter(adapter)
         for rel, original_text in sorted(source_text.items()):
             if Path(rel).suffix.lower() not in ELIGIBLE_SUFFIXES:
                 continue
             translated = translate_markdown(
-                original_text, adapter, source_locale, target_locale,
+                original_text, output_budget_adapter, source_locale, target_locale,
                 extra_patterns=protected_patterns, explicit_tokens=explicit_tokens,
             )
             if translated != original_text:
