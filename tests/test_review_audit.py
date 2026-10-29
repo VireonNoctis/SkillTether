@@ -1001,3 +1001,41 @@ def test_init_manifest_requires_readable_skill_markdown(
     assert status == 2
     assert "without a readable SKILL.md" in captured.err
     assert not (tmp_path / "manifest.yaml").exists()
+
+
+def test_html_example_markup_inside_fenced_code_does_not_hide_later_instructions(
+    tmp_path: Path,
+) -> None:
+    import yaml
+
+    source = tmp_path / "source" / "sample-skill"
+    source.mkdir(parents=True)
+    (source / "SKILL.md").write_text(
+        "\n".join([
+            "---",
+            "name: sample-skill",
+            "description: A fence-state regression fixture.",
+            "---",
+            "",
+            "# Instructions",
+            "~~~markdown",
+            "<pre>",
+            "must not delete the source archive in this example",
+            "~~~",
+            "Do not delete the backup archive.",
+            "",
+        ]),
+        encoding="utf-8",
+    )
+    output = tmp_path / "review" / "invariants.yaml"
+
+    result = main([
+        "init-manifest", str(source), "--out", str(output), "--source-locale", "en",
+    ])
+
+    assert result == 0
+    payload = yaml.safe_load(output.read_text(encoding="utf-8"))
+    assert [item["source_text"] for item in payload["invariants"]] == [
+        "Do not delete the backup archive.",
+    ]
+    assert payload["manifest_reviewed"] is False
