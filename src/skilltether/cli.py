@@ -13,12 +13,15 @@ import yaml
 from pydantic import ValidationError
 
 from . import __version__
-from .analysis import inspect_package, load_policy, package_fingerprint
+from .analysis import inspect_package, load_policy, normalize_package_root, package_fingerprint
 from .compare import compare_packages, fingerprint_manifest, fingerprint_policy, load_invariant_manifest
-from .history import record_event
+from .history import default_history_path, record_event
 from .models import Invariant, InvariantManifest
-from .report import read_json_report, write_json_report, write_markdown_report
+from .report import read_json_report, verify_report_signature, write_json_report, write_markdown_report
+from .signing import create_signing_key
 from .translation import HttpJsonAdapter, IdentityAdapter, translate_package
+from .locale_tags import validate_bcp47_tag
+from .reviewing import has_audited_approval, record_review
 
 CUE_PATTERN = re.compile(
     r"\b(must|must not|mustn't|never|do not|don't|only if|unless|at least|at most|no more than|required|before|after|if)\b|\d",
@@ -27,6 +30,17 @@ CUE_PATTERN = re.compile(
 NEGATION_PATTERN = re.compile(r"\b(not|never|no|without|don't|doesn't|mustn't|cannot|can't)\b", re.I)
 MANDATORY_PATTERN = re.compile(r"\b(must|required|shall|mandatory)\b", re.I)
 NUMBER_PATTERN = re.compile(r"(?<![A-Za-z])(?:[<>]=?\s*)?\d+(?:[.,]\d+)?(?:\s*(?:%|seconds?|minutes?|hours?|days?|files?|tokens?))?", re.I)
+NUMERIC_RULE_PATTERN = re.compile(
+    r"\b(at least|at most|no more than|up to|maximum|max(?:imum)?|minimum|min(?:imum)?|"
+    r"limit(?:ed)?|exactly|within|less than|greater than|more than)\b",
+    re.I,
+)
+ACTION_RULE_PATTERN = re.compile(
+    r"\b(use|set|keep|allow|wait|retry|run|limit|retain|provide|send|store|accept|reject|"
+    r"include|exclude|process|create|delete|remove|preserve|avoid|require|ensure|configure|"
+    r"return|stop|continue|call|execute|install|open|close)\b",
+    re.I,
+)
 
 
 def _manifest_arg(path_value: str | None, source: Path) -> InvariantManifest | None:
@@ -38,6 +52,11 @@ def _manifest_arg(path_value: str | None, source: Path) -> InvariantManifest | N
     return None
 
 
+def _terminal_safe(value: object) -> str:
+    """Collapse control characters so untrusted paths and excerpts cannot alter the terminal."""
+    return re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", str(value))
+
+
 def _show_findings(findings) -> None:
     if not findings:
         print("No findings.")
@@ -46,7 +65,7 @@ def _show_findings(findings) -> None:
         location = finding.path or "(package)"
         if finding.source_line:
             location += f":{finding.source_line}"
-        print(f"[{finding.severity.upper():8}] {finding.code} {location} — {finding.message}")
+        print(f"[{finding.severity.upper():8}] {_terminal_safe(finding.code)} {_terminal_safe(location)} — {_terminal_safe(finding.message)}")
     counts = {}
     for finding in findings:
         counts[finding.severity] = counts.get(finding.severity, 0) + 1
@@ -56,6 +75,30 @@ def _show_findings(findings) -> None:
 def _fingerprint_path(root: Path) -> str:
     inventory, _findings, _texts = inspect_package(root)
     return package_fingerprint(inventory)
+
+
+def _ensure_outputs_outside_packages(
+    outputs: list[Path], packages: list[Path], *, label: str,
+) -> list[Path]:
+    """Prevent report/history outputs from overwriting or polluting skill packages."""
+    raw_outputs = [Path(item).expanduser() for item in outputs]
+    # Compare both normalized lexical paths and resolved paths: resolving only the
+    # final component could hide an output symlink located inside a protected package.
+    lexical_outputs = [Path(os.path.abspath(item)) for item in raw_outputs]
+    resolved_outputs = [item.resolve() for item in raw_outputs]
+    if len(set(resolved_outputs)) != len(resolved_outputs):
+        raise ValueError(f"{label} output paths must be distinct")
+    resolved_packages = [Path(item).expanduser().resolve() for item in packages]
+    for lexical, resolved in zip(lexical_outputs, resolved_outputs, strict=True):
+        for candidate in (lexical, resolved):
+            for package in resolved_packages:
+                if candidate == package or candidate in package.parents or package in candidate.parents:
+                    raise ValueError(
+                        f"{label} output must be outside source/candidate package directories: {lexical}"
+                    )
+    # Return the lexical path so atomic report writing replaces a final-component
+    # symlink instead of following it to an unrelated external file.
+    return lexical_outputs
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
@@ -72,13 +115,64 @@ def _suggest_invariants(source_root: Path, source_locale: str, target_locale: st
     if "SKILL.md" not in texts:
         raise ValueError("Cannot suggest invariants without a readable SKILL.md")
     suggestions: list[Invariant] = []
+    fence_character: str | None = None
+    fence_length = 0
+    html_code_tag: str | None = None
     for line_no, line in enumerate(texts["SKILL.md"].splitlines(), start=1):
+        fence_match = re.match(r"^\s{0,3}(`{3,}|~{3,})", line)
+        if fence_character is not None:
+            # Markdown fencing has precedence over embedded HTML-looking examples.
+            # Otherwise an unmatched <pre>/<code> inside a fence could leak parser
+            # state beyond the matching fence and hide real instructions later.
+            if (
+                fence_match
+                and fence_match.group(1)[0] == fence_character
+                and len(fence_match.group(1)) >= fence_length
+                and not line[fence_match.end():].strip()
+            ):
+                fence_character = None
+                fence_length = 0
+            continue
+        if fence_match:
+            marker = fence_match.group(1)
+            fence_character = marker[0]
+            fence_length = len(marker)
+            continue
+        if html_code_tag is not None:
+            if re.search(rf"</{html_code_tag}\s*>", line, re.I):
+                html_code_tag = None
+            continue
+        html_open = re.match(r"^\s{0,3}<(pre|code)\b", line, re.I)
+        if html_open:
+            tag = html_open.group(1).lower()
+            if not re.search(rf"</{tag}\s*>", line, re.I):
+                html_code_tag = tag
+            continue
+        # Indented code examples are not source-language instructions to extract.
+        # This is intentionally conservative; nested-list indentation may be skipped
+        # and generated candidates always remain unreviewed.
+        if line.startswith("    ") or line.startswith("\t"):
+            continue
+
         stripped = line.strip()
-        if not stripped or stripped.startswith("#") or stripped.startswith("|") or stripped.startswith("~~~"):
+        if not stripped or stripped.startswith("#") or stripped.startswith("|"):
             continue
         if not CUE_PATTERN.search(stripped):
             continue
         if len(stripped) > 1200:
+            continue
+        # A number by itself is usually descriptive prose, not a constraint.
+        # Keep numeric candidates only when the line also contains a limit,
+        # action, modality, negation, or conditional cue. This remains a
+        # language-specific heuristic and is intentionally only a draft filter.
+        if (
+            re.search(r"\d", stripped)
+            and not NUMERIC_RULE_PATTERN.search(stripped)
+            and not ACTION_RULE_PATTERN.search(stripped)
+            and not NEGATION_PATTERN.search(stripped)
+            and not MANDATORY_PATTERN.search(stripped)
+            and not re.search(r"\b(if|unless|before|after|only if)\b", stripped, re.I)
+        ):
             continue
         lower = stripped.lower()
         if NEGATION_PATTERN.search(lower):
@@ -117,16 +211,53 @@ def _suggest_invariants(source_root: Path, source_locale: str, target_locale: st
     )
 
 
+def cmd_init_signing_key(args: argparse.Namespace) -> int:
+    path = create_signing_key(args.out)
+    print(f"Created private report signing key: {_terminal_safe(path)}")
+    print("Keep this key private and backed up; losing it prevents verification or updates to signed reports.")
+    return 0
+
+
 def cmd_init_manifest(args: argparse.Namespace) -> int:
-    source = Path(args.source).expanduser().resolve(strict=True)
+    source = normalize_package_root(args.source)
     manifest = _suggest_invariants(source, args.source_locale, args.target_locale)
-    output = Path(args.out).expanduser()
-    if output.exists():
-        raise FileExistsError(f"Manifest output already exists: {output}; choose a new path so reviewed rules are not overwritten")
+    output = Path(os.path.abspath(Path(args.out).expanduser()))
+    _ensure_outputs_outside_packages([output], [source], label="Invariant manifest")
+    if output.exists() or output.is_symlink():
+        raise FileExistsError(
+            f"Manifest output already exists: {output}; choose a new path so reviewed rules are not overwritten"
+        )
     output.parent.mkdir(parents=True, exist_ok=True)
-    payload = manifest.model_dump(mode="json", exclude_none=True)
-    output.write_text(yaml.safe_dump(payload, allow_unicode=True, sort_keys=False), encoding="utf-8")
-    print(f"Wrote {len(manifest.invariants)} draft invariant candidates to {output}")
+    payload = yaml.safe_dump(
+        manifest.model_dump(mode="json", exclude_none=True),
+        allow_unicode=True,
+        sort_keys=False,
+    )
+    # Stage beside the destination and publish with an atomic hard link:
+    # create-if-absent semantics refuse a file or symlink introduced after preflight.
+    import tempfile
+
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{output.name}.manifest-", suffix=".tmp", dir=output.parent,
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        if output.exists() or output.is_symlink():
+            raise FileExistsError(
+                f"Manifest output appeared during generation: {output}; choose a new path"
+            )
+        os.link(temporary, output)
+        temporary.unlink()
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+    print(f"Wrote {len(manifest.invariants)} draft invariant candidates to {_terminal_safe(output)}")
     print("Review every candidate and its locale-specific markers before setting manifest_reviewed=true.")
     return 0
 
@@ -134,33 +265,59 @@ def cmd_init_manifest(args: argparse.Namespace) -> int:
 def cmd_compare(args: argparse.Namespace) -> int:
     if args.target_locale:
         _validate_locale_tag(args.target_locale)
-    source = Path(args.source).expanduser().resolve(strict=True)
-    target = Path(args.target).expanduser().resolve(strict=True)
+    source = normalize_package_root(args.source)
+    target = normalize_package_root(args.target)
+    requested_outputs = [Path(args.out).expanduser()]
+    if args.markdown:
+        requested_outputs.append(Path(args.markdown).expanduser())
+    guarded_paths = list(requested_outputs)
+    if args.signing_key:
+        guarded_paths.append(Path(args.signing_key).expanduser())
+    checked_paths = _ensure_outputs_outside_packages(
+        guarded_paths, [source, target], label="Report/signing-key",
+    )
+    report_outputs = checked_paths[:len(requested_outputs)]
     manifest = _manifest_arg(args.invariants, source)
     report = compare_packages(
         source, target, manifest, target_locale=args.target_locale,
         policy_path=args.policy,
     )
-    write_json_report(report, args.out)
+    write_json_report(report, report_outputs[0], signing_key=args.signing_key)
     if args.markdown:
-        write_markdown_report(report, args.markdown)
+        write_markdown_report(report, report_outputs[1])
     _show_findings(report.findings)
     print(f"Report: {args.out}")
     print(f"Structural status: {report.structural_status}; semantic status: {report.semantic_status}")
-    return 1 if report.structural_status in ("fail", "error") else 0
+    review_gate = args.fail_on_review and report.semantic_status in ("review_recommended", "unknown")
+    return 1 if report.structural_status in ("fail", "error") or review_gate else 0
 
 
 def _validate_locale_tag(value: str) -> str:
-    if not re.fullmatch(r"[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*", value):
-        raise ValueError(f"Locale {value!r} is not a valid-looking BCP 47 language tag")
-    return value
+    try:
+        return validate_bcp47_tag(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"Locale {value!r} is not a well-formed BCP 47 language tag: {exc}. "
+            "IANA registry membership and canonicalization are not checked."
+        ) from None
 
 
 def cmd_translate(args: argparse.Namespace) -> int:
     _validate_locale_tag(args.source_locale)
     _validate_locale_tag(args.target_locale)
-    source = Path(args.source).expanduser().resolve(strict=True)
-    output = Path(args.output).expanduser().resolve()
+    source = normalize_package_root(args.source)
+    output = Path(os.path.abspath(Path(args.output).expanduser()))
+    if output.is_symlink():
+        raise ValueError("Candidate output must not be a symbolic link")
+    report_requested = Path(args.report).expanduser() if args.report else output.with_name(output.name + ".report.json")
+    history_requested = Path(args.history_db).expanduser() if args.history_db else default_history_path()
+    guarded_paths = [report_requested, history_requested]
+    if args.signing_key:
+        guarded_paths.append(Path(args.signing_key).expanduser())
+    output_paths = _ensure_outputs_outside_packages(
+        guarded_paths, [source, output], label="Report/history/signing-key",
+    )
+    report_path, history_path = output_paths[:2]
     if args.adapter == "identity":
         adapter = IdentityAdapter()
         print("Using the identity adapter: no prose will be translated; this exercises the safe pipeline only.")
@@ -181,43 +338,66 @@ def cmd_translate(args: argparse.Namespace) -> int:
         source, output, manifest, target_locale=args.target_locale, policy_path=args.policy,
     )
     report.translation_provider = adapter.name
-    report_path = Path(args.report).expanduser() if args.report else output.with_name(output.name + ".report.json")
-    write_json_report(report, report_path)
+    write_json_report(report, report_path, signing_key=args.signing_key)
     history_path = record_event(
         source_fingerprint=package_fingerprint(source_inventory),
         target_fingerprint=package_fingerprint(target_inventory),
         source_locale=args.source_locale, target_locale=args.target_locale,
         provider=adapter.name, status="candidate_written",
-        database=args.history_db,
+        database=history_path,
     )
     print(f"Candidate package: {output}")
     print(f"Translated text files changed: {changed}")
     print(f"Comparison report: {report_path}")
     print(f"Local run metadata: {history_path}")
     print("This is an unapproved candidate. Run review decisions and skilltether approve before distributing it.")
-    return 1 if report.structural_status in ("fail", "error") else 0
+    review_gate = args.fail_on_review and report.semantic_status in ("review_recommended", "unknown")
+    return 1 if report.structural_status in ("fail", "error") or review_gate else 0
+
+
+def cmd_verify_report(args: argparse.Namespace) -> int:
+    report = read_json_report(args.report)
+    verify_report_signature(report, args.signing_key, require_signature=True)
+    print("Report integrity verified (HMAC-SHA256).")
+    print(f"Structural status: {report.structural_status}; semantic status: {report.semantic_status}")
+    print(f"Findings: {len(report.findings)}")
+    return 0
 
 
 def cmd_review(args: argparse.Namespace) -> int:
     report = read_json_report(args.report)
+    verify_report_signature(report, args.signing_key)
     matched = [finding for finding in report.findings if finding.id == args.finding_id]
     if len(matched) != 1:
         raise ValueError(f"Finding ID not found or not unique: {args.finding_id}")
     finding = matched[0]
-    finding.disposition = args.disposition
-    finding.reviewer = args.reviewer
-    finding.review_note = args.note
-    write_json_report(report, args.report)
-    print(f"Recorded {args.disposition} disposition for {finding.id} by {args.reviewer}.")
+    record_review(
+        finding, disposition=args.disposition, reviewer=args.reviewer, note=args.note,
+    )
+    write_json_report(report, args.report, signing_key=args.signing_key)
+    print(f"Recorded {args.disposition} disposition for {_terminal_safe(finding.id)} by {_terminal_safe(finding.reviewer)}; prior decisions were retained.")
     return 0
 
 
 def cmd_approve(args: argparse.Namespace) -> int:
-    source = Path(args.source).expanduser().resolve(strict=True)
-    target = Path(args.target).expanduser().resolve(strict=True)
+    source = normalize_package_root(args.source)
+    target = normalize_package_root(args.target)
+    output = Path(os.path.abspath(Path(args.output).expanduser()))
+    if output.is_symlink():
+        raise ValueError("Approved output must not be a symbolic link")
+    _ensure_outputs_outside_packages(
+        [output], [source, target], label="Approved output",
+    )
     report_path = Path(args.report).expanduser().resolve(strict=True)
-    output = Path(args.output).expanduser().resolve()
+    if args.signing_key:
+        _ensure_outputs_outside_packages(
+            [Path(args.signing_key).expanduser()], [source, target, output],
+            label="Signing key",
+        )
     report = read_json_report(report_path)
+    verify_report_signature(
+        report, args.signing_key, require_signature=bool(args.signing_key),
+    )
     current_manifest = _manifest_arg(args.invariants, source)
     if fingerprint_manifest(current_manifest) != report.invariant_manifest_fingerprint:
         raise ValueError("Invariant manifest fingerprint differs from the reviewed report; rerun compare")
@@ -240,17 +420,22 @@ def cmd_approve(args: argparse.Namespace) -> int:
         raise ValueError("Structural validation failed. Fix the package and rerun comparison before approval.")
     permanently_blocked = {
         "INVARIANT_MANIFEST_MISSING", "INVARIANT_MANIFEST_UNREVIEWED", "INVARIANT_NOT_HUMAN_REVIEWED",
+        "INVARIANT_SOURCE_REFERENCE_INVALID",
     }
     blocked = [finding for finding in report.findings if finding.code in permanently_blocked]
     if blocked:
-        raise ValueError("The invariant manifest is missing or not human-reviewed; update it and rerun comparison.")
+        raise ValueError("The invariant manifest is missing, unreviewed, or contains invalid source references; correct it and rerun comparison before approval.")
     unresolved = [
         finding for finding in report.findings
-        if (finding.requires_review or finding.severity == "critical") and finding.disposition != "approved"
+        if (finding.requires_review or finding.severity == "critical")
+        and not has_audited_approval(finding)
     ]
     if unresolved:
         preview = ", ".join(f.id for f in unresolved[:8])
-        raise ValueError(f"{len(unresolved)} review-required finding(s) are not approved: {preview}")
+        raise ValueError(
+            f"{len(unresolved)} review-required finding(s) lack a current, audited approval "
+            f"with a reviewer and non-empty rationale: {preview}"
+        )
 
     output.parent.mkdir(parents=True, exist_ok=True)
     import tempfile
@@ -258,7 +443,9 @@ def cmd_approve(args: argparse.Namespace) -> int:
     temp_parent = Path(tempfile.mkdtemp(prefix=f".{output.name}.approved-", dir=output.parent))
     temp_package = temp_parent / output.name
     try:
-        shutil.copytree(target, temp_package, symlinks=False)
+        # Preserve a late-arriving symlink in the private staging tree. The
+        # post-copy fingerprint check then rejects it without reading through it.
+        shutil.copytree(target, temp_package, symlinks=True)
         if _fingerprint_path(temp_package) != report.target_fingerprint:
             raise RuntimeError("Approved output fingerprint mismatch; nothing was published")
         os.replace(temp_package, output)
@@ -276,6 +463,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    init_key = sub.add_parser("init-signing-key", help="create a private local key for signed report integrity")
+    init_key.add_argument("--out", required=True, help="new key file path; existing files are never overwritten")
+    init_key.set_defaults(func=cmd_init_signing_key)
 
     validate = sub.add_parser("validate", help="validate SKILL.md metadata, structure, and local links")
     validate.add_argument("package")
@@ -297,6 +488,11 @@ def build_parser() -> argparse.ArgumentParser:
     compare.add_argument("--policy", help="protected-token policy YAML")
     compare.add_argument("--out", required=True, help="JSON report path")
     compare.add_argument("--markdown", help="optional Markdown report path")
+    compare.add_argument("--signing-key", help="optional private HMAC key; seals the JSON report")
+    compare.add_argument(
+        "--fail-on-review", action="store_true",
+        help="return exit code 1 when semantic findings require human review or meaning is unknown",
+    )
     compare.set_defaults(func=cmd_compare)
 
     translate = sub.add_parser("translate", help="create a separate candidate package and comparison report")
@@ -310,15 +506,28 @@ def build_parser() -> argparse.ArgumentParser:
     translate.add_argument("--invariants")
     translate.add_argument("--policy")
     translate.add_argument("--report")
+    translate.add_argument("--signing-key", help="optional private HMAC key; seals the JSON report")
     translate.add_argument("--history-db", help="optional local SQLite path (default: ~/.skilltether/history.sqlite3)")
+    translate.add_argument(
+        "--fail-on-review", action="store_true",
+        help="return exit code 1 when the generated report requires human review or meaning is unknown",
+    )
     translate.set_defaults(func=cmd_translate)
+
+    verify_report = sub.add_parser(
+        "verify-report", help="verify the HMAC integrity seal on a signed JSON report",
+    )
+    verify_report.add_argument("report")
+    verify_report.add_argument("--signing-key", required=True, help="private HMAC key used to seal the report")
+    verify_report.set_defaults(func=cmd_verify_report)
 
     review = sub.add_parser("review", help="record a human disposition for a report finding")
     review.add_argument("report")
     review.add_argument("finding_id")
     review.add_argument("--disposition", choices=["approved", "rejected", "deferred"], required=True)
     review.add_argument("--reviewer", required=True)
-    review.add_argument("--note", default="")
+    review.add_argument("--note", required=True, help="non-empty rationale; obvious credential material is rejected")
+    review.add_argument("--signing-key", help="key required to verify/re-sign a sealed report")
     review.set_defaults(func=cmd_review)
 
     approve = sub.add_parser("approve", help="copy a reviewed candidate to a new approved output directory")
@@ -328,6 +537,7 @@ def build_parser() -> argparse.ArgumentParser:
     approve.add_argument("--output", required=True)
     approve.add_argument("--invariants", help="same invariant manifest used for comparison")
     approve.add_argument("--policy", help="same protected-token policy used for comparison")
+    approve.add_argument("--signing-key", help="verify HMAC-sealed approval evidence; requires a signed report")
     approve.set_defaults(func=cmd_approve)
     return parser
 
@@ -338,7 +548,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(args)
     except (OSError, ValueError, ValidationError, yaml.YAMLError, RuntimeError) as exc:
-        print(f"skilltether: error: {exc}", file=sys.stderr)
+        print(f"skilltether: error: {_terminal_safe(exc)}", file=sys.stderr)
         return 2
 
 

@@ -12,5 +12,5 @@ patterns:
   - category: windows_path
     regex: '[A-Za-z]:\x5c[^ ]+'
   - category: file_path
-    regex: '(?:[.][.]/|[.]/|(?:[A-Za-z0-9_.-]+/)+)[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*'
+    regex: '(?<![A-Za-z0-9])(?:[.][.]/|[.]/)?[A-Za-z0-9_./-]+'
 explicit_tokens: []

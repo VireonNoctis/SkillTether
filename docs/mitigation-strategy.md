@@ -7,11 +7,12 @@ SkillTether aims to reduce localization defects in Agent Skill packages, especia
 | Constraint weakened | Protected invariant manifest for must/must-not, preconditions, thresholds, and escalation rules | Pairs differing only in modal strength or condition | Language models may miss subtle pragmatic shifts |
 | Negation reversed or omitted | Detect polarity and condition changes; require human review on critical invariants | Negation and double-negative fixtures | Natural language can remain ambiguous |
 | Tool/command/path altered | Extract and protect exact spans; validate referenced resources | Exact-token and path-resolution tests | A legitimate rename requires explicit mapping |
-| Package structure broken | Parse YAML frontmatter and Markdown; verify files and links | Missing file, invalid YAML, broken-link fixtures | Some clients implement extensions differently |
-| Unrequested details added | Diff imperative statements and flag new operational steps | Compare source and target with unexpected-instruction fixtures | Not all additions are automatically identifiable |
+| Package structure broken | Parse YAML frontmatter and Markdown; verify files and links; cap per-file/aggregate bytes, entry counts, and directory depth; reject symlinks and non-regular files | Missing file, invalid YAML, broken-link, named-pipe, and aggregate-limit fixtures | Client extensions differ; filesystem races cannot be eliminated on every platform |
+| Unrequested details added | Diff content and protected tokens; compare non-text resources by hash; scope invariant literals to an approximate matched context | Unexpected-instruction, binary asset, and context-misalignment fixtures | Approximate multilingual context alignment can be wrong and remains review-only |
 | Translation provider receives confidential text | Provider adapters off by default; clear disclosure and explicit consent before remote processing | Mock provider verifies no network call by default | User may approve a provider without understanding its retention policy |
-| Machine score mistaken for guarantee | Distinguish deterministic structural checks from probabilistic semantic warnings | UI/report wording tests | Reviewers can still over-trust scores |
-| Source overwritten | Read-only source and separate target output | Source hashes remain unchanged | External tools may change unrelated machine state |
+| Malformed or hostile provider output | Exact-once syntax placeholders, parser-visible Markdown structure comparison, one-line response validation, per-line and aggregate response caps, and control-character rejection | Injected links/formatting/newlines, oversized custom-adapter responses, control characters, and no-partial-publication fixtures | Lexical parsing has limits; valid-looking prose can still change meaning, and unusual Markdown/MDX constructs require review |
+| Machine score mistaken for guarantee | Distinguish deterministic, heuristic, and human-review signals; attach uncertainty and severity rationale | Schema-validated report fixtures and finding-method assertions | Reviewers can still over-trust scores |
+| Source overwritten | Read-only source, separate target output, report/history path containment checks, and atomic mode-restricted report writes | Source hashes remain unchanged; symlink-alias report-path tests | External processes can still mutate shared files; output alias handling varies by OS |
 
 ## Operating safeguards
 
@@ -23,6 +24,9 @@ SkillTether aims to reduce localization defects in Agent Skill packages, especia
 - Keep automated warnings and human approval as different fields.
 - Do not transmit package contents to remote services without explicit consent.
 - Do not execute referenced scripts as part of translation or validation.
+- Treat binary assets as package content: same-path byte changes require review rather than being silently ignored.
+- Keep machine-generated context alignment explicitly heuristic; never present an unrelated document-wide token as a confirmed contextual invariant violation.
+- Do not write reports or local history into source/candidate directories; report outputs are written atomically and made user-private on POSIX systems.
 
 ## Release gates
 A release needs structural validation, a fixture suite for semantic invariants, evidence-linked warnings, clear uncertainty labels, and privacy tests for translation adapters. Avoid claims such as “meaning guaranteed” or “safe translation”.

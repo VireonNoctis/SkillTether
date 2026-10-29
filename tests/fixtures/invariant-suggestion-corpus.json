@@ -1,0 +1,34 @@
+{
+  "description": "Human-reviewed regression corpus for draft invariant suggestion precision and code-example false positives.",
+  "skill_markdown_body": "# Operational rules\n\nDo not delete the source archive.\n\nAt most 3 attempts are allowed.\n\nUse 3 retries when the first request times out.\n\nOnly run this step if the configuration file exists.\n\nYou must preserve the original order.\n\nThe service has 3 ports.\n\nThe release was on day 4.\n\n~~~sh\nmust not delete the source archive in this example\n~~~\n\n    must not delete the source archive in this indented example\n\n<pre>\nmust not delete the source archive in this HTML example\n</pre>\n",
+  "expected_candidates": [
+    {
+      "source_text": "Do not delete the source archive.",
+      "category": "negation"
+    },
+    {
+      "source_text": "At most 3 attempts are allowed.",
+      "category": "numeric_limit"
+    },
+    {
+      "source_text": "Use 3 retries when the first request times out.",
+      "category": "numeric_limit"
+    },
+    {
+      "source_text": "Only run this step if the configuration file exists.",
+      "category": "precondition"
+    },
+    {
+      "source_text": "You must preserve the original order.",
+      "category": "mandatory_condition"
+    }
+  ],
+  "expected_exclusions": [
+    "The service has 3 ports.",
+    "The release was on day 4.",
+    "must not delete the source archive in this example",
+    "must not delete the source archive in this indented example",
+    "must not delete the source archive in this HTML example"
+  ],
+  "limitations": "Labels reflect this curated English-language fixture, not general precision/recall across languages or Markdown dialects."
+}

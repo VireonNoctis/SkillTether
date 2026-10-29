@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import re
+import stat
 import tomllib
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -16,11 +17,21 @@ import yaml
 from markdown_it import MarkdownIt
 
 from .yamlio import safe_load_unique
+from .safeio import read_bounded_regular_file
+from .regex_safety import validate_policy_regex
 
 from .models import FileFingerprint, ProtectedToken, new_finding
 
 MAX_FILE_BYTES = 10 * 1024 * 1024
 MAX_PACKAGE_FILES = 5000
+MAX_PACKAGE_DIRECTORIES = 5000
+MAX_PACKAGE_BYTES = 100 * 1024 * 1024
+MAX_POLICY_FILE_BYTES = 4 * 1024 * 1024
+MAX_MANIFEST_FILE_BYTES = 4 * 1024 * 1024
+MAX_POLICY_PATTERNS = 128
+MAX_EXPLICIT_TOKENS = 2048
+MAX_POLICY_REGEX_CHARS = 1000
+MAX_EXPLICIT_TOKEN_CHARS = 2048
 TEXT_SUFFIXES = {".md", ".mdx", ".txt", ".rst"}
 SCRIPT_SUFFIXES = {".py", ".sh", ".bash", ".js", ".ts", ".ps1", ".bat"}
 RESOURCE_REFERENCE = re.compile(r"(?<![A-Za-z0-9/:])(?P<path>(?:\.\.?/)*(?:scripts|references|assets|resources)/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*)")
@@ -44,26 +55,47 @@ def package_fingerprint(files: dict[str, FileFingerprint]) -> str:
         digest.update(path.encode("utf-8"))
         digest.update(b"\0")
         digest.update(files[path].sha256.encode("ascii"))
+        digest.update(b"\0mode:")
+        mode = files[path].mode
+        digest.update(("unknown" if mode is None else format(mode, "04o")).encode("ascii"))
         digest.update(b"\n")
     return digest.hexdigest()
 
 
+def normalize_package_root(root: str | Path) -> Path:
+    """Resolve a package directory while rejecting a symlink at the root itself."""
+    requested = Path(root).expanduser()
+    lexical = Path(os.path.abspath(requested))
+    root_stat = lexical.lstat()
+    if stat.S_ISLNK(root_stat.st_mode):
+        raise ValueError("Package root must not be a symbolic link")
+    resolved = lexical.resolve(strict=True)
+    if not resolved.is_dir():
+        raise ValueError(f"Package root is not a directory: {resolved}")
+    return resolved
+
+
 def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list, dict[str, str]]:
     """Inspect files without executing scripts or following symlinks."""
-    root_path = Path(root).expanduser().resolve(strict=True)
-    if not root_path.is_dir():
-        raise ValueError(f"Package root is not a directory: {root_path}")
+    root_path = normalize_package_root(root)
 
     inventory: dict[str, FileFingerprint] = {}
     findings = []
     texts: dict[str, str] = {}
     count = 0
+    directory_count = 0
+    total_bytes = 0
 
     for current, dirs, names in os.walk(root_path, followlinks=False):
         current_path = Path(current)
         safe_dirs = []
         for dirname in sorted(dirs):
+            directory_count += 1
+            if directory_count > MAX_PACKAGE_DIRECTORIES:
+                raise ValueError(f"Package exceeds the {MAX_PACKAGE_DIRECTORIES}-directory safety limit")
             item = current_path / dirname
+            if len(item.relative_to(root_path).parts) > 128:
+                raise ValueError("Package directory depth exceeds the 128-level safety limit")
             if item.is_symlink():
                 findings.append(new_finding(
                     "SYMLINK_NOT_ALLOWED", "critical", "package_integrity",
@@ -82,7 +114,20 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
             count += 1
             if count > MAX_PACKAGE_FILES:
                 raise ValueError(f"Package exceeds the {MAX_PACKAGE_FILES}-file safety limit")
-            if path.is_symlink():
+            # Classify with one lstat call inside the error boundary. Calling
+            # Path.is_symlink() first would perform a second lstat outside that
+            # boundary and could let permission/race errors abort the whole scan.
+            try:
+                entry_stat = path.lstat()
+            except OSError as exc:
+                findings.append(new_finding(
+                    "FILE_STAT_ERROR", "high", "package_integrity",
+                    f"Unable to lstat package entry: {exc.__class__.__name__}.",
+                    "An unreadable entry cannot be safely classified or fingerprinted.",
+                    path=rel,
+                ))
+                continue
+            if stat.S_ISLNK(entry_stat.st_mode):
                 findings.append(new_finding(
                     "SYMLINK_NOT_ALLOWED", "critical", "package_integrity",
                     "Package contains a symbolic-link file.",
@@ -90,33 +135,99 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
                     path=rel, proposed_change="Replace the symlink with a regular in-package resource.",
                 ))
                 continue
-            try:
-                size = path.stat().st_size
-            except OSError as exc:
+            # Reject special entries before open to avoid invoking device-specific
+            # open behavior. Recheck the descriptor after opening to narrow the race;
+            # O_NOFOLLOW is platform-dependent so identity is also compared below.
+            if not stat.S_ISREG(entry_stat.st_mode):
                 findings.append(new_finding(
-                    "FILE_STAT_ERROR", "high", "package_integrity",
-                    f"Unable to stat package file: {exc.__class__.__name__}.",
-                    "An unreadable file cannot be fingerprinted reliably.", path=rel,
+                    "SPECIAL_FILE_NOT_ALLOWED", "critical", "package_integrity",
+                    "Package contains a non-regular filesystem entry.",
+                    "Devices, sockets, and named pipes are not ordinary skill resources and must not be opened or read.",
+                    path=rel, proposed_change="Replace this entry with a regular file or directory.",
                 ))
                 continue
-            if size > MAX_FILE_BYTES:
-                findings.append(new_finding(
-                    "FILE_TOO_LARGE", "high", "package_integrity",
-                    f"File exceeds the {MAX_FILE_BYTES}-byte safety limit.",
-                    "Large inputs are bounded to reduce resource-exhaustion risk.",
-                    path=rel, proposed_change="Review and split or explicitly handle this resource.",
-                ))
-                continue
+
+            # Open without following a final-component symlink and without blocking on
+            # FIFOs. fstat the opened descriptor (not the path) to narrow TOCTOU risk.
+            # Read at most MAX_FILE_BYTES + 1 bytes so a growing file remains bounded.
+            descriptor = None
             try:
-                data = path.read_bytes()
+                flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+                descriptor = os.open(path, flags)
+                opened = os.fstat(descriptor)
+                if entry_stat.st_ino and opened.st_ino and (
+                    entry_stat.st_dev != opened.st_dev or entry_stat.st_ino != opened.st_ino
+                ):
+                    findings.append(new_finding(
+                        "FILE_IDENTITY_CHANGED", "high", "package_integrity",
+                        "A package entry changed identity between lstat and open.",
+                        "The opened descriptor may refer to a replacement file or a symlink target rather than the entry that was classified.",
+                        path=rel,
+                        proposed_change="Stabilize the package tree and rerun validation.",
+                        requires_review=True,
+                    ))
+                    continue
+                if not stat.S_ISREG(opened.st_mode):
+                    findings.append(new_finding(
+                        "SPECIAL_FILE_NOT_ALLOWED", "critical", "package_integrity",
+                        "Package contains a non-regular filesystem entry.",
+                        "Devices, sockets, and named pipes can block reads or expose behavior outside a static package inventory.",
+                        path=rel, proposed_change="Replace this entry with a regular file or directory.",
+                    ))
+                    continue
+                if opened.st_size > MAX_FILE_BYTES:
+                    findings.append(new_finding(
+                        "FILE_TOO_LARGE", "high", "package_integrity",
+                        f"File exceeds the {MAX_FILE_BYTES}-byte safety limit.",
+                        "Large inputs are bounded to reduce resource-exhaustion risk.",
+                        path=rel, proposed_change="Review and split or explicitly handle this resource.",
+                    ))
+                    continue
+                if total_bytes + opened.st_size > MAX_PACKAGE_BYTES:
+                    findings.append(new_finding(
+                        "PACKAGE_TOO_LARGE", "critical", "package_integrity",
+                        f"Package content exceeds the {MAX_PACKAGE_BYTES}-byte aggregate safety limit.",
+                        "Per-file bounds do not prevent a package containing thousands of individually valid but collectively excessive files.",
+                        path=rel, proposed_change="Reduce the package to the supported aggregate size and rerun validation.",
+                    ))
+                    continue
+                chunks: list[bytes] = []
+                total = 0
+                while total <= MAX_FILE_BYTES:
+                    chunk = os.read(descriptor, min(64 * 1024, MAX_FILE_BYTES + 1 - total))
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    total += len(chunk)
+                data = b"".join(chunks)
+                if len(data) > MAX_FILE_BYTES:
+                    findings.append(new_finding(
+                        "FILE_TOO_LARGE", "high", "package_integrity",
+                        f"File grew beyond the {MAX_FILE_BYTES}-byte safety limit while being read.",
+                        "The file size changed during inspection and exceeded the bounded read limit.",
+                        path=rel, proposed_change="Stabilize the resource and rerun validation.",
+                    ))
+                    continue
+                if total_bytes + len(data) > MAX_PACKAGE_BYTES:
+                    findings.append(new_finding(
+                        "PACKAGE_TOO_LARGE", "critical", "package_integrity",
+                        f"Package content exceeds the {MAX_PACKAGE_BYTES}-byte aggregate safety limit while being read.",
+                        "A resource changed after the initial size check and exceeded the aggregate read budget.",
+                        path=rel, proposed_change="Stabilize and reduce the package, then rerun validation.",
+                    ))
+                    continue
             except OSError as exc:
                 findings.append(new_finding(
                     "FILE_READ_ERROR", "high", "package_integrity",
-                    f"Unable to read package file: {exc.__class__.__name__}.",
-                    "Unreadable resources cannot be validated or fingerprinted.",
+                    f"Unable to safely open or read package file: {exc.__class__.__name__}.",
+                    "An unreadable or concurrently replaced file cannot be fingerprinted reliably.",
                     path=rel,
                 ))
                 continue
+            finally:
+                if descriptor is not None:
+                    os.close(descriptor)
+            total_bytes += len(data)
             encoding = None
             try:
                 text = data.decode("utf-8")
@@ -124,7 +235,8 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
                 if path.suffix.lower() in READABLE_SUFFIXES:
                     texts[rel] = text
             except UnicodeDecodeError:
-                if path.suffix.lower() in SCRIPT_SUFFIXES:
+                suffix = path.suffix.lower()
+                if suffix in SCRIPT_SUFFIXES:
                     findings.append(new_finding(
                         "SCRIPT_NOT_UTF8", "high", "script_validation",
                         "Script-like resource is not valid UTF-8 text.",
@@ -132,9 +244,19 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
                         path=rel, proposed_change="Restore the intended encoding or explicitly mark this as a binary asset.",
                         requires_review=True,
                     ))
+                elif suffix in READABLE_SUFFIXES and rel != "SKILL.md":
+                    findings.append(new_finding(
+                        "TEXT_RESOURCE_NOT_UTF8", "high", "resource_validation",
+                        "A text resource expected to be readable is not valid UTF-8.",
+                        "Markdown links, structured syntax, and referenced-resource checks cannot be reliably applied to this resource while its text encoding is invalid.",
+                        path=rel,
+                        proposed_change="Restore valid UTF-8 text or use an explicitly supported binary resource format.",
+                        requires_review=True,
+                    ))
             inventory[rel] = FileFingerprint(
                 path=rel, size_bytes=len(data), sha256=sha256_bytes(data),
                 encoding=encoding, kind=path.suffix.lower().lstrip(".") or "file",
+                mode=stat.S_IMODE(opened.st_mode),
             )
 
     if "SKILL.md" not in inventory:
@@ -156,7 +278,7 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
     for rel, text in sorted(texts.items()):
         findings.extend(validate_resource_syntax(rel, text))
         if Path(rel).suffix.lower() in TEXT_SUFFIXES:
-            findings.extend(validate_local_links(root_path, rel, text))
+            findings.extend(validate_local_links(root_path, rel, text, text_snapshot=texts))
         findings.extend(validate_referenced_resources(root_path, rel, text, findings))
     return inventory, findings, texts
 
@@ -239,7 +361,9 @@ def validate_skill_markdown(root: Path, text: str) -> list:
             path="SKILL.md",
         ))
     compatibility = metadata.get("compatibility")
-    if compatibility is not None and (not isinstance(compatibility, str) or len(compatibility) > 500):
+    if compatibility is not None and (
+        not isinstance(compatibility, str) or not compatibility.strip() or len(compatibility) > 500
+    ):
         findings.append(new_finding(
             "COMPATIBILITY_INVALID", "high", "frontmatter",
             "compatibility must be a string of at most 500 characters.",
@@ -283,9 +407,13 @@ def validate_skill_markdown(root: Path, text: str) -> list:
     return findings
 
 
-def validate_local_links(root: Path, rel_path: str, text: str) -> list:
+def validate_local_links(
+    root: Path, rel_path: str, text: str,
+    *, text_snapshot: dict[str, str] | None = None,
+) -> list:
     findings = []
-    parsed = MarkdownIt("commonmark", {"html": False}).parse(text)
+    # GFM-style tables are common in instruction files; parse their links too.
+    parsed = MarkdownIt("commonmark", {"html": False}).enable("table").parse(text)
     for token in parsed:
         for child in token.children or []:
             if child.type not in {"link_open", "image"}:
@@ -294,7 +422,21 @@ def validate_local_links(root: Path, rel_path: str, text: str) -> list:
             href = attrs.get("href") if child.type == "link_open" else attrs.get("src")
             if not href:
                 continue
-            parsed_url = urlsplit(href)
+            try:
+                parsed_url = urlsplit(href)
+            except ValueError:
+                findings.append(new_finding(
+                    "LOCAL_LINK_URL_INVALID", "medium", "links",
+                    "A Markdown link has malformed URL syntax and could not be checked.",
+                    "Malformed URL syntax can confuse link resolution across Markdown consumers; the validator should report the input rather than crash.",
+                    path=rel_path,
+                    proposed_change="Correct the URL or confirm the intended client-specific syntax.",
+                    requires_review=True,
+                    analysis_method="deterministic",
+                    uncertainty="none",
+                    severity_rationale="The URL parser deterministically rejected the literal; whether a target client accepts it still needs contextual review.",
+                ))
+                continue
             if parsed_url.scheme or href.startswith("//"):
                 continue
             decoded = unquote(parsed_url.path)
@@ -318,16 +460,26 @@ def validate_local_links(root: Path, rel_path: str, text: str) -> list:
                 ))
                 continue
             if parsed_url.fragment and destination.is_file():
-                try:
-                    target_text = destination.read_text(encoding="utf-8")
-                except (OSError, UnicodeDecodeError):
-                    continue
+                target_rel = destination.relative_to(root.resolve()).as_posix()
+                target_text = (text_snapshot or {}).get(target_rel)
+                if target_text is None:
+                    # Preserve support for callers that validate one document in
+                    # isolation, but keep fallback reads bounded and non-following.
+                    try:
+                        target_bytes = read_bounded_regular_file(
+                            destination, max_bytes=MAX_FILE_BYTES,
+                            purpose="Local link fragment target",
+                        )
+                        target_text = target_bytes.decode("utf-8")
+                    except (OSError, UnicodeDecodeError, ValueError):
+                        continue
                 fragments = set(re.findall(r"\bid\s*=\s*['\"]([^'\"]+)", target_text, re.I))
                 fragments.update(re.findall(r"\bname\s*=\s*['\"]([^'\"]+)", target_text, re.I))
                 for heading in re.finditer(r"^#{1,6}\s+(.+?)\s*#*\s*$", target_text, re.M):
                     slug = re.sub(r"[^\w -]", "", heading.group(1).lower()).strip().replace(" ", "-")
                     fragments.add(slug)
-                if parsed_url.fragment not in fragments and target_text:
+                fragment = unquote(parsed_url.fragment)
+                if fragment not in fragments and target_text:
                     findings.append(new_finding(
                         "BROKEN_LINK_FRAGMENT", "medium", "links",
                         f"Local link fragment does not match a detected heading or HTML anchor: {href}",
@@ -440,9 +592,11 @@ def extract_protected_tokens(
     fence_start = 0
     fence_lines: list[str] = []
 
-    def add(category: str, value: str, line_no: int) -> None:
+    def add(category: str, value: str, line_no: int, column: int | None = None) -> None:
         if value:
-            result.append(ProtectedToken(path=path, category=category, value=value, line=line_no))
+            result.append(ProtectedToken(
+                path=path, category=category, value=value, line=line_no, column=column,
+            ))
 
     for line_no, line in enumerate(text.splitlines(), start=1):
         opening = FENCE_START.match(line)
@@ -458,12 +612,20 @@ def extract_protected_tokens(
             fence_start = line_no
             fence_lines = [line]
             continue
+        # Sort all span types by their actual text position rather than by
+        # category/pattern order; comparison uses this to detect order drift.
+        line_matches: list[tuple[int, int, str, str]] = []
         for category, pattern in patterns:
             for match in pattern.finditer(line):
-                add(category, match.group(0), line_no)
+                if match.start() < match.end():
+                    line_matches.append((match.start(), match.end(), category, match.group(0)))
         for token in explicit_tokens or []:
-            if token and token in line:
-                add("explicit_identifier", token, line_no)
+            if token:
+                for match in re.finditer(re.escape(token), line):
+                    line_matches.append((match.start(), match.end(), "explicit_identifier", match.group(0)))
+        line_matches.sort(key=lambda item: (item[0], -(item[1] - item[0]), item[2], item[3]))
+        for column, _end, category, value in line_matches:
+            add(category, value, line_no, column)
     if fence_marker is not None:
         add("code_block", "\n".join(fence_lines), fence_start)
     return result
@@ -472,21 +634,32 @@ def extract_protected_tokens(
 def load_policy(path: str | Path | None) -> tuple[list[dict[str, str]], list[str]]:
     if path is None:
         return [], []
-    data = safe_load_unique(Path(path).read_text(encoding="utf-8"))
+    raw = read_bounded_regular_file(
+        path, max_bytes=MAX_POLICY_FILE_BYTES, purpose="Protected-token policy",
+    )
+    data = safe_load_unique(raw.decode("utf-8"))
     if not isinstance(data, dict):
         raise ValueError("Protected-token policy must be a YAML or JSON mapping")
     patterns = data.get("patterns", [])
     tokens = data.get("explicit_tokens", [])
     if not isinstance(patterns, list) or not isinstance(tokens, list):
         raise ValueError("Policy patterns and explicit_tokens must be lists")
+    if len(patterns) > MAX_POLICY_PATTERNS:
+        raise ValueError(f"Protected-token policy exceeds {MAX_POLICY_PATTERNS} patterns")
+    if len(tokens) > MAX_EXPLICIT_TOKENS:
+        raise ValueError(f"Protected-token policy exceeds {MAX_EXPLICIT_TOKENS} explicit tokens")
     for index, item in enumerate(patterns):
         if not isinstance(item, dict) or not isinstance(item.get("category"), str) or not isinstance(item.get("regex"), str):
             raise ValueError(f"Protected-token pattern {index} needs string category and regex fields")
+        if len(item["regex"]) > MAX_POLICY_REGEX_CHARS:
+            raise ValueError(f"Protected-token regex at index {index} exceeds {MAX_POLICY_REGEX_CHARS} characters")
         try:
-            compiled = re.compile(item["regex"])
-        except re.error as exc:
-            raise ValueError(f"Invalid protected-token regex at index {index}") from exc
-        samples = ("", "x", "1", "A", "/", "-", "$", "x1", "sample")
+            compiled = validate_policy_regex(
+                item["regex"], max_chars=MAX_POLICY_REGEX_CHARS,
+            )
+        except ValueError as exc:
+            raise ValueError(f"Invalid or unsafe protected-token regex at index {index}: {exc}") from exc
+        samples = ("", "x", "1", "A", "/", "-", "$", "x1", "sample", "critical", "SKILL.md", "references/guide.md", "https://example.test")
         if any(
             (match := compiled.search(sample)) is not None and match.start() == match.end()
             for sample in samples
@@ -494,4 +667,6 @@ def load_policy(path: str | Path | None) -> tuple[list[dict[str, str]], list[str
             raise ValueError(f"Protected-token regex at index {index} may match an empty span")
     if not all(isinstance(token, str) and token for token in tokens):
         raise ValueError("explicit_tokens must contain non-empty strings")
+    if any(len(token) > MAX_EXPLICIT_TOKEN_CHARS for token in tokens):
+        raise ValueError(f"Explicit protected tokens must be at most {MAX_EXPLICIT_TOKEN_CHARS} characters")
     return patterns, tokens

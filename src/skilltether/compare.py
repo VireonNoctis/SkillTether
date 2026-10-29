@@ -8,22 +8,26 @@ import re
 from collections import Counter
 from pathlib import Path
 
-import yaml
-
-from .analysis import extract_protected_tokens, inspect_package, load_policy, package_fingerprint
+from .analysis import (
+    MAX_MANIFEST_FILE_BYTES, MAX_POLICY_FILE_BYTES, extract_protected_tokens,
+    inspect_package, load_policy, normalize_package_root, package_fingerprint,
+)
 from .models import ComparisonReport, InvariantManifest, new_finding
 from .yamlio import safe_load_unique
+from .safeio import read_bounded_regular_file
 from . import __version__
 
 FATAL_STRUCTURE_CODES = {
-    "SKILL_MD_MISSING", "SKILL_MD_NOT_UTF8", "FRONTMATTER_INVALID",
+    "SKILL_MD_MISSING", "SKILL_MD_NOT_UTF8", "PACKAGE_TOO_LARGE", "FRONTMATTER_INVALID",
     "FRONTMATTER_REQUIRED_FIELD", "SKILL_NAME_INVALID", "SKILL_NAME_DIRECTORY_MISMATCH",
     "DESCRIPTION_TOO_LONG", "COMPATIBILITY_INVALID", "ALLOWED_TOOLS_INVALID",
     "METADATA_INVALID", "SKILL_BODY_EMPTY", "SYMLINK_NOT_ALLOWED", "FILE_TOO_LARGE",
     "FILE_STAT_ERROR", "FILE_READ_ERROR", "PATH_TRAVERSAL_LINK", "BROKEN_LOCAL_LINK",
-    "SCRIPT_NOT_UTF8", "RESOURCE_SYNTAX_INVALID", "MISSING_REFERENCED_RESOURCE",
+    "SCRIPT_NOT_UTF8", "SPECIAL_FILE_NOT_ALLOWED", "RESOURCE_SYNTAX_INVALID", "MISSING_REFERENCED_RESOURCE",
     "PATH_TRAVERSAL_RESOURCE",
 }
+MAX_DIFF_LINE_CELLS = 4_000_000
+
 CODE_CATEGORIES = {
     "code_block", "inline_code", "command_flag", "file_path", "windows_path",
     "environment_variable", "explicit_identifier",
@@ -31,7 +35,10 @@ CODE_CATEGORIES = {
 
 
 def load_invariant_manifest(path: str | Path) -> InvariantManifest:
-    raw = safe_load_unique(Path(path).read_text(encoding="utf-8"))
+    source = read_bounded_regular_file(
+        path, max_bytes=MAX_MANIFEST_FILE_BYTES, purpose="Invariant manifest",
+    )
+    raw = safe_load_unique(source.decode("utf-8"))
     if not isinstance(raw, dict):
         raise ValueError("Invariant manifest must be a YAML mapping")
     return InvariantManifest.model_validate(raw)
@@ -51,7 +58,9 @@ def fingerprint_policy(policy_path: str | Path | None) -> str:
     if policy_path is None:
         raw = b"skilltether-builtin-protected-policy-v1"
     else:
-        raw = Path(policy_path).read_bytes()
+        raw = read_bounded_regular_file(
+            policy_path, max_bytes=MAX_POLICY_FILE_BYTES, purpose="Protected-token policy",
+        )
     return hashlib.sha256(raw).hexdigest()
 
 def compare_packages(
@@ -63,8 +72,8 @@ def compare_packages(
     policy_path: str | Path | None = None,
 ) -> ComparisonReport:
     """Compare packages without executing their scripts or making network calls."""
-    source_root = Path(source).expanduser().resolve(strict=True)
-    target_root = Path(target).expanduser().resolve(strict=True)
+    source_root = normalize_package_root(source)
+    target_root = normalize_package_root(target)
     source_inventory, source_findings, source_text = inspect_package(source_root)
     target_inventory, target_findings, target_text = inspect_package(target_root)
     findings = [*source_findings, *target_findings]
@@ -73,6 +82,25 @@ def compare_packages(
     manifest_fingerprint = fingerprint_manifest(manifest)
 
     source_paths, target_paths = set(source_inventory), set(target_inventory)
+    for path in sorted(source_paths & target_paths):
+        source_mode = source_inventory[path].mode
+        target_mode = target_inventory[path].mode
+        if source_mode is None or target_mode is None or source_mode == target_mode:
+            continue
+        executable_changed = bool((source_mode ^ target_mode) & 0o111)
+        findings.append(new_finding(
+            "PACKAGE_FILE_MODE_CHANGED",
+            "high" if executable_changed else "medium",
+            "package_integrity",
+            f"Target changes filesystem permission bits for {path!r}.",
+            "Executable bits and read/write permissions can affect how scripts are launched or which package content is accessible.",
+            path=path,
+            original_context=f"mode:{source_mode:04o}",
+            target_context=f"mode:{target_mode:04o}",
+            proposed_change="Restore the original mode or explicitly review and document the intended permission change.",
+            requires_review=True,
+        ))
+
     for missing in sorted(source_paths - target_paths):
         severity = "critical" if missing == "SKILL.md" else "high"
         findings.append(new_finding(
@@ -91,11 +119,51 @@ def compare_packages(
             requires_review=True,
         ))
 
+    # Byte-only resources (including images and unknown binary formats) are
+    # part of package integrity too. They do not appear in source_text/target_text,
+    # so compare their hashes explicitly instead of silently overlooking edits.
+    for path in sorted(source_paths & target_paths):
+        source_file = source_inventory[path]
+        target_file = target_inventory[path]
+        if source_file.sha256 == target_file.sha256:
+            continue
+        if path in source_text and path in target_text:
+            continue
+        normalized = path.lower()
+        executable_suffixes = {".exe", ".dll", ".so", ".dylib", ".bin", ".com"}
+        is_executable_area = normalized.startswith("scripts/") or Path(path).suffix.lower() in executable_suffixes
+        severity = "high" if is_executable_area else "medium"
+        findings.append(new_finding(
+            "PACKAGE_RESOURCE_CHANGED", severity, "package_integrity",
+            f"Target changes bytes of a resource that is not compared as decoded text: {path!r}.",
+            "Binary assets and unsupported text formats are part of the skill package; a byte change may alter behavior or user-visible output even when ordinary line comparison cannot inspect it.",
+            path=path,
+            original_context=f"sha256:{source_file.sha256}",
+            target_context=f"sha256:{target_file.sha256}",
+            proposed_change="Restore the original bytes or explicitly review and document why this non-text resource must change.",
+            requires_review=True,
+        ))
+
     for path in sorted(source_paths & target_paths):
         left, right = source_text.get(path), target_text.get(path)
         if left is None or right is None or left == right:
             continue
         left_lines, right_lines = left.splitlines(), right.splitlines()
+        if len(left_lines) * len(right_lines) > MAX_DIFF_LINE_CELLS:
+            findings.append(new_finding(
+                "TEXT_DIFF_COMPLEXITY_LIMIT", "high", "line_diff",
+                f"Line-by-line comparison was skipped for {path!r} because the source/target line-pair budget was exceeded.",
+                "Sequence matching can take quadratic time on adversarial repeated-line inputs. Skipping the detailed diff is explicit uncertainty, not a pass.",
+                path=path,
+                original_context=f"source_lines:{len(left_lines)}",
+                target_context=f"target_lines:{len(right_lines)}",
+                proposed_change="Review this resource manually or split long reference material into smaller resources, then rerun comparison.",
+                requires_review=True,
+                analysis_method="deterministic",
+                uncertainty="high",
+                severity_rationale="The report intentionally skipped a bounded comparison; missing findings must not be interpreted as semantic equivalence.",
+            ))
+            continue
         matcher = difflib.SequenceMatcher(a=left_lines, b=right_lines, autojunk=False)
         for tag, i1, i2, j1, j2 in matcher.get_opcodes():
             if tag == "equal":
@@ -193,6 +261,55 @@ def compare_packages(
                 requires_review=True,
             ))
         for invariant in manifest.invariants:
+            # Human review metadata is only useful when its source evidence still
+            # anchors to this exact source package. Stale paths, line ranges, or
+            # excerpts are deterministic integrity issues, not semantic guesses.
+            source_reference_problem: str | None = None
+            source_doc = source_text.get(invariant.source_path)
+            if invariant.source_path not in source_inventory:
+                source_reference_problem = "source path does not exist in the current source package"
+            elif source_doc is None:
+                source_reference_problem = "source path is not available as decoded UTF-8 text"
+            elif invariant.source_lines:
+                source_lines = source_doc.splitlines()
+                start_line, end_line = invariant.source_lines
+                if end_line > len(source_lines):
+                    source_reference_problem = (
+                        f"source line range {start_line}-{end_line} exceeds the current "
+                        f"{len(source_lines)}-line resource"
+                    )
+                elif invariant.source_text is not None:
+                    actual_excerpt = "\n".join(
+                        line.strip() for line in source_lines[start_line - 1:end_line]
+                    )
+                    declared_excerpt = "\n".join(
+                        line.strip() for line in invariant.source_text.splitlines()
+                    )
+                    if actual_excerpt != declared_excerpt:
+                        source_reference_problem = (
+                            "source_text no longer matches the declared source_lines range"
+                        )
+            elif invariant.source_text and invariant.source_text not in source_doc:
+                source_reference_problem = (
+                    "source_text is not present in the current source resource"
+                )
+
+            if source_reference_problem:
+                findings.append(new_finding(
+                    "INVARIANT_SOURCE_REFERENCE_INVALID", "critical", "semantic_invariant",
+                    f"Invariant {invariant.id!r} has stale or invalid source evidence: {source_reference_problem}.",
+                    "Human-reviewed invariants must remain anchored to the current source package; a stale quote or line range can cause reviewers to approve the wrong instruction.",
+                    path=invariant.source_path,
+                    source_line=invariant.source_lines[0] if invariant.source_lines else None,
+                    original_context=invariant.source_text or invariant.statement,
+                    proposed_change="Correct source_path, source_lines, and/or source_text to match the current source, then rerun comparison and review the updated manifest.",
+                    requires_review=True,
+                    analysis_method="deterministic",
+                    uncertainty="none",
+                    severity_rationale="The declared source reference can be checked deterministically and does not match the current package; approval must be blocked until corrected.",
+                ))
+                continue
+
             if not invariant.reviewed:
                 findings.append(new_finding(
                     "INVARIANT_NOT_HUMAN_REVIEWED", "critical", "semantic_invariant",
@@ -215,7 +332,27 @@ def compare_packages(
                     requires_review=True,
                 ))
                 continue
-            target_context = _find_invariant_context(target_doc, invariant.source_text or invariant.statement)
+
+            # For SKILL.md, align against the instruction body rather than allowing
+            # metadata values to masquerade as translated instruction context.
+            context_doc = target_doc
+            context_offset = 1
+            if invariant.source_path == "SKILL.md":
+                target_lines = target_doc.splitlines()
+                closing = next(
+                    (index for index in range(1, len(target_lines)) if target_lines[index].strip() == "---"),
+                    None,
+                ) if target_lines and target_lines[0].strip() == "---" else None
+                if closing is not None:
+                    context_doc = "\n".join(target_lines[closing + 1:])
+                    context_offset = closing + 2
+            alignment = _find_invariant_context(context_doc, invariant.source_text or invariant.statement)
+            if alignment is None:
+                target_line, target_context = None, None
+            else:
+                relative_line, target_context = alignment
+                target_line = context_offset + relative_line - 1
+
             if invariant.severity == "high" and target_context is None:
                 findings.append(new_finding(
                     "INVARIANT_TARGET_CONTEXT_UNCERTAIN", "high", "semantic_invariant",
@@ -223,37 +360,67 @@ def compare_packages(
                     "Word-overlap matching is not multilingual semantic alignment; review is required when the target sentence cannot be located.",
                     path=invariant.source_path,
                     source_line=invariant.source_lines[0] if invariant.source_lines else None,
+                    target_line=target_line,
                     original_context=invariant.source_text or invariant.statement,
                     proposed_change="Locate the corresponding target sentence manually and review it against this invariant.",
                     requires_review=True,
+                    analysis_method="heuristic",
+                    uncertainty="high",
                 ))
+
             for expected in dict.fromkeys(invariant.required_tokens + invariant.expected_numbers):
-                needs_context_match = expected in invariant.expected_numbers
-                missing = expected not in target_doc or (
-                    needs_context_match and (not target_context or expected not in target_context)
-                )
-                if expected and missing:
+                missing_from_document = expected not in target_doc
+                missing_from_context = not target_context or expected not in target_context
+                if expected and (missing_from_document or missing_from_context):
                     findings.append(new_finding(
                         "INVARIANT_REQUIRED_TOKEN_MISSING", invariant.severity, "semantic_invariant",
                         f"Invariant {invariant.id!r} requires {expected!r}, which is absent from the document or matched target context.",
                         "A required literal or numeric bound must be present in the appropriate instruction, not merely elsewhere in the package.",
                         path=invariant.source_path,
                         source_line=invariant.source_lines[0] if invariant.source_lines else None,
+                        target_line=target_line,
                         original_context=invariant.source_text or invariant.statement,
                         target_context=target_context,
                         proposed_change=f"Restore {expected!r} in the corresponding target instruction if required, or revise the manifest after human review.",
                         requires_review=True,
+                        analysis_method="deterministic" if missing_from_document else "heuristic",
+                        uncertainty="none" if missing_from_document else "high",
                     ))
+
             for forbidden in invariant.forbidden_tokens:
-                if forbidden and forbidden in target_doc:
+                if not forbidden or forbidden not in target_doc:
+                    continue
+                if target_context and forbidden in target_context:
                     findings.append(new_finding(
                         "INVARIANT_FORBIDDEN_TOKEN_PRESENT", invariant.severity, "semantic_invariant",
-                        f"Invariant {invariant.id!r} forbids a token present in the target ({forbidden!r}).",
-                        "The target contains a value that this reviewed invariant says must not appear.",
-                        path=invariant.source_path, original_context=invariant.source_text or invariant.statement,
-                        proposed_change="Remove the forbidden value or revise the invariant after human review.",
+                        f"Invariant {invariant.id!r} forbids a token found in the aligned target context ({forbidden!r}).",
+                        "The approximate context matcher located the forbidden literal in the instruction excerpt; confirm surrounding linguistic and example context.",
+                        path=invariant.source_path,
+                        source_line=invariant.source_lines[0] if invariant.source_lines else None,
+                        target_line=target_line,
+                        original_context=invariant.source_text or invariant.statement,
+                        target_context=target_context,
+                        proposed_change="Review the aligned instruction and remove the forbidden value if the invariant applies in this context.",
                         requires_review=True,
+                        analysis_method="heuristic",
+                        uncertainty="high",
                     ))
+                else:
+                    findings.append(new_finding(
+                        "INVARIANT_FORBIDDEN_TOKEN_CONTEXT_UNCERTAIN", invariant.severity, "semantic_invariant",
+                        f"Invariant {invariant.id!r} forbids {forbidden!r}, which occurs in the target file but was not found in the aligned instruction context.",
+                        "A document-wide match may be an unrelated example or another instruction; do not treat it as a confirmed invariant violation without contextual review.",
+                        path=invariant.source_path,
+                        source_line=invariant.source_lines[0] if invariant.source_lines else None,
+                        target_line=target_line,
+                        original_context=invariant.source_text or invariant.statement,
+                        target_context=target_context,
+                        proposed_change="Locate the corresponding target instruction and confirm whether the forbidden literal violates this invariant.",
+                        requires_review=True,
+                        analysis_method="heuristic",
+                        uncertainty="high",
+                    ))
+
             unconfigured_marker_types = []
             if invariant.negation_required and not invariant.negation_markers:
                 unconfigured_marker_types.append("negation")
@@ -264,7 +431,10 @@ def compare_packages(
                     "INVARIANT_MARKERS_UNCONFIGURED", "critical", "semantic_invariant",
                     f"Invariant {invariant.id!r} requires locale-specific marker configuration for {', '.join(unconfigured_marker_types)}.",
                     "Marker checks cannot run until appropriate target-language negation/mandatory markers are explicitly configured.",
-                    path=invariant.source_path, original_context=invariant.source_text or invariant.statement,
+                    path=invariant.source_path,
+                    source_line=invariant.source_lines[0] if invariant.source_lines else None,
+                    target_line=target_line,
+                    original_context=invariant.source_text or invariant.statement,
                     target_context=target_context,
                     proposed_change="Configure locale-specific markers with a qualified reviewer, then rerun comparison.",
                     requires_review=True,
@@ -276,7 +446,10 @@ def compare_packages(
                     "INVARIANT_NEGATION_UNCERTAIN", "critical", "semantic_invariant",
                     f"Invariant {invariant.id!r} requires a target-language negation marker in the matched instruction, but none was detected confidently.",
                     "Negation loss or reversal can invert a safety instruction; global marker presence elsewhere in the package is not sufficient.",
-                    path=invariant.source_path, original_context=invariant.source_text or invariant.statement,
+                    path=invariant.source_path,
+                    source_line=invariant.source_lines[0] if invariant.source_lines else None,
+                    target_line=target_line,
+                    original_context=invariant.source_text or invariant.statement,
                     target_context=target_context,
                     proposed_change="Inspect the corresponding target sentence manually and update locale-specific markers only after review.",
                     requires_review=True,
@@ -288,7 +461,10 @@ def compare_packages(
                     "INVARIANT_MODALITY_UNCERTAIN", "critical", "semantic_invariant",
                     f"Invariant {invariant.id!r} requires a mandatory marker in the matched target instruction, but none was detected confidently.",
                     "A mandatory instruction may have been weakened; global marker presence elsewhere in the package is not enough to establish modality.",
-                    path=invariant.source_path, original_context=invariant.source_text or invariant.statement,
+                    path=invariant.source_path,
+                    source_line=invariant.source_lines[0] if invariant.source_lines else None,
+                    target_line=target_line,
+                    original_context=invariant.source_text or invariant.statement,
                     target_context=target_context,
                     proposed_change="Review modal strength in context and configure target-language markers deliberately.",
                     requires_review=True,
@@ -300,11 +476,60 @@ def compare_packages(
                     "Automated checks cannot guarantee semantic equivalence for a safety-critical instruction.",
                     path=invariant.source_path,
                     source_line=invariant.source_lines[0] if invariant.source_lines else None,
+                    target_line=target_line,
                     original_context=invariant.source_text or invariant.statement,
                     target_context=target_context,
                     proposed_change="Have a qualified human compare the complete source and target contexts, then disposition this finding.",
                     requires_review=True,
                 ))
+
+    # Count-preserving reordering is a distinct risk from token deletion. A
+    # changed sequence can alter CLI option/operand relationships even when every
+    # token is still present, so ask for review without claiming semantic certainty.
+    source_machine: dict[str, list] = {}
+    target_machine: dict[str, list] = {}
+    for item in source_token_objects:
+        if item.category in CODE_CATEGORIES:
+            source_machine.setdefault(item.path, []).append(item)
+    for item in target_token_objects:
+        if item.category in CODE_CATEGORIES:
+            target_machine.setdefault(item.path, []).append(item)
+    for path in sorted(set(source_machine) & set(target_machine)):
+        left_tokens = sorted(
+            source_machine[path],
+            key=lambda item: (item.line, item.column if item.column is not None else 0, item.category, item.value),
+        )
+        right_tokens = sorted(
+            target_machine[path],
+            key=lambda item: (item.line, item.column if item.column is not None else 0, item.category, item.value),
+        )
+        left_sequence = [(item.category, item.value) for item in left_tokens]
+        right_sequence = [(item.category, item.value) for item in right_tokens]
+        if Counter(left_sequence) != Counter(right_sequence) or left_sequence == right_sequence:
+            continue
+        first_difference = next(
+            (index for index, (left_item, right_item) in enumerate(zip(left_sequence, right_sequence, strict=True))
+             if left_item != right_item),
+            None,
+        )
+        if first_difference is None:
+            continue
+        left_item = left_tokens[first_difference]
+        right_item = right_tokens[first_difference]
+        source_lines = source_text[path].splitlines()
+        target_lines = target_text[path].splitlines()
+        original_context = source_lines[left_item.line - 1][:1000] if left_item.line <= len(source_lines) else left_item.value
+        target_context = target_lines[right_item.line - 1][:1000] if right_item.line <= len(target_lines) else right_item.value
+        findings.append(new_finding(
+            "PROTECTED_TOKEN_ORDER_CHANGED", "high", "protected_token",
+            "The target changes the order of protected machine-facing tokens while retaining the same token multiset.",
+            "Counts alone do not preserve order-sensitive command arguments or operand relationships. This heuristic cannot determine whether the reordering is harmless in context.",
+            path=path, source_line=left_item.line, target_line=right_item.line,
+            original_context=original_context, target_context=target_context,
+            proposed_change="Restore source order or document and approve the intended reordering after reviewing the full instruction.",
+            requires_review=True, analysis_method="heuristic", uncertainty="high",
+            severity_rationale="A reordered command flag, identifier, or path can change operational behavior; the heuristic requires human review rather than asserting semantic failure.",
+        ))
 
     structural_bad = any(finding.code in FATAL_STRUCTURE_CODES for finding in findings)
     semantic_review = any(f.requires_review or f.severity in ("medium", "high", "critical") for f in findings)
@@ -329,15 +554,15 @@ def compare_packages(
     )
 
 
-def _find_invariant_context(text: str, statement: str) -> str | None:
-    """Return a small target excerpt by approximate word overlap, not a semantic verdict."""
+def _find_invariant_context(text: str, statement: str) -> tuple[int, str] | None:
+    """Return (1-based line number, excerpt) by approximate word overlap, not semantics."""
     words = {word.lower() for word in re.findall(r"[A-Za-z0-9_-]{4,}", statement)}
     if not words:
         return None
     lines = text.splitlines()
     scored = [
-        (len(words & {w.lower() for w in re.findall(r"[A-Za-z0-9_-]{4,}", line)}), i, line)
-        for i, line in enumerate(lines)
+        (len(words & {word.lower() for word in re.findall(r"[A-Za-z0-9_-]{4,}", line)}), index, line)
+        for index, line in enumerate(lines, start=1)
     ]
-    score, _index, line = max(scored, default=(0, 0, ""))
-    return line[:1000] if score > 0 else None
+    score, line_number, line = max(scored, default=(0, 1, ""))
+    return (line_number, line[:1000]) if score > 0 else None

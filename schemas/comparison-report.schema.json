@@ -14,8 +14,8 @@
     "report_version": { "const": "1.0" },
     "tool_version": { "type": "string" },
     "generated_at": { "type": "string", "format": "date-time" },
-    "source_locale": { "type": ["string", "null"] },
-    "target_locale": { "type": ["string", "null"] },
+    "source_locale": { "type": ["string", "null"], "description": "SkillTether Pydantic validation applies BCP 47 structural checks; registry membership and canonicalization are not checked." },
+    "target_locale": { "type": ["string", "null"], "description": "SkillTether Pydantic validation applies BCP 47 structural checks; registry membership and canonicalization are not checked." },
     "translation_provider": { "type": ["string", "null"] },
     "invariant_manifest_fingerprint": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
     "protected_policy_fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
@@ -25,6 +25,8 @@
     "target_files": { "type": "object", "additionalProperties": { "type": "string", "pattern": "^[a-f0-9]{64}$" } },
     "structural_status": { "enum": ["pass", "fail", "unsupported", "error"] },
     "semantic_status": { "enum": ["no_issue_detected", "review_recommended", "unknown"] },
+    "integrity_algorithm": { "enum": ["hmac-sha256", null] },
+    "integrity_signature": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
     "limitations": { "type": "array", "items": { "type": "string" } },
     "findings": {
       "type": "array",
@@ -34,6 +36,25 @@
         "required": ["id", "code", "severity", "category", "message", "rationale", "requires_review", "disposition"],
         "properties": {
           "id": { "type": "string" },
+          "rule_id": { "type": ["string", "null"] },
+          "analysis_method": { "enum": ["deterministic", "heuristic", "human_review", "unknown"] },
+          "uncertainty": { "enum": ["none", "low", "medium", "high", "unknown"] },
+          "severity_rationale": { "type": "string" },
+          "review_history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["recorded_at", "previous_disposition", "disposition", "reviewer", "note"],
+              "properties": {
+                "recorded_at": { "type": "string", "format": "date-time" },
+                "previous_disposition": { "enum": ["pending", "approved", "rejected", "deferred"] },
+                "disposition": { "enum": ["pending", "approved", "rejected", "deferred"] },
+                "reviewer": { "type": "string", "minLength": 1, "maxLength": 200 },
+                "note": { "type": "string", "minLength": 1, "maxLength": 4000 }
+              }
+            }
+          },
           "code": { "type": "string" },
           "severity": { "enum": ["info", "low", "medium", "high", "critical"] },
           "category": { "type": "string" },
@@ -52,5 +73,27 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "integrity_algorithm": { "const": "hmac-sha256" } },
+        "required": ["integrity_algorithm"]
+      },
+      "then": {
+        "properties": { "integrity_signature": { "type": "string", "pattern": "^[a-f0-9]{64}$" } },
+        "required": ["integrity_signature"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "integrity_signature": { "type": "string" } },
+        "required": ["integrity_signature"]
+      },
+      "then": {
+        "properties": { "integrity_algorithm": { "const": "hmac-sha256" } },
+        "required": ["integrity_algorithm"]
+      }
+    }
+  ]
 }

@@ -5,17 +5,76 @@
 | Test class | Example | Expected result |
 |---|---|---|
 | Package structure | Valid package with references and assets | All declared resources resolve |
+| Markdown links in tables | GFM-style table cell contains a local link | Link is parsed and broken target is reported |
+| Malformed local-link URL | Markdown URL contains invalid bracketed host syntax | Explicit `LOCAL_LINK_URL_INVALID` finding; validator does not crash |
+| URL fragment encoding | Local fragment contains percent-encoded characters | Decode fragment before comparing detected anchors/headings |
+| Fragment target safety | Local anchor target is already in bounded package inventory | Reuse snapshot; fallback read is bounded and does not follow final symlink |
+| BCP 47 extlang cardinality | Language tag contains one to three structural extlang subtags; a fourth appears before following components | One to three are accepted by grammar; excess extlang sequence is rejected |
+| Coverage floor | Aggregate branch-aware coverage falls below 80% | Linux GitHub Actions job fails the coverage-report step |
+| Official reference validator | Valid base fixture, valid optional-field fixture, and intentionally invalid fixture | Pinned `skills-ref` CLI accepts both valid fixtures and returns its documented invalid-skill exit code for the invalid fixture; tool stays out of runtime dependencies |
+| Python and OS matrix | Python 3.13/3.14 × Ubuntu/macOS/Windows | Full pytest suite, coverage report, schema/policy checks, and bundled fixtures run on all six combinations; aggregate 80% floor is enforced only on Linux |
+| Invariant manifest output path | Destination is inside source, already exists, is a symlink, or appears during publication | Refuse write; preserve source and destination target |
+| Approval output symlink | Requested approved-output path is a final-component symlink, including a broken symlink | Refuse approval before report access or publication |
+| Invariant suggestion examples | Fenced, indented, or recognized HTML code examples contain imperative words/numbers | Do not emit those code-example lines as invariant candidates; candidates remain unreviewed |
+| Numeric fact vs. numeric constraint | A factual sentence contains a number but no limit/action/modality/negation/conditional cue | Do not suggest it solely because a digit is present; retain explicit numeric limits and action-oriented numeric rules |
+| Binary asset/key bytes on Windows | File contains CRLF and `0x1A` bytes | Binary-mode descriptors preserve exact bytes for fingerprints, package limits, and signing-key verification |
+| Package root symlink | A package directory is reached through a symlink alias | Reject the root alias before reading package content |
+| Package resource integrity | Same-path binary asset differs by byte hash | Review-required resource-change finding |
+| Package permission integrity | Script executable bit changes while bytes remain equal | Package fingerprint changes and review-required file-mode finding |
+| Resource exhaustion | Aggregate package bytes or directory count exceeds limit | Inspection fails closed without unbounded reads |
+| Special filesystem entry | Named pipe, socket, device, or symlink is present | Critical structural finding; special files are never read |
+| Output path integrity | Report path inside package or reached through a symlink alias; candidate/approval output is a broken symlink or parent-symlink alias to source | Command refuses before writing; package remains unchanged |
 | Frontmatter | Missing required field, invalid YAML, wrong field type | Explicit validation failure |
+| Draft invariant false positive | Rule-like words inside tilde/backtick code fences or a line over 1,200 characters | Example content/long line is not emitted as a candidate; manifest remains unreviewed |
+| Text resource encoding | Invalid UTF-8 in Markdown/script resource versus invalid bytes in `.bin` asset | Expected text/script suffix reports an encoding finding; binary asset is not called malformed text |
+| Manifest output race | Destination exists or appears during generation | Create-only publication refuses the destination and leaves it unchanged |
+| Agent Skills optional fields | Optional license/compatibility/metadata/allowed-tools are valid | No false requirement to include fields; correct types are accepted |
+| BCP 47 language tags | Languages, scripts, regions, variants, extensions, private-use and grandfathered tags | Structurally well-formed tags accepted without rewriting; malformed ordering, empty extension values, duplicate variants/singletons rejected |
+| Locale registry boundary | Unknown but syntactically valid subtags | Accepted without claiming IANA registry validity or canonicalization |
+| Manifest/report locale fields | Locale supplied through YAML manifest or serialized report rather than CLI arguments | Pydantic models apply the same BCP 47 structural checks; target locale remains optional in the manifest |
+| Extension metadata | Unknown client-specific field appears | Low-severity notice, not an automatic blocking error |
 | Exact identifiers | Command, path, tool name changed | Protected-token finding |
+| Markdown syntax preservation | Emphasis, inline links, reference links, task-list checkboxes, escaped punctuation, and hard line breaks | Syntax is restored exactly; label text remains translatable; syntax placeholder deletion/duplication/reordering aborts translation |
+| Markdown table localization | Header/data rows with pipe delimiters plus alignment separators | Cell prose is translated, pipes stay intact, and delimiter-only rows remain byte-for-byte unchanged |
+| HTML opaque-block preservation | Multiline comments and `script`, `style`, `pre`, `code`, or `textarea` blocks | Contents remain untranslated; unclosed comment/block fails closed |
+| Provider line injection | A one-line translation result contains CR/LF | Translation is rejected and candidate output is not published |
+| Parser-visible structure injection | Provider adds a link, emphasis, list, heading, or other Markdown structure while retaining source placeholders | Structural signature differs; translation fails before candidate publication |
+| Custom adapter response budget | Custom local adapter emits an oversized single response or exceeds aggregate output bytes | Translation fails before candidate publication, even when the adapter does not use HTTP |
+| Provider control characters | Adapter emits NUL, unsupported C0/DEL control characters, or line separators | Translation fails before output publication |
+| Protected-token order | Same command flags/identifiers remain present but their order changes | High-severity, high-uncertainty review finding; unchanged order is a negative case |
 | Negation | “Do” changed to “do not”, or negation removed | Critical review warning |
 | Modal strength | “Must” weakened to “may” | Invariant review warning |
 | Threshold | Number, time, or limit changed | Difference and rationale shown |
 | Conditional logic | “Only if” or prerequisite removed | Review finding |
 | Harmless rephrase | Non-critical prose rewritten with same invariant | No structural false alarm where rules can determine equivalence |
 | Omitted sections | Paragraph, list item, or reference file removed | Missing-content finding |
+| Comparison complexity | Repeated-line source/target exceeds diff-pair budget | Explicit high-uncertainty finding; no silent semantic pass |
 | Added instructions | Target contains new imperative not in source | Unexpected addition warning |
 | Provider privacy | Provider disabled or mock provider configured | No network call without explicit setup |
+| Translation workload budget | Whole package exceeds request-count or aggregate outbound-byte cap | Rejected during local preflight before any provider call |
+| HTTP aggregate response budget | Provider responses cumulatively exceed the configured response cap | Adapter reads only the remaining budget plus one byte and fails closed |
+| Review evidence | Critical finding approved, then deferred | Approval is blocked until a newer consistent approval event exists |
+| Invariant source evidence | Manifest quote/path/line range is stale, missing, or beyond current source | Deterministic critical finding; approval remains blocked until the manifest is corrected and comparison rerun |
+| Signed report integrity | Signed report field is edited before export | HMAC verification rejects the report and no output package is published |
+| Standalone report verification | Signed JSON report is unchanged / signature bytes are altered | `verify-report` returns 0 for valid signature and non-zero for tampered report without modifying it |
+| Signed review update | Existing signed report is reviewed with the matching key | Decision is appended and the new report payload receives a valid updated seal |
+| Key hygiene | Key is symlinked, too short, or group/world accessible on POSIX | Key is rejected before signing or verification |
+| Review audit | Bare approved disposition without history or rationale | Approval gate rejects missing review evidence |
+| Review input privacy | Note contains obvious credential material | Note is rejected without echoing the credential |
+| Review rendering | Note contains HTML/Markdown control syntax | Markdown report fences the untrusted note |
+| Report compatibility | Existing v1.0 finding omits additive evidence fields | Legacy report still parses; bare approval is not treated as an audited approval |
+| Local history privacy | History record is written to SQLite | Only fingerprints, locales, provider/status and timestamp are stored; DB mode is 0600 on POSIX |
+| Credential redaction | Report context or a path contains common API-key, bearer, provider-token, or PEM patterns | JSON/Markdown report omits the raw credential-like value; truncated key blocks are covered |
+| Redaction limitation | Unknown credential shape appears in report evidence | Documentation states redaction is not a complete secret scanner |
 | Hostile content | HTML-like text, huge Markdown, path traversal strings | Safe parsing and rendering |
+| Policy complexity | Too many protected patterns/tokens or oversized regex | Policy is rejected before analysis |
+| Regex backtracking | Nested unbounded repeats or repeated alternation supplied as a policy regex | Conservative validator rejects known-risk shapes before matching |
+| Regex compatibility | Bounded quantifiers and ordinary literals in a policy regex | Safe bounded pattern remains accepted |
+| Config input safety | Oversized policy/manifest/report, symlink, FIFO, or special file | Bounded read rejects it without blocking or following the link |
+| Protected-token overlap | `TOOL` and `TOOL_NAME` both protected | Longest matching span is masked once |
+| Placeholder collision | Source prose contains a reserved-looking placeholder | Placeholder namespace is chosen without colliding with the prose |
+| Terminal output | Finding contains ANSI/control characters and newlines | CLI output collapses control characters |
+| Schema conformance | Serialized report and negative enum payload are checked against Draft 2020-12 schema | Valid report passes, unsupported severity fails |
 
 ## Evaluation protocol
 Create labelled source/target pairs with human-reviewed invariants. Measure precision and recall separately for each finding category. Include difficult negatives: synonyms that preserve meaning, quoted commands, example-only instructions, language-specific grammatical changes, and ambiguous sentences. Do not use a model's own confidence score as the sole ground truth.
