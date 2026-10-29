@@ -28,6 +28,7 @@ MAX_TRANSLATION_TOTAL_REQUEST_BYTES = 10 * 1024 * 1024
 MAX_TRANSLATION_TOTAL_RESPONSE_BYTES = 10 * 1024 * 1024
 MAX_TRANSLATION_TIMEOUT_SECONDS = 300.0
 FENCE = re.compile(r"^\s{0,3}(\x60{3,}|~{3,})")
+HTML_OPAQUE_OPEN = re.compile(r"^\s*<(script|style|pre|code|textarea)\b", re.I)
 PREFIX = re.compile(r"^(\s*(?:(?:#{1,6}|>)\s+|[-*+]\s+|\d+[.)]\s+)?)(.*?)(\r?\n?)$")
 MASK_SPAN = re.compile(
     r"\x60+.*?\x60+|https?://[^ <>)]+|<[^>]+>|(?<=\]\()[^)]*(?=\))"
@@ -160,6 +161,8 @@ def translate_markdown(
     in_frontmatter = bool(lines and lines[0].strip() == "---")
     frontmatter_closed = not in_frontmatter
     fence_marker: str | None = None
+    html_comment_open = False
+    html_opaque_tag: str | None = None
     output: list[str] = []
     for line in lines:
         stripped = line.strip()
@@ -177,6 +180,32 @@ def translate_markdown(
         if fence_match:
             fence_marker = fence_match.group(1)
             output.append(line)
+            continue
+        # HTML comments and code-bearing/raw-text elements can span multiple
+        # lines. Preserve their full contents instead of translating a line
+        # that happens to fall after the opening marker.
+        if html_comment_open:
+            output.append(line)
+            if "-->" in line:
+                html_comment_open = False
+            continue
+        if html_opaque_tag is not None:
+            output.append(line)
+            if re.search(rf"</{re.escape(html_opaque_tag)}\s*>", line, re.I):
+                html_opaque_tag = None
+            continue
+        if "<!--" in line:
+            output.append(line)
+            comment_start = line.find("<!--")
+            if "-->" not in line[comment_start + 4:]:
+                html_comment_open = True
+            continue
+        opaque_open = HTML_OPAQUE_OPEN.match(line)
+        if opaque_open:
+            tag = opaque_open.group(1)
+            output.append(line)
+            if not re.search(rf"</{re.escape(tag)}\s*>", line, re.I):
+                html_opaque_tag = tag
             continue
         if (
             not stripped or line.startswith("    ") or line.startswith("\t")
@@ -204,6 +233,10 @@ def translate_markdown(
         translated = adapter.translate(masked, source_locale, target_locale)
         if not isinstance(translated, str):
             raise RuntimeError("Translation adapter returned a non-string result")
+        if "\n" in translated or "\r" in translated:
+            raise RuntimeError(
+                "Translation adapter returned a multiline result for a single Markdown line; no output was published"
+            )
         for marker, _original in replacements:
             if translated.count(marker) != 1:
                 raise RuntimeError("Translation adapter altered or duplicated a protected placeholder; no output was published")
@@ -218,6 +251,8 @@ def translate_markdown(
         output.append(prefix + translated + ending)
     if in_frontmatter and not frontmatter_closed:
         raise ValueError("Unclosed SKILL.md frontmatter; refusing to translate malformed input")
+    if html_comment_open or html_opaque_tag is not None:
+        raise ValueError("Unclosed HTML comment or opaque HTML block; refusing to translate malformed input")
     return "".join(output)
 
 
