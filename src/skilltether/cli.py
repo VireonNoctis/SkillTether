@@ -339,8 +339,13 @@ def cmd_review(args: argparse.Namespace) -> int:
 def cmd_approve(args: argparse.Namespace) -> int:
     source = normalize_package_root(args.source)
     target = normalize_package_root(args.target)
+    output = Path(os.path.abspath(Path(args.output).expanduser()))
+    if output.is_symlink():
+        raise ValueError("Approved output must not be a symbolic link")
+    _ensure_outputs_outside_packages(
+        [output], [source, target], label="Approved output",
+    )
     report_path = Path(args.report).expanduser().resolve(strict=True)
-    output = Path(args.output).expanduser().resolve()
     if args.signing_key:
         _ensure_outputs_outside_packages(
             [Path(args.signing_key).expanduser()], [source, target, output],
