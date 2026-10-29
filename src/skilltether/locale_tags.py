@@ -62,12 +62,19 @@ def validate_bcp47_tag(tag: str) -> str:
         raise ValueError("invalid primary language subtag")
 
     index = 1
-    # RFC 5646's extlang shape is three alpha characters after a 2–3 character
-    # language. Current validity constraints permit at most one extlang subtag.
-    if len(language) <= 3 and index < len(parts):
-        candidate = parts[index]
-        if len(candidate) == 3 and _ALPHA.fullmatch(candidate):
+    # RFC 5646's extlang production permits one to three three-letter subtags
+    # after a 2–3 character primary language. Registry membership is out of
+    # scope, but the full structural cardinality must still be accepted.
+    if len(language) <= 3:
+        extlang_count = 0
+        while (
+            index < len(parts)
+            and extlang_count < 3
+            and len(parts[index]) == 3
+            and _ALPHA.fullmatch(parts[index])
+        ):
             index += 1
+            extlang_count += 1
 
     if index < len(parts) and len(parts[index]) == 4 and _ALPHA.fullmatch(parts[index]):
         index += 1
