@@ -22,7 +22,7 @@
 | Package permission integrity | Script executable bit changes while bytes remain equal | Package fingerprint changes and review-required file-mode finding |
 | Resource exhaustion | Aggregate package bytes or directory count exceeds limit | Inspection fails closed without unbounded reads |
 | Special filesystem entry | Named pipe, socket, device, or symlink is present | Critical structural finding; special files are never read |
-| Output path integrity | Report path inside package or reached through a symlink alias | Command refuses before writing; package remains unchanged |
+| Output path integrity | Report path inside package or reached through a symlink alias; candidate/approval output is a broken symlink or parent-symlink alias to source | Command refuses before writing; package remains unchanged |
 | Frontmatter | Missing required field, invalid YAML, wrong field type | Explicit validation failure |
 | Draft invariant false positive | Rule-like words inside tilde/backtick code fences or a line over 1,200 characters | Example content/long line is not emitted as a candidate; manifest remains unreviewed |
 | Text resource encoding | Invalid UTF-8 in Markdown/script resource versus invalid bytes in `.bin` asset | Expected text/script suffix reports an encoding finding; binary asset is not called malformed text |
