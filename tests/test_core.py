@@ -381,6 +381,35 @@ def test_local_link_fragment_uses_bounded_inventory_snapshot(
     assert not any(item.code == "BROKEN_LINK_FRAGMENT" for item in findings)
 
 
+def test_broken_local_link_inside_markdown_table_is_reported(tmp_path: Path) -> None:
+    package = make_package(
+        tmp_path / "sample-skill",
+        "| Resource | Purpose |\n"
+        "| --- | --- |\n"
+        "| [missing guide](references/missing.md) | Required details |\n",
+    )
+
+    _inventory, findings, _texts = inspect_package(package)
+
+    assert any(
+        item.code == "BROKEN_LOCAL_LINK" and item.path == "SKILL.md"
+        for item in findings
+    )
+
+
+def test_percent_encoded_local_link_fragment_is_decoded(tmp_path: Path) -> None:
+    package = make_package(
+        tmp_path / "sample-skill",
+        "Read the [setup guide](references/guide.md#setup%2Dguide).",
+    )
+    (package / "references").mkdir()
+    (package / "references" / "guide.md").write_text("# Setup Guide\n\nDetails.\n", encoding="utf-8")
+
+    _inventory, findings, _texts = inspect_package(package)
+
+    assert not any(item.code == "BROKEN_LINK_FRAGMENT" for item in findings)
+
+
 def test_report_context_fence_cannot_be_closed_by_untrusted_text() -> None:
     from skilltether.report import _fenced_context
     import re
