@@ -44,6 +44,8 @@ def test_signing_key_loader_preserves_all_raw_bytes(tmp_path: Path) -> None:
     key_path = tmp_path / "binary.key"
     key_bytes = b"A" * 16 + b"\x1a\r\n" + b"B" * 20
     key_path.write_bytes(key_bytes)
+    if os.name == "posix":
+        key_path.chmod(0o600)
 
     assert load_signing_key(key_path) == key_bytes
 
