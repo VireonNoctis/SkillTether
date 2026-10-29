@@ -21,7 +21,7 @@ SkillTether is a local-first localization and integrity-checking CLI for Agent S
 - Atomic candidate output, separate explicit approval/export, atomic private JSON/Markdown reports, output-path guards that protect source/candidate packages, bounded reads for manifests/policies/reports/history, actual JSON Schema regression checks, and private SQLite run metadata without document text or credentials.
 - Redaction of common credential patterns in finding evidence and persisted reports, plus explicit limits explaining that this is not a complete secret scanner.
 - Optional local HMAC-SHA256 report seals: create a private key, sign JSON reports, use `verify-report` for non-mutating checks, verify the seal before approval, and re-sign only after a verified review edit.
-- pytest and Hypothesis regression fixtures, plus GitHub Actions CI.
+- pytest and Hypothesis regression fixtures, plus GitHub Actions CI across Python 3.13/3.14 on Ubuntu, macOS, and Windows, with a Linux-only 80% aggregate coverage floor and a pinned reference-validator smoke check.
 
 The optional Svelte + TypeScript review UI is intentionally deferred until the report contracts are stable.
 
