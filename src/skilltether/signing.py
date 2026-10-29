@@ -23,7 +23,7 @@ def create_signing_key(path: str | Path) -> Path:
     """Create a new 256-bit report-signing key without overwriting any existing path."""
     output = Path(path).expanduser()
     output.parent.mkdir(parents=True, exist_ok=True)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
         descriptor = os.open(output, flags, 0o600)
     except FileExistsError:
