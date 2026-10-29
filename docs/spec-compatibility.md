@@ -27,6 +27,10 @@ The following checks are implementation policy or localization-integrity control
 
 A structural pass is not a semantic-equivalence guarantee. A package can be structurally conformant while its localized instructions have changed important meaning.
 
+## Reference-validator comparison
+
+CI includes a separate, Ubuntu-only smoke check using the upstream `skills-ref` CLI pinned at `v0.0.1`. It requires a valid package fixture to pass and an intentionally invalid package fixture to return the documented invalid-input status. This check is not a runtime dependency and does not replace SkillTether's own package-integrity checks. The upstream [`skills-ref` README](https://github.com/skills-repos/agentskills/blob/main/skills-ref/README.md) currently describes the tool as a demonstration/reference implementation rather than production software, so its result is useful for compatibility drift detection, not as the only conformance authority.
+
 ## Regression expectations
 
 Fixtures cover valid optional fields, malformed optional-field types, unknown extension fields, malformed/duplicate YAML, missing required fields, resource integrity, and security-boundary behavior. Changes to this document's base-format assumptions should be accompanied by tests and a reference update.
