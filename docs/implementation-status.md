@@ -19,6 +19,10 @@
 - Atomically written mode-0600 (POSIX) JSON/Markdown reports; bounded regular-file reads; output-path guards; file-mode-aware fingerprints; explicit rule/method/uncertainty/severity rationale; chronological review history; common-credential redaction; and optional HMAC-SHA256 report integrity with verification before review/export.
 - Optional local SQLite metadata history with fingerprint/locale/metadata validation, private file permissions, and no text payload columns; pytest/Hypothesis/JSON Schema tests and GitHub Actions CI.
 
+## Readiness audit
+
+A current requirements-to-code matrix and prioritized release-readiness gaps are maintained in [docs/readiness-audit.md](readiness-audit.md). CI prints line/branch coverage after running the test suite; a coverage threshold and cross-platform claim remain deferred until the measured baseline is reviewed.
+
 ## Deliberately not claimed
 
 - The system does not prove semantic equivalence, fluency, or safety.
