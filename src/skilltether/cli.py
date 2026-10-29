@@ -20,6 +20,7 @@ from .models import Invariant, InvariantManifest
 from .report import read_json_report, verify_report_signature, write_json_report, write_markdown_report
 from .signing import create_signing_key
 from .translation import HttpJsonAdapter, IdentityAdapter, translate_package
+from .locale_tags import validate_bcp47_tag
 from .reviewing import has_audited_approval, record_review
 
 CUE_PATTERN = re.compile(
@@ -200,9 +201,13 @@ def cmd_compare(args: argparse.Namespace) -> int:
 
 
 def _validate_locale_tag(value: str) -> str:
-    if not re.fullmatch(r"[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*", value):
-        raise ValueError(f"Locale {value!r} is not a valid-looking BCP 47 language tag")
-    return value
+    try:
+        return validate_bcp47_tag(value)
+    except ValueError as exc:
+        raise ValueError(
+            f"Locale {value!r} is not a well-formed BCP 47 language tag: {exc}. "
+            "IANA registry membership and canonicalization are not checked."
+        ) from None
 
 
 def cmd_translate(args: argparse.Namespace) -> int:
