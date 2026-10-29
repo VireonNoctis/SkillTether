@@ -160,6 +160,7 @@ Run skilltether COMMAND --help for flags. For CI runs that should fail when huma
 - [Mitigation strategy](docs/mitigation-strategy.md)
 - [Validation matrix](docs/validation-matrix.md)
 - [Implementation status and limits](docs/implementation-status.md)
+- [Requirements-to-code readiness audit](docs/readiness-audit.md)
 - [Review evidence and approval gates](docs/review-audit.md)
 - [Agent Skills specification boundary](docs/spec-compatibility.md)
 
