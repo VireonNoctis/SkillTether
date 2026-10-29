@@ -412,6 +412,39 @@ def test_translate_refuses_report_path_that_would_overwrite_source(tmp_path: Pat
     assert skill_file.read_bytes() == before
 
 
+def test_approve_refuses_broken_output_symlink_before_reading_report(tmp_path: Path) -> None:
+    import os
+
+    if not hasattr(os, "symlink"):
+        pytest.skip("symlinks are not available on this platform")
+    source = tmp_path / "source" / "sample-skill"
+    target = tmp_path / "target" / "sample-skill"
+    for package in (source, target):
+        package.mkdir(parents=True)
+        (package / "SKILL.md").write_text(
+            "---\nname: sample-skill\ndescription: A sample skill.\n---\n\nInstructions.\n",
+            encoding="utf-8",
+        )
+    output_parent = tmp_path / "approved"
+    output_parent.mkdir()
+    output = output_parent / "sample-skill"
+    destination = tmp_path / "not-created" / "sample-skill"
+    try:
+        output.symlink_to(destination, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlink creation is not permitted")
+
+    result = main([
+        "approve", str(source), str(target),
+        "--report", str(tmp_path / "missing-report.json"),
+        "--output", str(output),
+    ])
+
+    assert result == 2
+    assert output.is_symlink()
+    assert not destination.exists()
+
+
 def test_compare_refuses_same_json_and_markdown_output_path(tmp_path: Path) -> None:
     source = tmp_path / "source" / "sample-skill"
     target = tmp_path / "target" / "sample-skill"
