@@ -109,3 +109,27 @@ def test_comparison_report_rejects_malformed_locale_tags() -> None:
         ComparisonReport(**base, source_locale="en-u")
     report = ComparisonReport(**base, source_locale="x-private")
     assert report.source_locale == "x-private"
+
+
+@pytest.mark.parametrize(
+    "tag",
+    ["en", "zh-Hans-CN", "en-u-ca-gregory", "x-private", "i-klingon", "en-GB-oed"],
+)
+def test_valid_bcp47_tags_pass_manifest_model_and_json_schema(tag: str) -> None:
+    import json
+    from pathlib import Path
+
+    from jsonschema import Draft202012Validator
+    from skilltether.models import InvariantManifest
+
+    root = Path(__file__).resolve().parents[1]
+    schema = json.loads((root / "schemas" / "invariant-manifest.schema.json").read_text(encoding="utf-8"))
+    validator = Draft202012Validator(schema)
+
+    manifest = InvariantManifest(source_locale=tag, invariants=[])
+    assert manifest.source_locale == tag
+    assert validator.is_valid({
+        "manifest_version": "1.0",
+        "source_locale": tag,
+        "invariants": [],
+    })
