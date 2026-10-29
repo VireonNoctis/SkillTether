@@ -9,6 +9,8 @@
 | Malformed local-link URL | Markdown URL contains invalid bracketed host syntax | Explicit `LOCAL_LINK_URL_INVALID` finding; validator does not crash |
 | URL fragment encoding | Local fragment contains percent-encoded characters | Decode fragment before comparing detected anchors/headings |
 | Fragment target safety | Local anchor target is already in bounded package inventory | Reuse snapshot; fallback read is bounded and does not follow final symlink |
+| BCP 47 extlang cardinality | Language tag contains one to three structural extlang subtags; a fourth appears before following components | One to three are accepted by grammar; excess extlang sequence is rejected |
+| Coverage floor | Aggregate branch-aware coverage falls below 80% | GitHub Actions fails the coverage-report step |
 | Package root symlink | A package directory is reached through a symlink alias | Reject the root alias before reading package content |
 | Package resource integrity | Same-path binary asset differs by byte hash | Review-required resource-change finding |
 | Package permission integrity | Script executable bit changes while bytes remain equal | Package fingerprint changes and review-required file-mode finding |
