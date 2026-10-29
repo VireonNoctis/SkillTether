@@ -27,7 +27,7 @@ This is a traceability audit, not a semantic-safety certification. “Implemente
 | Protect commands, identifiers, paths, URLs, environment variables, and code | `analysis.py:extract_protected_tokens`, `translation.py:_mask_protected_spans`, `config/protected-tokens.yaml` | token mutation, overlap, placeholder collision, token order tests | **Partial.** Detection depends on built-in and configured patterns; unrecognized operational literals may be missed. |
 | Compare text, omitted/added sections, and protected token differences | `compare.py:compare_packages` | `tests/test_core.py`, `tests/test_token_order.py` | **Implemented / tested** for line-level/token-level changes under resource budgets. “Added/omitted” findings are textual alignment evidence, not reliable classification of newly introduced imperatives. |
 | Draft invariant suggestions | `cli.py:_suggest_invariants` | `test_init_manifest_skips_fenced_examples_and_preserves_review_gate` | **Partial.** Fenced tilde/backtick examples and lines over 1,200 characters are skipped, but rule selection remains a heuristic; generated manifests are unreviewed by default. |
-| Maintain human-reviewed invariants for negation, modality, thresholds, prerequisites, and decision rules | `models.py:Invariant`, `compare.py` invariant checks, `reviewing.py` | `tests/test_invariant_source_refs.py`, `tests/test_core.py`, `tests/test_review_audit.py` | **Partial by design.** Manifest quality and locale-specific markers are human-authored. Word overlap and marker checks do not prove semantic equivalence. |
+| Maintain human-reviewed invariants for negation, modality, thresholds, prerequisites, and decision rules | `models.py:Invariant`, `compare.py` invariant checks, `reviewing.py` | `tests/test_invariant_source_refs.py`, `tests/test_core.py`, `tests/test_review_audit.py` | **Partial by design.** Candidate generation is heuristic and now skips fenced, indented, and recognized HTML code examples; nested-list indentation can be skipped, and prose inside unusual code/MDX constructs may still be misclassified. Manifest quality and locale-specific markers are human-authored. Word overlap and marker checks do not prove semantic equivalence. |
 | Keep structural status separate from semantic-review status | `models.py:ComparisonReport`, `compare.py`, CLI output and approval gate | comparison/review audit tests | **Implemented / tested.** The semantic status is a workflow signal, not a confidence-calibrated semantic score. |
 | Provider adapters behind a narrow interface; no provider enabled by default | `translation.py:TranslationAdapter`, `IdentityAdapter`, `HttpJsonAdapter`; `cli.py:cmd_translate` | HTTP adapter, no-network preflight, timeout, redirect and budget tests | **Implemented / tested** for the identity adapter and generic JSON bridge. There is no bundled vendor SDK or automatic provider discovery. |
 | Do not send private package text without explicit opt-in; bound provider I/O | `cli.py`, `translation.py:HttpJsonAdapter`, whole-package preflight and shared adapter output validation | `tests/test_translation_budget.py`, provider failure and injection tests | **Implemented / tested** for configured adapters and declared budgets. Provider retention/data handling remains the user's responsibility; transport-level timeouts do not guarantee remote deletion. |
@@ -71,15 +71,15 @@ Each item has or is receiving a regression fixture in the same pull request. The
 
 ## Latest verification snapshot
 
-- Verified source/test commit: `844eda5dcecdad4848089a4b287cc979e7a547c3`.
-- GitHub Actions run: [40868519972](https://github.com/VireonNoctis/SkillTether/actions/runs/40868519972).
-- Regression/property-based suite: **201 passed**.
-- Aggregate measured coverage: **85%** across 2,043 statements and 826 branches (244 statements missed; 158 partial branches).
-- Module coverage highlights from the preceding measured baseline: CLI 82%, package analysis 80%, comparison 84%, translation 85%, report writing 96%, safe I/O 96%, locale-tag validation 97%.
+- Verified source/test commit: `2264e209e3354c7fefa1b5541373a8a7a61f8288`.
+- GitHub Actions run: [40868860874](https://github.com/VireonNoctis/SkillTether/actions/runs/40868860874).
+- Regression/property-based suite: **205 passed**.
+- Aggregate measured coverage: **85%** across 2,059 statements and 834 branches (244 statements missed; 158 partial branches).
+- Module coverage highlights: CLI 83%, package analysis 80%, comparison 84%, translation 85%, report writing 96%, safe I/O 96%, locale-tag validation 97%.
 - JSON Schema syntax/protected-token policy checks and bundled valid-skill validation passed.
 - CI reports line/branch coverage and enforces an 80% aggregate floor. It does not enforce per-module floors. Coverage is evidence of exercised code, not proof of correctness; branch-specific review remains necessary.
 
-This run validates the approval-output symlink guard and regression suite as well as the coverage gate. This audit text is a documentation-only follow-up; any later source/test change still needs its own passing CI run before release.
+This run validates the approval-output symlink guard, code-example filtering for invariant suggestions, and regression suite as well as the coverage gate. This audit text is a documentation-only follow-up; any later source/test change still needs its own passing CI run before release.
 
 ## Acceptance gate
 
