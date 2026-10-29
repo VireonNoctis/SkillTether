@@ -849,7 +849,7 @@ def test_compare_refuses_signing_key_inside_source_package(tmp_path: Path) -> No
     assert not report_path.exists()
 
 
-def test_init_manifest_skips_fenced_examples_and_preserves_review_gate(
+def test_init_manifest_skips_code_examples_and_preserves_review_gate(
     tmp_path: Path, capsys: pytest.CaptureFixture[str],
 ) -> None:
     import yaml
@@ -871,6 +871,11 @@ def test_init_manifest_skips_fenced_examples_and_preserves_review_gate(
             "~~~sh",
             "must not delete the source archive",
             "~~~",
+            "    must not delete the source archive in an indented example",
+            "<pre>",
+            "must not delete the source archive in an HTML example",
+            "</pre>",
+            "<code>must not delete the source archive in inline HTML code</code>",
             (chr(96) * 3) + "yaml",
             "must_not: false",
             chr(96) * 3,
