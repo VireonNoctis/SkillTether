@@ -15,6 +15,7 @@
 | Agent Skills optional fields | Optional license/compatibility/metadata/allowed-tools are valid | No false requirement to include fields; correct types are accepted |
 | BCP 47 language tags | Languages, scripts, regions, variants, extensions, private-use and grandfathered tags | Structurally well-formed tags accepted without rewriting; malformed ordering, empty extension values, duplicate variants/singletons rejected |
 | Locale registry boundary | Unknown but syntactically valid subtags | Accepted without claiming IANA registry validity or canonicalization |
+| Manifest/report locale fields | Locale supplied through YAML manifest or serialized report rather than CLI arguments | Pydantic models apply the same BCP 47 structural checks; target locale remains optional in the manifest |
 | Extension metadata | Unknown client-specific field appears | Low-severity notice, not an automatic blocking error |
 | Exact identifiers | Command, path, tool name changed | Protected-token finding |
 | Markdown syntax preservation | Emphasis, inline links, reference links, task-list checkboxes, escaped punctuation, and hard line breaks | Syntax is restored exactly; label text remains translatable; syntax placeholder deletion/duplication/reordering aborts translation |
