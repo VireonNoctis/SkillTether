@@ -25,7 +25,7 @@ jobs:
       - name: Run regression and property-based tests
         run: |
           coverage run -m pytest
-          coverage report -m
+          coverage report --fail-under=80 -m
       - name: Validate JSON Schema syntax and protected-token policy
         run: |
           python -m json.tool schemas/invariant-manifest.schema.json > /dev/null
