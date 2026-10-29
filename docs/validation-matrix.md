@@ -19,6 +19,7 @@
 | Markdown table localization | Header/data rows with pipe delimiters plus alignment separators | Cell prose is translated, pipes stay intact, and delimiter-only rows remain byte-for-byte unchanged |
 | HTML opaque-block preservation | Multiline comments and `script`, `style`, `pre`, `code`, or `textarea` blocks | Contents remain untranslated; unclosed comment/block fails closed |
 | Provider line injection | A one-line translation result contains CR/LF | Translation is rejected and candidate output is not published |
+| Parser-visible structure injection | Provider adds a link, emphasis, list, heading, or other Markdown structure while retaining source placeholders | Structural signature differs; translation fails before candidate publication |
 | Protected-token order | Same command flags/identifiers remain present but their order changes | High-severity, high-uncertainty review finding; unchanged order is a negative case |
 | Negation | “Do” changed to “do not”, or negation removed | Critical review warning |
 | Modal strength | “Must” weakened to “may” | Invariant review warning |
