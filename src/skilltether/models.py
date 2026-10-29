@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .redaction import redact_sensitive_text
+from .locale_tags import validate_bcp47_tag
 
 Severity = Literal["info", "low", "medium", "high", "critical"]
 Disposition = Literal["pending", "approved", "rejected", "deferred"]
@@ -18,8 +19,6 @@ InvariantCategory = Literal[
     "safety_constraint", "mandatory_condition", "negation", "numeric_limit",
     "precondition", "decision_rule", "other",
 ]
-_BCP47_SHAPE = re.compile(r"^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$")
-
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
 
@@ -76,9 +75,12 @@ class InvariantManifest(StrictModel):
 
     @field_validator("source_locale", "target_locale")
     @classmethod
-    def valid_bcp47_shape(cls, value: str | None) -> str | None:
-        if value is not None and not _BCP47_SHAPE.fullmatch(value):
-            raise ValueError(f"{value!r} is not a valid-looking BCP 47 language tag")
+    def valid_bcp47_structure(cls, value: str | None) -> str | None:
+        if value is not None:
+            try:
+                validate_bcp47_tag(value)
+            except ValueError as exc:
+                raise ValueError(f"{value!r} is not a well-formed BCP 47 language tag: {exc}") from None
         return value
 
     @model_validator(mode="after")
@@ -181,9 +183,12 @@ class ComparisonReport(StrictModel):
 
     @field_validator("source_locale", "target_locale")
     @classmethod
-    def report_locale_has_bcp47_shape(cls, value: str | None) -> str | None:
-        if value is not None and not _BCP47_SHAPE.fullmatch(value):
-            raise ValueError(f"{value!r} is not a valid-looking BCP 47 language tag")
+    def report_locale_has_bcp47_structure(cls, value: str | None) -> str | None:
+        if value is not None:
+            try:
+                validate_bcp47_tag(value)
+            except ValueError as exc:
+                raise ValueError(f"{value!r} is not a well-formed BCP 47 language tag: {exc}") from None
         return value
 
     @field_validator("source_files", "target_files")
