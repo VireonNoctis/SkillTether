@@ -350,6 +350,37 @@ def test_translation_adapter_control_characters_are_rejected() -> None:
         translate_markdown("A simple sentence.\n", ControlCharacterAdapter(), "en", "fr")
 
 
+def test_malformed_markdown_url_is_reported_instead_of_crashing(tmp_path: Path) -> None:
+    package = make_package(
+        tmp_path / "sample-skill",
+        "See [the broken destination](https://[invalid]/path).",
+    )
+
+    _inventory, findings, _texts = inspect_package(package)
+
+    assert any(item.code == "LOCAL_LINK_URL_INVALID" for item in findings)
+
+
+def test_local_link_fragment_uses_bounded_inventory_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    package = make_package(
+        tmp_path / "sample-skill",
+        "Read the [guide](references/guide.md#setup).",
+    )
+    (package / "references").mkdir()
+    (package / "references" / "guide.md").write_text("# Setup\n\nDetails.\n", encoding="utf-8")
+
+    def forbidden_unbounded_read(*_args, **_kwargs):
+        raise AssertionError("link validation must reuse the bounded package snapshot")
+
+    monkeypatch.setattr(Path, "read_text", forbidden_unbounded_read)
+    _inventory, findings, _texts = inspect_package(package)
+
+    assert not any(item.code == "BROKEN_LOCAL_LINK" for item in findings)
+    assert not any(item.code == "BROKEN_LINK_FRAGMENT" for item in findings)
+
+
 def test_report_context_fence_cannot_be_closed_by_untrusted_text() -> None:
     from skilltether.report import _fenced_context
     import re
