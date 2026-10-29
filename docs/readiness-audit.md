@@ -35,7 +35,7 @@ This is a traceability audit, not a semantic-safety certification. “Implemente
 | Validate source/target locale tags consistently | `locale_tags.py`, CLI and Pydantic validators, schemas | `tests/test_locale_tags.py` | **Partial.** BCP 47 structure including one to three extlang subtags is checked, not live IANA registry membership or canonicalization. JSON Schema provides a lexical envelope; Pydantic performs the complete implemented structural checks. |
 | Produce versioned reports, require auditable approval, protect reports optionally with HMAC | `models.py`, `report.py`, `reviewing.py`, `signing.py`, `cli.py` | `tests/test_review_audit.py`, `tests/test_signing.py` | **Implemented / tested.** HMAC is a symmetric integrity seal, not reviewer identity or non-repudiation. |
 | Redact secrets and keep history local/minimal | `redaction.py`, `report.py`, `history.py`, `safeio.py` | redaction/history/safe-I/O test modules | **Partial.** Patterns catch common credential shapes; redaction is not a complete secret scanner. |
-| Exercise deterministic and heuristic checks with negative cases | `tests/`, Hypothesis and JSON Schema dependencies, `.github/workflows/ci.yml` | CI runs pytest, schema/policy checks and bundled fixture validation; this audit enables coverage reporting | **Partial.** There is not yet a separately versioned, human-labelled evaluation corpus with precision/recall by finding category. CI enforces an 80% aggregate coverage floor; per-module floors are not enforced. |
+| Exercise deterministic and heuristic checks with negative cases | `tests/fixtures/invariant-suggestion-corpus.json`, `tests/`, Hypothesis and JSON Schema dependencies, `.github/workflows/ci.yml` | A human-labeled English corpus asserts expected invariant candidates and difficult exclusions; CI also runs schema/policy checks and bundled fixture validation | **Partial.** The curated corpus is small and is an exact-match regression fixture, not a representative benchmark. Precision/recall by rule family and multilingual evaluation remain future work. CI enforces an 80% aggregate coverage floor; per-module floors are not enforced. |
 | Optional reviewer UI | no production UI in current tree | none | **Deferred.** CLI/report contracts are the current interface. |
 | Provider-specific renamed-token mapping | no approved mapping schema/workflow yet | none | **Deferred.** Tokens are preserved or flagged; there is no silent automatic rename mechanism. |
 
@@ -57,7 +57,7 @@ Each item has or is receiving a regression fixture in the same pull request. The
 
 ### P1 — Release correctness
 - Keep current-head CI green and expand remaining branch coverage around filesystem error handling, CLI approval gates, and Markdown/parser edge cases.
-- Add a stable, human-reviewed evaluation corpus with both hard positives and difficult negatives; report precision/recall per rule family rather than one blended score.
+- Expand `tests/fixtures/invariant-suggestion-corpus.json` with more human-reviewed positive/negative examples, other Markdown constructs and languages; report precision/recall by rule family rather than treating the current small exact-match fixture as a benchmark.
 - Review approval/export behavior against adversarial source/target/manifest/report path changes; retain the existing symlink-race and fingerprint gates.
 
 ### P2 — Stronger evidence
@@ -71,15 +71,15 @@ Each item has or is receiving a regression fixture in the same pull request. The
 
 ## Latest verification snapshot
 
-- Verified source/test commit: `2264e209e3354c7fefa1b5541373a8a7a61f8288`.
-- GitHub Actions run: [40868860874](https://github.com/VireonNoctis/SkillTether/actions/runs/40868860874).
+- Verified source/test commit: `48325bd8b85e989e29ccf85e5012da4dc8f8fd85`.
+- GitHub Actions run: [40869182974](https://github.com/VireonNoctis/SkillTether/actions/runs/40869182974).
 - Regression/property-based suite: **205 passed**.
-- Aggregate measured coverage: **85%** across 2,059 statements and 834 branches (244 statements missed; 158 partial branches).
+- Aggregate measured coverage: **85%** across 2,063 statements and 836 branches (245 statements missed; 159 partial branches).
 - Module coverage highlights: CLI 83%, package analysis 80%, comparison 84%, translation 85%, report writing 96%, safe I/O 96%, locale-tag validation 97%.
 - JSON Schema syntax/protected-token policy checks and bundled valid-skill validation passed.
 - CI reports line/branch coverage and enforces an 80% aggregate floor. It does not enforce per-module floors. Coverage is evidence of exercised code, not proof of correctness; branch-specific review remains necessary.
 
-This run validates the approval-output symlink guard, code-example filtering for invariant suggestions, and regression suite as well as the coverage gate. This audit text is a documentation-only follow-up; any later source/test change still needs its own passing CI run before release.
+This run validates numeric-fact filtering, the human-labeled invariant-suggestion corpus, approval-output symlink handling, and the coverage gate. This audit text is a documentation-only follow-up; any later source/test change still needs its own passing CI run before release.
 
 ## Acceptance gate
 
