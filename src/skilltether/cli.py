@@ -192,8 +192,8 @@ def cmd_init_manifest(args: argparse.Namespace) -> int:
         allow_unicode=True,
         sort_keys=False,
     )
-    # Stage beside the destination and publish with replace: this never follows
-    # a final-component symlink, including one introduced after the preflight.
+    # Stage beside the destination and publish with an atomic hard link:
+    # create-if-absent semantics refuse a file or symlink introduced after preflight.
     import tempfile
 
     descriptor, temporary_name = tempfile.mkstemp(
@@ -209,7 +209,8 @@ def cmd_init_manifest(args: argparse.Namespace) -> int:
             raise FileExistsError(
                 f"Manifest output appeared during generation: {output}; choose a new path"
             )
-        os.replace(temporary, output)
+        os.link(temporary, output)
+        temporary.unlink()
     finally:
         try:
             temporary.unlink()
