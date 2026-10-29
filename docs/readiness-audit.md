@@ -66,7 +66,7 @@ Each item has or is receiving a regression fixture in the same pull request. The
 
 ### P2 — Stronger evidence
 - Expand the pinned skills-ref v0.0.1 smoke check into a documented differential corpus covering optional fields, unknown extensions, naming edge cases, and expected differences. Keep the reference tool CI-only and non-mandatory at runtime.
-- Continue targeted branch coverage in the CLI (82%) and package analysis (80%) modules; these are now the lowest-covered high-risk areas in the latest measured snapshot. An aggregate floor does not guarantee that every risky branch is exercised.
+- Continue targeted branch coverage in the CLI (83%) and package analysis (80%) modules; these are now the lowest-covered high-risk areas in the latest measured snapshot. An aggregate floor does not guarantee that every risky branch is exercised.
 - CI now runs the suite on Ubuntu, macOS, and Windows with Python 3.13. Expand the matrix to supported Python minor versions and test additional filesystem configurations before claiming broad platform coverage.
 - Improve Markdown reference/link/slug edge cases and specify exactly which Markdown dialects are supported.
 
@@ -75,16 +75,15 @@ Each item has or is receiving a regression fixture in the same pull request. The
 
 ## Latest verification snapshot
 
-- Verified source/test commit: `469dde95de63cb8b0bf84f16ab71b19dfdd11d0a`.
-- GitHub Actions matrix run: [40870444883](https://github.com/VireonNoctis/SkillTether/actions/runs/40870444883).
-- Regression/property-based suite: **211 passed on each of Ubuntu, macOS, and Windows**.
-- Linux aggregate measured coverage: **86%** across 2,069 statements and 842 branches (243 statements missed; 157 partial branches); macOS measured 86% and Windows 85%.
+- Verified PR head: `e82b627986c3bed40b426aebd7e67a01b09e60d6`.
+- GitHub Actions matrix and reference-conformance run: [40870699582](https://github.com/VireonNoctis/SkillTether/actions/runs/40870699582).
+- Regression/property-based suite: **214 passed on each of Ubuntu, macOS, and Windows**.
+- Linux aggregate measured coverage: **86%** across 2,072 statements and 844 branches (237 statements missed; 157 partial branches); macOS measured 86% and Windows 85%.
 - Module coverage highlights from the Linux run: CLI 83%, package analysis 80%, comparison 84%, translation 85%, report writing 96%, safe I/O 96%, locale-tag validation 97%.
-- JSON Schema syntax/protected-token policy checks and bundled valid-skill validation passed on the matrix. The pinned skills-ref v0.0.1 reference-conformance smoke job also passed against the valid and invalid fixtures.
+- JSON Schema syntax/protected-token policy checks and bundled valid-skill validation passed on the matrix. The pinned `skills-ref@v0.0.1` reference-conformance smoke job also passed against the valid and invalid fixtures.
 - CI reports line/branch coverage on all three operating systems and enforces an 80% aggregate floor on Linux only. It does not enforce per-module floors. Coverage is evidence of exercised code, not proof of correctness; branch-specific review remains necessary.
 
-This run validates byte-exact file reads/key loading, the human-labeled invariant-suggestion corpus, output-symlink guards, and the pinned reference-validator smoke test. This audit text is a documentation-only follow-up; any later source/test change still needs its own passing CI run before release.
-
+This run validates the current PR head, byte-exact file reads/key loading, the human-labeled invariant-suggestion corpus, output-symlink guards, and the pinned reference-validator smoke test. Any later source/test change still needs its own passing CI run before release.
 ## Acceptance gate
 
 A release candidate should pass the current CI suite; include traceable tests for each newly implemented rule plus a hard negative; preserve source-package fingerprints; validate schemas and bundled fixtures; document coverage and cross-platform limits; and leave critical or ambiguous semantic changes for explicit human review. No single score should be presented as a “safe translation” certificate.
