@@ -1016,3 +1016,37 @@ def test_policy_loader_rejects_zero_width_lookahead_on_representative_input(tmp_
 
     with pytest.raises(ValueError, match="may match an empty span"):
         load_policy(path)
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "expected_code"),
+    [
+        ("references/bad.md", "TEXT_RESOURCE_NOT_UTF8"),
+        ("scripts/bad.py", "SCRIPT_NOT_UTF8"),
+    ],
+)
+def test_non_utf8_expected_text_resources_are_reported(
+    tmp_path: Path, relative_path: str, expected_code: str,
+) -> None:
+    package = make_package(tmp_path / "sample-skill")
+    resource = package / relative_path
+    resource.parent.mkdir(parents=True, exist_ok=True)
+    resource.write_bytes(b"\xff\xfe\x80")
+
+    _inventory, findings, _texts = inspect_package(package)
+
+    assert any(item.code == expected_code and item.path == relative_path for item in findings)
+
+
+def test_binary_asset_is_not_misclassified_as_invalid_text(tmp_path: Path) -> None:
+    package = make_package(tmp_path / "sample-skill")
+    asset = package / "assets" / "image.bin"
+    asset.parent.mkdir(parents=True)
+    asset.write_bytes(b"\xff\xfe\x80")
+
+    _inventory, findings, _texts = inspect_package(package)
+
+    assert not any(
+        item.code in {"TEXT_RESOURCE_NOT_UTF8", "SCRIPT_NOT_UTF8"} and item.path == "assets/image.bin"
+        for item in findings
+    )
