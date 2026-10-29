@@ -350,16 +350,21 @@ def test_translation_adapter_control_characters_are_rejected() -> None:
         translate_markdown("A simple sentence.\n", ControlCharacterAdapter(), "en", "fr")
 
 
-def test_malformed_markdown_url_is_reported_instead_of_crashing(tmp_path: Path) -> None:
+def test_malformed_markdown_url_is_reported_instead_of_crashing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
     package = make_package(
         tmp_path / "sample-skill",
-        "See [the broken destination](https://[invalid]/path).",
+        "See [the invalid destination](https://example.test/path).",
     )
 
+    def reject_parsed_url(_href: str):
+        raise ValueError("synthetic malformed URL parse")
+
+    monkeypatch.setattr("skilltether.analysis.urlsplit", reject_parsed_url)
     _inventory, findings, _texts = inspect_package(package)
 
     assert any(item.code == "LOCAL_LINK_URL_INVALID" for item in findings)
-
 
 def test_local_link_fragment_uses_bounded_inventory_snapshot(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
