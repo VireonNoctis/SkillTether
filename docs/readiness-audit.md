@@ -18,6 +18,7 @@ This is a traceability audit, not a semantic-safety certification. “Implemente
 | Requirement | Implementation evidence | Test/evaluation evidence | Status and remaining limit |
 |---|---|---|---|
 | Treat a skill as a directory/package, not a single string | `src/skilltether/analysis.py:inspect_package`, `translation.py:translate_package`, `cli.py:cmd_approve` | `tests/test_copy_race.py`, `tests/test_root_symlink.py`, `tests/test_safeio.py`, package fingerprint tests in `tests/test_core.py` | **Implemented / tested.** Inventory is bounded and source/candidate/output are kept separate. OS/filesystem race behavior remains platform-dependent. |
+| Validate expected text encodings | `analysis.py:inspect_package` | `test_non_utf8_expected_text_resources_are_reported`; `test_binary_asset_is_not_misclassified_as_invalid_text` | **Implemented / tested.** Known text/script suffixes that are not UTF-8 produce findings; other binary assets remain fingerprinted as binary. Suffix classification is conventional rather than content-type proof. |
 | Validate required `SKILL.md` frontmatter and Agent Skills name rules | `analysis.py:_frontmatter`, `validate_skill_markdown`; `docs/spec-compatibility.md` | `tests/test_core.py`: malformed/duplicate YAML, missing fields, wrong types, optional fields and unknown fields | **Implemented / tested** for documented fields and name/directory identity. Compare periodically with the normative spec and reference validator. |
 | Preserve optional-field compatibility and unknown extensions | `analysis.py:validate_skill_markdown` | valid optional-field and unknown-field tests in `tests/test_core.py` | **Implemented / tested.** Unknown fields warn rather than block; client-specific meanings are not inferred. |
 | Check local links, fragments, images, and conventional resource references | `analysis.py:validate_local_links`, `validate_referenced_resources` | broken-link and missing-resource tests in `tests/test_core.py` | **Partial.** External URLs are not fetched; Markdown heading slug recognition is heuristic. This audit adds table parsing, percent-decoded fragments, malformed-URL findings, and bounded snapshot reuse. |
@@ -25,6 +26,7 @@ This is a traceability audit, not a semantic-safety certification. “Implemente
 | Preserve scripts, assets, relative paths, and permissions | `analysis.py:inspect_package`, `compare.py` | `tests/test_copy_race.py`, asset/mode tests in `tests/test_core.py` | **Implemented / tested** for inventory, hashes, modes, path integrity, and non-execution. Static parser coverage is limited to selected formats; shell/JS/PowerShell semantics are not fully parsed. |
 | Protect commands, identifiers, paths, URLs, environment variables, and code | `analysis.py:extract_protected_tokens`, `translation.py:_mask_protected_spans`, `config/protected-tokens.yaml` | token mutation, overlap, placeholder collision, token order tests | **Partial.** Detection depends on built-in and configured patterns; unrecognized operational literals may be missed. |
 | Compare text, omitted/added sections, and protected token differences | `compare.py:compare_packages` | `tests/test_core.py`, `tests/test_token_order.py` | **Implemented / tested** for line-level/token-level changes under resource budgets. “Added/omitted” findings are textual alignment evidence, not reliable classification of newly introduced imperatives. |
+| Draft invariant suggestions | `cli.py:_suggest_invariants` | `test_init_manifest_skips_fenced_examples_and_preserves_review_gate` | **Partial.** Fenced tilde/backtick examples and lines over 1,200 characters are skipped, but rule selection remains a heuristic; generated manifests are unreviewed by default. |
 | Maintain human-reviewed invariants for negation, modality, thresholds, prerequisites, and decision rules | `models.py:Invariant`, `compare.py` invariant checks, `reviewing.py` | `tests/test_invariant_source_refs.py`, `tests/test_core.py`, `tests/test_review_audit.py` | **Partial by design.** Manifest quality and locale-specific markers are human-authored. Word overlap and marker checks do not prove semantic equivalence. |
 | Keep structural status separate from semantic-review status | `models.py:ComparisonReport`, `compare.py`, CLI output and approval gate | comparison/review audit tests | **Implemented / tested.** The semantic status is a workflow signal, not a confidence-calibrated semantic score. |
 | Provider adapters behind a narrow interface; no provider enabled by default | `translation.py:TranslationAdapter`, `IdentityAdapter`, `HttpJsonAdapter`; `cli.py:cmd_translate` | HTTP adapter, no-network preflight, timeout, redirect and budget tests | **Implemented / tested** for the identity adapter and generic JSON bridge. There is no bundled vendor SDK or automatic provider discovery. |
@@ -45,13 +47,15 @@ This is a traceability audit, not a semantic-safety certification. “Implemente
 4. **Percent-encoded fragments:** URL fragments are decoded before comparison with detected IDs/headings.
 5. **Invariant manifest output path:** `init-manifest` now refuses destinations inside the source package and existing destinations, and stages the YAML beside the output before atomic create-only publication. This avoids following or clobbering a final-component symlink, including a symlink introduced during publication.
 6. **Coverage visibility and gate:** CI prints line/branch coverage and fails below the measured 80% aggregate floor. The latest run measures 85%; no per-module floor is enforced.
+7. **Invariant suggestion scope:** suggestions skip content inside fenced backtick/tilde examples, headings, table rows, and candidate lines over 1,200 characters; candidates remain unreviewed.
+8. **Invalid text encoding:** expected text/script resources with invalid UTF-8 now produce findings, while arbitrary binary assets are not misclassified as malformed text.
 
 Each item has or is receiving a regression fixture in the same pull request. These fixes count as release-verified only when CI passes on the resulting head.
 
 ## Highest-priority remaining work
 
 ### P1 — Release correctness
-- Pass current-head CI with the audit fixtures and inspect the measured coverage output.
+- Keep current-head CI green and expand remaining branch coverage around filesystem error handling, CLI approval gates, and Markdown/parser edge cases.
 - Add a stable, human-reviewed evaluation corpus with both hard positives and difficult negatives; report precision/recall per rule family rather than one blended score.
 - Review approval/export behavior against adversarial source/target/manifest/report path changes; retain the existing symlink-race and fingerprint gates.
 
@@ -67,9 +71,9 @@ Each item has or is receiving a regression fixture in the same pull request. The
 ## Latest verification snapshot
 
 - Verified source/test commit: `4f4280beea116362aa36b01d8dcb80999c2a1ad9`.
-- GitHub Actions run: [40868180566](https://github.com/VireonNoctis/SkillTether/actions/runs/40868180566).
-- Regression/property-based suite: **199 passed**.
-- Aggregate measured coverage: **85%** across 2,039 statements and 824 branches (244 statements missed; 158 partial branches).
+- GitHub Actions run: [40868188976](https://github.com/VireonNoctis/SkillTether/actions/runs/40868188976).
+- Regression/property-based suite: **200 passed**.
+- Aggregate measured coverage: **85%** across 2,040 statements and 824 branches (244 statements missed; 158 partial branches).
 - Module coverage highlights: CLI 82%, package analysis 80%, comparison 84%, translation 85%, report writing 96%, safe I/O 96%, locale-tag validation 97%.
 - JSON Schema syntax/protected-token policy checks and bundled valid-skill validation passed.
 - CI reports line/branch coverage and enforces an 80% aggregate floor. It does not enforce per-module floors. Coverage is evidence of exercised code, not proof of correctness; branch-specific review remains necessary.
