@@ -709,3 +709,84 @@ def test_compare_refuses_signing_key_inside_source_package(tmp_path: Path) -> No
     assert result == 2
     assert key.read_bytes() == b"K" * 32
     assert not report_path.exists()
+
+
+def test_init_manifest_skips_fenced_examples_and_preserves_review_gate(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    import yaml
+
+    source = tmp_path / "source" / "sample-skill"
+    source.mkdir(parents=True)
+    (source / "SKILL.md").write_text(
+        "\n".join([
+            "---",
+            "name: sample-skill",
+            "description: A sample skill.",
+            "---",
+            "",
+            "# Instructions",
+            "| Rule | Example |",
+            "| --- | --- |",
+            "| Must preserve the original order. | Table content is not a separate invariant candidate. |",
+            "Do not delete the source archive.",
+            "~~~sh",
+            "must not delete the source archive",
+            "~~~",
+            "\`\`\`yaml",
+            "must_not: false",
+            "\`\`\`",
+            "At most 3 attempts are allowed.",
+            "Only run this step if the file exists.",
+            "Please must " + ("x" * 1201),
+            "",
+        ]),
+        encoding="utf-8",
+    )
+    output = tmp_path / "review" / "invariants.yaml"
+
+    status = main([
+        "init-manifest", str(source), "--out", str(output),
+        "--source-locale", "en", "--target-locale", "fr",
+    ])
+
+    assert status == 0
+    payload = yaml.safe_load(output.read_text(encoding="utf-8"))
+    assert payload["manifest_reviewed"] is False
+    source_texts = [item["source_text"] for item in payload["invariants"]]
+    assert source_texts == [
+        "Do not delete the source archive.",
+        "At most 3 attempts are allowed.",
+        "Only run this step if the file exists.",
+    ]
+    assert [item["category"] for item in payload["invariants"]] == [
+        "negation", "numeric_limit", "precondition",
+    ]
+
+    first_payload = output.read_bytes()
+    status = main([
+        "init-manifest", str(source), "--out", str(output),
+        "--source-locale", "en", "--target-locale", "fr",
+    ])
+
+    captured = capsys.readouterr()
+    assert status == 2
+    assert "never be overwritten" in captured.err
+    assert output.read_bytes() == first_payload
+
+
+def test_init_manifest_requires_readable_skill_markdown(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = tmp_path / "empty-skill"
+    source.mkdir()
+
+    status = main([
+        "init-manifest", str(source), "--out", str(tmp_path / "manifest.yaml"),
+        "--source-locale", "en",
+    ])
+
+    captured = capsys.readouterr()
+    assert status == 2
+    assert "without a readable SKILL.md" in captured.err
+    assert not (tmp_path / "manifest.yaml").exists()
