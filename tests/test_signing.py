@@ -40,6 +40,14 @@ def test_new_key_is_private_random_and_never_overwrites(tmp_path: Path) -> None:
         create_signing_key(path)
 
 
+def test_signing_key_loader_preserves_all_raw_bytes(tmp_path: Path) -> None:
+    key_path = tmp_path / "binary.key"
+    key_bytes = b"A" * 16 + b"\x1a\r\n" + b"B" * 20
+    key_path.write_bytes(key_bytes)
+
+    assert load_signing_key(key_path) == key_bytes
+
+
 def test_signed_report_round_trip_and_tamper_detection(tmp_path: Path) -> None:
     key = create_signing_key(tmp_path / "report.key")
     report_path = tmp_path / "report.json"
