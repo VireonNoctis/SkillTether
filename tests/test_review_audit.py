@@ -412,6 +412,41 @@ def test_translate_refuses_report_path_that_would_overwrite_source(tmp_path: Pat
     assert skill_file.read_bytes() == before
 
 
+def test_translate_refuses_broken_output_symlink_before_writing_anything(tmp_path: Path) -> None:
+    import os
+
+    if not hasattr(os, "symlink"):
+        pytest.skip("symlinks are not available on this platform")
+    source = tmp_path / "source" / "sample-skill"
+    source.mkdir(parents=True)
+    (source / "SKILL.md").write_text(
+        "---\nname: sample-skill\ndescription: A sample skill.\n---\n\nInstructions.\n",
+        encoding="utf-8",
+    )
+    output_parent = tmp_path / "candidate"
+    output_parent.mkdir()
+    output = output_parent / "sample-skill"
+    destination = tmp_path / "not-created" / "sample-skill"
+    try:
+        output.symlink_to(destination, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlink creation is not permitted")
+    report = tmp_path / "report.json"
+    history = tmp_path / "history.sqlite3"
+
+    result = main([
+        "translate", str(source), str(output),
+        "--source-locale", "en", "--target-locale", "fr",
+        "--adapter", "identity", "--report", str(report), "--history-db", str(history),
+    ])
+
+    assert result == 2
+    assert output.is_symlink()
+    assert not destination.exists()
+    assert not report.exists()
+    assert not history.exists()
+
+
 def test_approve_refuses_broken_output_symlink_before_reading_report(tmp_path: Path) -> None:
     import os
 
