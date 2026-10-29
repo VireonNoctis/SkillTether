@@ -23,7 +23,7 @@
 
 - The system does not prove semantic equivalence, fluency, or safety.
 - Draft invariant suggestions are not authoritative or complete.
-- Locale shape validation is lightweight BCP 47 syntax checking, not full registry validation.
+- Locale tags receive dependency-free BCP 47 structural checks, including ordering, extension singleton uniqueness, and variant uniqueness. IANA registry membership and canonicalization remain deliberately unsupported.
 - External URLs and remote targets are not checked for reachability.
 - No bundled vendor SDK, API key management, hosted translation service, or built-in credentials.
 - No automatic protected-token rename mapping, full Markdown AST translation, complete shell/JavaScript/PowerShell parser, or optional Svelte review UI yet.
