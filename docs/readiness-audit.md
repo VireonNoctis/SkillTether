@@ -46,7 +46,8 @@ This is a traceability audit, not a semantic-safety certification. “Implemente
 3. **Markdown table links:** local-link validation enables table parsing so links in table cells are checked.
 4. **Percent-encoded fragments:** URL fragments are decoded before comparison with detected IDs/headings.
 5. **Invariant manifest output path:** `init-manifest` now refuses destinations inside the source package and existing destinations, and stages the YAML beside the output before atomic create-only publication. This avoids following or clobbering a final-component symlink, including a symlink introduced during publication.
-6. **Coverage visibility and gate:** CI prints line/branch coverage and fails below the measured 80% aggregate floor. The latest run measures 85%; no per-module floor is enforced.
+6. **Approval output path:** `approve` now rejects a final-component symlink and checks the requested output against source/candidate package boundaries before opening the report. A broken symlink cannot redirect publication to a new arbitrary destination.
+7. **Coverage visibility and gate:** CI prints line/branch coverage and fails below the measured 80% aggregate floor. The latest run measures 85%; no per-module floor is enforced.
 7. **Invariant suggestion scope:** suggestions skip content inside fenced backtick/tilde examples, headings, table rows, and candidate lines over 1,200 characters; candidates remain unreviewed.
 8. **Invalid text encoding:** expected text/script resources with invalid UTF-8 now produce findings, while arbitrary binary assets are not misclassified as malformed text.
 
@@ -70,15 +71,15 @@ Each item has or is receiving a regression fixture in the same pull request. The
 
 ## Latest verification snapshot
 
-- Verified source/test commit: `4f4280beea116362aa36b01d8dcb80999c2a1ad9`.
-- GitHub Actions run: [40868188976](https://github.com/VireonNoctis/SkillTether/actions/runs/40868188976).
-- Regression/property-based suite: **200 passed**.
-- Aggregate measured coverage: **85%** across 2,040 statements and 824 branches (244 statements missed; 158 partial branches).
-- Module coverage highlights: CLI 82%, package analysis 80%, comparison 84%, translation 85%, report writing 96%, safe I/O 96%, locale-tag validation 97%.
+- Verified source/test commit: `844eda5dcecdad4848089a4b287cc979e7a547c3`.
+- GitHub Actions run: [40868519972](https://github.com/VireonNoctis/SkillTether/actions/runs/40868519972).
+- Regression/property-based suite: **201 passed**.
+- Aggregate measured coverage: **85%** across 2,043 statements and 826 branches (244 statements missed; 158 partial branches).
+- Module coverage highlights from the preceding measured baseline: CLI 82%, package analysis 80%, comparison 84%, translation 85%, report writing 96%, safe I/O 96%, locale-tag validation 97%.
 - JSON Schema syntax/protected-token policy checks and bundled valid-skill validation passed.
 - CI reports line/branch coverage and enforces an 80% aggregate floor. It does not enforce per-module floors. Coverage is evidence of exercised code, not proof of correctness; branch-specific review remains necessary.
 
-This run validates the manifest-publication fix and its tests as well as the coverage gate. This audit text is a documentation-only follow-up; any later source/test change still needs its own passing CI run before release.
+This run validates the approval-output symlink guard and regression suite as well as the coverage gate. This audit text is a documentation-only follow-up; any later source/test change still needs its own passing CI run before release.
 
 ## Acceptance gate
 
