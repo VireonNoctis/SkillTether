@@ -338,6 +338,18 @@ def test_parser_structure_guard_rejects_provider_injected_markdown_link(tmp_path
     assert (source / "SKILL.md").read_bytes() == source_before
 
 
+def test_translation_adapter_control_characters_are_rejected() -> None:
+    class ControlCharacterAdapter:
+        name = "control-character"
+        remote = False
+
+        def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+            return text + "\x00"
+
+    with pytest.raises(RuntimeError, match="unsupported control characters"):
+        translate_markdown("A simple sentence.\n", ControlCharacterAdapter(), "en", "fr")
+
+
 def test_report_context_fence_cannot_be_closed_by_untrusted_text() -> None:
     from skilltether.report import _fenced_context
     import re
