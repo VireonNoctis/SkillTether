@@ -26,7 +26,9 @@ Each span has path, source range, category, exact literal or matching rule, crit
 Represent an invariant as a stable ID, source text or reference, category, condition, required/forbidden action, threshold or limit if relevant, criticality, reviewer, and status. Findings must point back to the relevant source and target ranges.
 
 ## Translation adapters
-Define a narrow adapter interface with source locale, target locale, provider identity, configuration, and data-handling declaration. Provider use should require explicit configuration. Store neither API keys nor raw credentials in reports. A failed provider call must not create partially translated output that appears complete.
+Define a narrow adapter interface with source locale, target locale, provider identity, configuration, and data-handling declaration. Provider use should require explicit configuration. Enforce per-line and aggregate response budgets at the adapter boundary, not only in the built-in HTTP implementation; reject line separators, unsupported control characters, and invalid Unicode before writing a candidate. Store neither API keys nor raw credentials in reports. A failed provider call must not create partially translated output that appears complete.
+
+After prose translation and placeholder restoration, compare parser-visible Markdown structure while ignoring ordinary text tokens. This catches accidental or malicious insertion/removal of links, emphasis, lists, headings, code blocks, and tables even when the original placeholders remain present. Keep this structural signature deterministic and separate from multilingual semantic heuristics; it is not a semantic-equivalence score or a complete parser for MDX extensions.
 
 ## Trust boundaries
 Source packages, scripts, links, model outputs, and imported manifests are untrusted. Parse safely, bound file sizes, never execute scripts during analysis, and write output to a new path. Reports should escape arbitrary source text when rendered.
