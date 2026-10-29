@@ -120,6 +120,24 @@ def _suggest_invariants(source_root: Path, source_locale: str, target_locale: st
     html_code_tag: str | None = None
     for line_no, line in enumerate(texts["SKILL.md"].splitlines(), start=1):
         fence_match = re.match(r"^\s{0,3}(`{3,}|~{3,})", line)
+        if fence_character is not None:
+            # Markdown fencing has precedence over embedded HTML-looking examples.
+            # Otherwise an unmatched <pre>/<code> inside a fence could leak parser
+            # state beyond the matching fence and hide real instructions later.
+            if (
+                fence_match
+                and fence_match.group(1)[0] == fence_character
+                and len(fence_match.group(1)) >= fence_length
+                and not line[fence_match.end():].strip()
+            ):
+                fence_character = None
+                fence_length = 0
+            continue
+        if fence_match:
+            marker = fence_match.group(1)
+            fence_character = marker[0]
+            fence_length = len(marker)
+            continue
         if html_code_tag is not None:
             if re.search(rf"</{html_code_tag}\s*>", line, re.I):
                 html_code_tag = None
@@ -134,23 +152,6 @@ def _suggest_invariants(source_root: Path, source_locale: str, target_locale: st
         # This is intentionally conservative; nested-list indentation may be skipped
         # and generated candidates always remain unreviewed.
         if line.startswith("    ") or line.startswith("\t"):
-            continue
-        if fence_character is not None:
-            # Ignore every line inside fenced examples until a compatible closing
-            # fence. A command example is not an instruction for this skill's user.
-            if (
-                fence_match
-                and fence_match.group(1)[0] == fence_character
-                and len(fence_match.group(1)) >= fence_length
-                and not line[fence_match.end():].strip()
-            ):
-                fence_character = None
-                fence_length = 0
-            continue
-        if fence_match:
-            marker = fence_match.group(1)
-            fence_character = marker[0]
-            fence_length = len(marker)
             continue
 
         stripped = line.strip()
