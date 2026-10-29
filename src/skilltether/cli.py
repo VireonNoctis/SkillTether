@@ -305,7 +305,9 @@ def cmd_translate(args: argparse.Namespace) -> int:
     _validate_locale_tag(args.source_locale)
     _validate_locale_tag(args.target_locale)
     source = normalize_package_root(args.source)
-    output = Path(args.output).expanduser().resolve()
+    output = Path(os.path.abspath(Path(args.output).expanduser()))
+    if output.is_symlink():
+        raise ValueError("Candidate output must not be a symbolic link")
     report_requested = Path(args.report).expanduser() if args.report else output.with_name(output.name + ".report.json")
     history_requested = Path(args.history_db).expanduser() if args.history_db else default_history_path()
     guarded_paths = [report_requested, history_requested]
