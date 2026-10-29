@@ -220,12 +220,22 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
                 if path.suffix.lower() in READABLE_SUFFIXES:
                     texts[rel] = text
             except UnicodeDecodeError:
-                if path.suffix.lower() in SCRIPT_SUFFIXES:
+                suffix = path.suffix.lower()
+                if suffix in SCRIPT_SUFFIXES:
                     findings.append(new_finding(
                         "SCRIPT_NOT_UTF8", "high", "script_validation",
                         "Script-like resource is not valid UTF-8 text.",
                         "Static syntax checks and safe preservation require readable script text.",
                         path=rel, proposed_change="Restore the intended encoding or explicitly mark this as a binary asset.",
+                        requires_review=True,
+                    ))
+                elif suffix in READABLE_SUFFIXES and rel != "SKILL.md":
+                    findings.append(new_finding(
+                        "TEXT_RESOURCE_NOT_UTF8", "high", "resource_validation",
+                        "A text resource expected to be readable is not valid UTF-8.",
+                        "Markdown links, structured syntax, and referenced-resource checks cannot be reliably applied to this resource while its text encoding is invalid.",
+                        path=rel,
+                        proposed_change="Restore valid UTF-8 text or use an explicitly supported binary resource format.",
                         requires_review=True,
                     ))
             inventory[rel] = FileFingerprint(
