@@ -138,6 +138,7 @@ Run skilltether COMMAND --help for flags. For CI runs that should fail when huma
 
 ## Limits
 
+- Source and target locale tags are checked for BCP 47 structural well-formedness, including extension/variant ordering and duplicate singleton/variant constraints. This does not verify subtags against the versioned [IANA Language Subtag Registry](https://www.iana.org/assignments/language-subtag-registry/language-subtag-registry) or canonicalize deprecated/case variants; see [RFC 5646](https://www.rfc-editor.org/rfc/rfc5646).
 - Heuristic invariant suggestions are incomplete and can be wrong. Human-review the manifest.
 - Negation/modal-marker detection is locale-specific and does not understand full linguistic context.
 - Changed protected tokens require explicit review; this MVP does not implement automatic rename mappings.
