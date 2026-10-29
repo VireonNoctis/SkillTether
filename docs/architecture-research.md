@@ -17,6 +17,9 @@ Inventory package → parse structure → identify protected spans → apply con
 The normative format reference is the [official Agent Skills specification](https://agentskills.io/specification). Keep required frontmatter and optional-field rules aligned with that source. See [specification boundary and additional safeguards](spec-compatibility.md) for the distinction between base-format requirements and SkillTether operational checks.
 
 ## Package inventory
+
+The local-link validator parses links inside table cells, decodes percent-encoded fragments, and reports malformed URL syntax without crashing. Fragment checks should reuse the bounded inventory snapshot; any fallback read is bounded and refuses a final-component symlink. See [the requirements-to-code readiness audit](readiness-audit.md) for the traced scope and remaining gaps.
+
 Record original file path, type, size, hash, filesystem mode, encoding where detectable, frontmatter metadata, link targets, and referenced resources. Bound per-file/aggregate bytes and directory traversal. Avoid reading or executing a script merely to translate its surrounding documentation.
 
 ## Protected-span model
