@@ -40,10 +40,11 @@ This is a traceability audit, not a semantic-safety certification. “Implemente
 ## Findings fixed during the audit
 
 1. **Unbounded link-target reopen:** fragment validation used `Path.read_text()` after package inventory. It now prefers the already bounded text snapshot and uses `read_bounded_regular_file()` as a bounded, non-following fallback.
-2. **Malformed URL exception:** malformed bracketed host syntax could cause `urlsplit()` to raise and abort inspection. It now yields a `LOCAL_LINK_URL_INVALID` finding instead of crashing the entire validation.
-3. **Markdown table links:** the local-link validator now enables the table parser so links in table cells are checked.
+2. **Malformed URL exception:** malformed URL syntax now yields a `LOCAL_LINK_URL_INVALID` finding instead of crashing inspection.
+3. **Markdown table links:** local-link validation enables table parsing so links in table cells are checked.
 4. **Percent-encoded fragments:** URL fragments are decoded before comparison with detected IDs/headings.
-5. **Coverage visibility:** CI now runs pytest under coverage and prints the line/branch coverage report. No minimum threshold is claimed until the measured baseline and platform scope have been reviewed.
+5. **Invariant manifest output path:** `init-manifest` now refuses destinations inside the source package and existing destinations, and stages the YAML beside the output before atomic create-only publication. This avoids following or clobbering a final-component symlink, including a symlink introduced during publication.
+6. **Coverage visibility and gate:** CI prints line/branch coverage and fails below the measured 80% aggregate floor. The latest run measures 85%; no per-module floor is enforced.
 
 Each item has or is receiving a regression fixture in the same pull request. These fixes count as release-verified only when CI passes on the resulting head.
 
@@ -65,15 +66,15 @@ Each item has or is receiving a regression fixture in the same pull request. The
 
 ## Latest verification snapshot
 
-- Verified code/CI-gate commit: `ce7352ff4060dc319004fe142698ce772f187aed`.
-- GitHub Actions run: [40848071321](https://github.com/VireonNoctis/SkillTether/actions/runs/40848071321).
-- Regression/property-based suite: **191 passed**.
-- Aggregate measured coverage: **83%** across 2,008 statements and 814 branches (283 statements missed; 157 partial branches).
-- Module coverage highlights: CLI 67%, package analysis 79%, comparison 84%, translation 85%, report writing 96%, safe I/O 96%, locale-tag validation 97%.
+- Verified source/test commit: `4f4280beea116362aa36b01d8dcb80999c2a1ad9`.
+- GitHub Actions run: [40868180566](https://github.com/VireonNoctis/SkillTether/actions/runs/40868180566).
+- Regression/property-based suite: **199 passed**.
+- Aggregate measured coverage: **85%** across 2,039 statements and 824 branches (244 statements missed; 158 partial branches).
+- Module coverage highlights: CLI 82%, package analysis 80%, comparison 84%, translation 85%, report writing 96%, safe I/O 96%, locale-tag validation 97%.
 - JSON Schema syntax/protected-token policy checks and bundled valid-skill validation passed.
-- CI reports line/branch coverage and enforces an 80% aggregate floor. It does not enforce per-module floors. Coverage is evidence of exercised code, not proof of correctness; lower-covered CLI and analysis paths are release-priority review areas.
+- CI reports line/branch coverage and enforces an 80% aggregate floor. It does not enforce per-module floors. Coverage is evidence of exercised code, not proof of correctness; branch-specific review remains necessary.
 
-The linked run validates the code/tests and the new coverage gate. This audit text is a documentation-only follow-up; any later source/test change still needs its own passing CI run before release.
+This run validates the manifest-publication fix and its tests as well as the coverage gate. This audit text is a documentation-only follow-up; any later source/test change still needs its own passing CI run before release.
 
 ## Acceptance gate
 
