@@ -12,6 +12,7 @@
 | BCP 47 extlang cardinality | Language tag contains one to three structural extlang subtags; a fourth appears before following components | One to three are accepted by grammar; excess extlang sequence is rejected |
 | Coverage floor | Aggregate branch-aware coverage falls below 80% | GitHub Actions fails the coverage-report step |
 | Invariant manifest output path | Destination is inside source, already exists, is a symlink, or appears during publication | Refuse write; preserve source and destination target |
+| Approval output symlink | Requested approved-output path is a final-component symlink, including a broken symlink | Refuse approval before report access or publication |
 | Package root symlink | A package directory is reached through a symlink alias | Reject the root alias before reading package content |
 | Package resource integrity | Same-path binary asset differs by byte hash | Review-required resource-change finding |
 | Package permission integrity | Script executable bit changes while bytes remain equal | Package fingerprint changes and review-required file-mode finding |
