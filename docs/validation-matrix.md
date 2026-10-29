@@ -11,7 +11,8 @@
 | Fragment target safety | Local anchor target is already in bounded package inventory | Reuse snapshot; fallback read is bounded and does not follow final symlink |
 | BCP 47 extlang cardinality | Language tag contains one to three structural extlang subtags; a fourth appears before following components | One to three are accepted by grammar; excess extlang sequence is rejected |
 | Coverage floor | Aggregate branch-aware coverage falls below 80% | Linux GitHub Actions job fails the coverage-report step |
-| Official reference validator | Valid and intentionally invalid baseline skill fixtures | Pinned `skills-ref` CLI accepts the valid fixture and returns its documented invalid-skill exit code for the invalid fixture; tool stays out of runtime dependencies |
+| Official reference validator | Valid base fixture, valid optional-field fixture, and intentionally invalid fixture | Pinned `skills-ref` CLI accepts both valid fixtures and returns its documented invalid-skill exit code for the invalid fixture; tool stays out of runtime dependencies |
+| Python and OS matrix | Python 3.13/3.14 × Ubuntu/macOS/Windows | Full pytest suite, coverage report, schema/policy checks, and bundled fixtures run on all six combinations; aggregate 80% floor is enforced only on Linux |
 | Invariant manifest output path | Destination is inside source, already exists, is a symlink, or appears during publication | Refuse write; preserve source and destination target |
 | Approval output symlink | Requested approved-output path is a final-component symlink, including a broken symlink | Refuse approval before report access or publication |
 | Invariant suggestion examples | Fenced, indented, or recognized HTML code examples contain imperative words/numbers | Do not emit those code-example lines as invariant candidates; candidates remain unreviewed |
