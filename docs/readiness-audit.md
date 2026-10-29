@@ -65,14 +65,15 @@ Each item has or is receiving a regression fixture in the same pull request. The
 
 ## Latest verification snapshot
 
-- GitHub Actions run: [40847601787](https://github.com/VireonNoctis/SkillTether/actions/runs/40847601787).
+- Verified code/CI-gate commit: `ce7352ff4060dc319004fe142698ce772f187aed`.
+- GitHub Actions run: [40848071321](https://github.com/VireonNoctis/SkillTether/actions/runs/40848071321).
 - Regression/property-based suite: **191 passed**.
 - Aggregate measured coverage: **83%** across 2,008 statements and 814 branches (283 statements missed; 157 partial branches).
 - Module coverage highlights: CLI 67%, package analysis 79%, comparison 84%, translation 85%, report writing 96%, safe I/O 96%, locale-tag validation 97%.
 - JSON Schema syntax/protected-token policy checks and bundled valid-skill validation passed.
 - CI reports line/branch coverage and enforces an 80% aggregate floor. It does not enforce per-module floors. Coverage is evidence of exercised code, not proof of correctness; lower-covered CLI and analysis paths are release-priority review areas.
 
-The CI result above verifies the source/tests at the audit-fix head before this final documentation update. Any subsequent source/test changes must be validated again before release.
+The linked run validates the code/tests and the new coverage gate. This audit text is a documentation-only follow-up; any later source/test change still needs its own passing CI run before release.
 
 ## Acceptance gate
 
