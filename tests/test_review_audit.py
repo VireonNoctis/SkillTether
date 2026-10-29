@@ -224,6 +224,44 @@ def test_init_manifest_does_not_follow_destination_symlink(tmp_path: Path) -> No
     assert output.is_symlink()
 
 
+def test_init_manifest_refuses_symlink_created_during_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import os
+    import skilltether.cli as cli
+
+    if not hasattr(os, "symlink") or not hasattr(os, "link"):
+        pytest.skip("hard links or symlinks are not available on this platform")
+    source = tmp_path / "sample-skill"
+    source.mkdir()
+    (source / "SKILL.md").write_text(
+        "---\nname: sample-skill\ndescription: A sample skill.\n---\n\nYou must preserve all constraints.\n",
+        encoding="utf-8",
+    )
+    victim = tmp_path / "victim.txt"
+    victim.write_text("keep this file", encoding="utf-8")
+    output = tmp_path / "manifest.yaml"
+    original_link = os.link
+
+    def create_symlink_then_link(src, dst, *args, **kwargs):
+        if Path(dst) == output and not output.exists() and not output.is_symlink():
+            try:
+                output.symlink_to(victim)
+            except OSError:
+                pytest.skip("symlink creation is not permitted")
+        return original_link(src, dst, *args, **kwargs)
+
+    monkeypatch.setattr(cli.os, "link", create_symlink_then_link)
+    result = main([
+        "init-manifest", str(source), "--out", str(output),
+        "--source-locale", "en", "--target-locale", "fr",
+    ])
+
+    assert result == 2
+    assert output.is_symlink()
+    assert victim.read_text(encoding="utf-8") == "keep this file"
+
+
 def test_init_manifest_writes_new_draft_without_overwriting_existing_file(tmp_path: Path) -> None:
     source = tmp_path / "sample-skill"
     source.mkdir()
