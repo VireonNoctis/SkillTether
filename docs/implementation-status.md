@@ -21,7 +21,7 @@
 
 ## Readiness audit
 
-A current requirements-to-code matrix and prioritized release-readiness gaps are maintained in [docs/readiness-audit.md](readiness-audit.md). CI prints line/branch coverage after running the test suite; a coverage threshold and cross-platform claim remain deferred until the measured baseline is reviewed.
+A current requirements-to-code matrix and prioritized release-readiness gaps are maintained in [docs/readiness-audit.md](readiness-audit.md). CI prints line/branch coverage and enforces an 80% aggregate coverage floor; per-module floors and cross-platform claims remain deferred.
 
 ## Deliberately not claimed
 
