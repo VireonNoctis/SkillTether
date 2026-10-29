@@ -502,7 +502,10 @@ def translate_package(
 ) -> tuple[dict[str, FileFingerprint], dict[str, FileFingerprint], int]:
     """Generate a candidate atomically; never mutate source or overwrite an existing output."""
     source_root = normalize_package_root(source)
-    output_root = Path(output).expanduser().resolve()
+    output_root = Path(os.path.abspath(Path(output).expanduser()))
+    if output_root.is_symlink():
+        raise ValueError("Candidate output must not be a symbolic link")
+    resolved_output = output_root.resolve()
     if not source_root.is_dir():
         raise ValueError("Source package must be a directory")
     if output_root.exists():
@@ -512,8 +515,13 @@ def translate_package(
             "Candidate directory basename must match the source skill package name; "
             "choose a separate parent directory with the same leaf name."
         )
-    if output_root == source_root or source_root in output_root.parents or output_root in source_root.parents:
-        raise ValueError("Source and output directories must be separate and non-overlapping")
+    for candidate in (output_root, resolved_output):
+        if (
+            candidate == source_root
+            or source_root in candidate.parents
+            or candidate in source_root.parents
+        ):
+            raise ValueError("Source and output directories must be separate and non-overlapping")
 
     source_inventory, validation_findings, source_text = inspect_package(source_root)
     severe = [f for f in validation_findings if f.severity in ("high", "critical")]
