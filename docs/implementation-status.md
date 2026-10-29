@@ -21,7 +21,7 @@
 
 ## Readiness audit
 
-A current requirements-to-code matrix and prioritized release-readiness gaps are maintained in [docs/readiness-audit.md](readiness-audit.md). CI prints line/branch coverage and enforces an 80% aggregate coverage floor; per-module floors and cross-platform claims remain deferred.
+A current requirements-to-code matrix and prioritized release-readiness gaps are maintained in [docs/readiness-audit.md](readiness-audit.md). CI tests Python 3.13 and 3.14 on Ubuntu, macOS, and Windows; it prints line/branch coverage and enforces an 80% aggregate floor on Linux. Coverage does not prove every platform or filesystem condition safe.
 
 ## Deliberately not claimed
 
