@@ -125,6 +125,26 @@ def test_translate_package_refuses_broken_output_symlink(tmp_path: Path) -> None
     assert not destination.exists()
 
 
+def test_translate_package_rejects_parent_symlink_aliasing_source(tmp_path: Path) -> None:
+    import os
+
+    if not hasattr(os, "symlink"):
+        pytest.skip("symlinks are not available on this platform")
+    source = make_package(tmp_path / "source" / "sample-skill")
+    before = (source / "SKILL.md").read_bytes()
+    alias = tmp_path / "source-alias"
+    try:
+        alias.symlink_to(source.parent, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlink creation is not permitted")
+    output = alias / source.name
+
+    with pytest.raises(ValueError, match="separate and non-overlapping"):
+        translate_package(source, output, IdentityAdapter(), "en", "fr")
+
+    assert (source / "SKILL.md").read_bytes() == before
+
+
 def test_translate_masks_inline_code_and_urls() -> None:
     class PrefixAdapter:
         name = "prefix"
