@@ -48,8 +48,10 @@ jobs:
           patterns, tokens = load_policy("config/protected-tokens.yaml")
           _mask_protected_spans("Use $API_TOKEN at references/guide.md", patterns, tokens)
           PY
-      - name: Validate bundled fixture package
-        run: skilltether validate tests/fixtures/valid-skill
+      - name: Validate bundled fixture packages
+        run: |
+          skilltether validate tests/fixtures/valid-skill
+          skilltether validate tests/fixtures/valid-optional-skill
 
   reference-conformance:
     # The upstream skills-ref README describes this as a demonstration/reference
@@ -69,6 +71,7 @@ jobs:
           export PATH="$(go env GOPATH)/bin:$PATH"
           skills-ref --version
           skills-ref validate tests/fixtures/valid-skill
+          skills-ref validate tests/fixtures/valid-optional-skill
           set +e
           skills-ref validate tests/fixtures/invalid-skill
           status=$?
