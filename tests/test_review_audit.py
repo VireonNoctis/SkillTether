@@ -771,7 +771,7 @@ def test_init_manifest_skips_fenced_examples_and_preserves_review_gate(
 
     captured = capsys.readouterr()
     assert status == 2
-    assert "never be overwritten" in captured.err
+    assert "not overwritten" in captured.err
     assert output.read_bytes() == first_payload
 
 
