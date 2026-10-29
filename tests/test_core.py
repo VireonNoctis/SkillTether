@@ -103,6 +103,28 @@ def test_identity_translation_writes_separate_candidate_and_preserves_source(tmp
     assert "SKILL.md" in target_inventory
 
 
+def test_translate_package_refuses_broken_output_symlink(tmp_path: Path) -> None:
+    import os
+
+    if not hasattr(os, "symlink"):
+        pytest.skip("symlinks are not available on this platform")
+    source = make_package(tmp_path / "source" / "sample-skill")
+    output_parent = tmp_path / "candidate"
+    output_parent.mkdir()
+    output = output_parent / "sample-skill"
+    destination = tmp_path / "not-created" / "sample-skill"
+    try:
+        output.symlink_to(destination, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlink creation is not permitted")
+
+    with pytest.raises(ValueError, match="symbolic link"):
+        translate_package(source, output, IdentityAdapter(), "en", "fr")
+
+    assert output.is_symlink()
+    assert not destination.exists()
+
+
 def test_translate_masks_inline_code_and_urls() -> None:
     class PrefixAdapter:
         name = "prefix"
