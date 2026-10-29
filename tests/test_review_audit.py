@@ -176,6 +176,73 @@ def test_review_history_survives_json_and_markdown_exports(tmp_path: Path) -> No
     assert "```text" in markdown  # untrusted note is fenced instead of parsed as Markdown
 
 
+def test_init_manifest_refuses_output_inside_source_package(tmp_path: Path) -> None:
+    source = tmp_path / "sample-skill"
+    source.mkdir()
+    (source / "SKILL.md").write_text(
+        "---\nname: sample-skill\ndescription: A sample skill.\n---\n\nYou must preserve all constraints.\n",
+        encoding="utf-8",
+    )
+    output = source / ".skilltether-invariants.yaml"
+
+    result = main([
+        "init-manifest", str(source), "--out", str(output),
+        "--source-locale", "en", "--target-locale", "fr",
+    ])
+
+    assert result == 2
+    assert not output.exists()
+    assert sorted(path.name for path in source.iterdir()) == ["SKILL.md"]
+
+
+def test_init_manifest_does_not_follow_destination_symlink(tmp_path: Path) -> None:
+    import os
+
+    if not hasattr(os, "symlink"):
+        pytest.skip("symlinks are not available on this platform")
+    source = tmp_path / "sample-skill"
+    source.mkdir()
+    (source / "SKILL.md").write_text(
+        "---\nname: sample-skill\ndescription: A sample skill.\n---\n\nYou must preserve all constraints.\n",
+        encoding="utf-8",
+    )
+    victim = tmp_path / "victim.txt"
+    victim.write_text("keep this file", encoding="utf-8")
+    output = tmp_path / "manifest.yaml"
+    try:
+        output.symlink_to(victim)
+    except OSError:
+        pytest.skip("symlink creation is not permitted")
+
+    result = main([
+        "init-manifest", str(source), "--out", str(output),
+        "--source-locale", "en", "--target-locale", "fr",
+    ])
+
+    assert result == 2
+    assert victim.read_text(encoding="utf-8") == "keep this file"
+    assert output.is_symlink()
+
+
+def test_init_manifest_writes_new_draft_without_overwriting_existing_file(tmp_path: Path) -> None:
+    source = tmp_path / "sample-skill"
+    source.mkdir()
+    (source / "SKILL.md").write_text(
+        "---\nname: sample-skill\ndescription: A sample skill.\n---\n\nYou must preserve all constraints.\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "manifest.yaml"
+    output.write_text("reviewed: true\n", encoding="utf-8")
+
+    result = main([
+        "init-manifest", str(source), "--out", str(output),
+        "--source-locale", "en", "--target-locale", "fr",
+    ])
+
+    assert result == 2
+    assert output.read_text(encoding="utf-8") == "reviewed: true\n"
+
+
 def test_schema_documents_new_fields_without_breaking_old_required_contract() -> None:
     schema_path = Path("schemas/comparison-report.schema.json")
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
