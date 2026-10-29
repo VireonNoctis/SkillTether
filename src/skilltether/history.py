@@ -9,9 +9,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .redaction import redact_sensitive_text
+from .locale_tags import validate_bcp47_tag
 
 _SHA256 = re.compile(r"^[a-f0-9]{64}$")
-_BCP47_SHAPE = re.compile(r"^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$")
 _SAFE_METADATA = re.compile(r"^[^\x00-\x1f\x7f-\x9f]{1,128}$")
 
 
@@ -25,8 +25,11 @@ def _validate_metadata(
 ) -> None:
     if not _SHA256.fullmatch(source_fingerprint) or not _SHA256.fullmatch(target_fingerprint):
         raise ValueError("History fingerprints must be lowercase SHA-256 digests")
-    if not _BCP47_SHAPE.fullmatch(source_locale) or not _BCP47_SHAPE.fullmatch(target_locale):
-        raise ValueError("History locales must be valid-looking BCP 47 language tags")
+    try:
+        validate_bcp47_tag(source_locale)
+        validate_bcp47_tag(target_locale)
+    except ValueError:
+        raise ValueError("History locales must be well-formed BCP 47 language tags") from None
     for label, value in (("provider", provider), ("status", status)):
         if not isinstance(value, str) or not _SAFE_METADATA.fullmatch(value):
             raise ValueError(f"History {label} must be 1–128 printable characters without control characters")
