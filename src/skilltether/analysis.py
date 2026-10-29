@@ -149,7 +149,7 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
             # Read at most MAX_FILE_BYTES + 1 bytes so a growing file remains bounded.
             descriptor = None
             try:
-                flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+                flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
                 descriptor = os.open(path, flags)
                 opened = os.fstat(descriptor)
                 if not stat.S_ISREG(opened.st_mode):
