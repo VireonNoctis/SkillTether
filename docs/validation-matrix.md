@@ -20,6 +20,8 @@
 | HTML opaque-block preservation | Multiline comments and `script`, `style`, `pre`, `code`, or `textarea` blocks | Contents remain untranslated; unclosed comment/block fails closed |
 | Provider line injection | A one-line translation result contains CR/LF | Translation is rejected and candidate output is not published |
 | Parser-visible structure injection | Provider adds a link, emphasis, list, heading, or other Markdown structure while retaining source placeholders | Structural signature differs; translation fails before candidate publication |
+| Custom adapter response budget | Custom local adapter emits an oversized single response or exceeds aggregate output bytes | Translation fails before candidate publication, even when the adapter does not use HTTP |
+| Provider control characters | Adapter emits NUL, unsupported C0/DEL control characters, or line separators | Translation fails before output publication |
 | Protected-token order | Same command flags/identifiers remain present but their order changes | High-severity, high-uncertainty review finding; unchanged order is a negative case |
 | Negation | “Do” changed to “do not”, or negation removed | Critical review warning |
 | Modal strength | “Must” weakened to “may” | Invariant review warning |
