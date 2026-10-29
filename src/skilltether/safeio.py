@@ -28,7 +28,7 @@ def read_bounded_regular_file(
     if not stat.S_ISREG(metadata.st_mode):
         raise ValueError(f"{purpose} must be a regular file; symlinks and special filesystem entries are not accepted")
 
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     descriptor: int | None = None
     try:
         descriptor = os.open(source, flags)
