@@ -28,7 +28,7 @@ External HTTP(S) links are preserved but are not fetched. Scripts and other asse
 skilltether init-manifest ./sample-skill --out ./sample-skill/.skilltether-invariants.yaml --source-locale en --target-locale fr
 ~~~
 
-The generator looks for lines that may express negation, a requirement, a prerequisite, a number, or a limit. It intentionally creates an unreviewed manifest. A reviewer must:
+The generator looks for lines that may express negation, a requirement, a prerequisite, a number, or a limit. It skips lines inside fenced backtick/tilde code examples, headings, table rows, and candidate lines longer than 1,200 characters to reduce common false positives. This remains a heuristic: it can miss real rules and misclassify prose. It intentionally creates an unreviewed manifest. A reviewer must:
 1. Confirm each suggestion is a real requirement, and add invariants the heuristic missed.
 2. Correct its category/severity, source lines, and supporting text. When source_lines or source_text are supplied, they must still match the current source package; comparison rejects stale source evidence, and approval remains blocked until the manifest is corrected and comparison is rerun.
 3. Set reviewed=true and reviewer to an accountable reviewer identifier on each approved invariant.
