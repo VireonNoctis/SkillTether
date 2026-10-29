@@ -13,6 +13,8 @@ import urllib.request
 from pathlib import Path
 from typing import Protocol
 
+from markdown_it import MarkdownIt
+
 from .analysis import (
     MAX_EXPLICIT_TOKEN_CHARS, MAX_EXPLICIT_TOKENS, MAX_POLICY_PATTERNS,
     MAX_POLICY_REGEX_CHARS, inspect_package, normalize_package_root, package_fingerprint,
@@ -253,7 +255,57 @@ def translate_markdown(
         raise ValueError("Unclosed SKILL.md frontmatter; refusing to translate malformed input")
     if html_comment_open or html_opaque_tag is not None:
         raise ValueError("Unclosed HTML comment or opaque HTML block; refusing to translate malformed input")
-    return "".join(output)
+    translated_document = "".join(output)
+    if _markdown_structure_signature(text) != _markdown_structure_signature(translated_document):
+        raise RuntimeError(
+            "Translation changed parser-visible Markdown structure; no output was published"
+        )
+    return translated_document
+
+
+def _markdown_structure_signature(text: str) -> tuple[tuple[object, ...], ...]:
+    """Describe parser-visible Markdown structure without ordinary prose content.
+
+    This catches providers that insert new links/emphasis/block syntax even when
+    every source placeholder is retained. It is a structural guard, not semantic
+    analysis, and intentionally does not compare ordinary text tokens.
+    """
+    parser = MarkdownIt("commonmark").enable("table")
+    signature: list[tuple[object, ...]] = []
+
+    def visit(token: object) -> None:
+        token_type = getattr(token, "type")
+        children = getattr(token, "children", None)
+        if token_type == "inline":
+            for child in children or []:
+                visit(child)
+            return
+        # The number and boundaries of text tokens are parser implementation
+        # details and can differ harmlessly after translation.
+        if token_type == "text":
+            return
+        attrs = getattr(token, "attrs", None) or {}
+        stable_attrs = tuple(sorted((str(key), str(value)) for key, value in attrs.items()))
+        opaque_content = (
+            getattr(token, "content", None)
+            if token_type in {"code_inline", "code_block", "fence", "html_inline", "html_block"}
+            else None
+        )
+        signature.append((
+            token_type,
+            getattr(token, "tag", ""),
+            getattr(token, "nesting", 0),
+            getattr(token, "markup", ""),
+            getattr(token, "info", ""),
+            stable_attrs,
+            opaque_content,
+        ))
+        for child in children or []:
+            visit(child)
+
+    for item in parser.parse(text):
+        visit(item)
+    return tuple(signature)
 
 
 def _mask_markdown_syntax(text: str) -> tuple[str, list[tuple[str, str]]]:
