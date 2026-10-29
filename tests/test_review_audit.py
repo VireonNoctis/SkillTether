@@ -849,6 +849,39 @@ def test_compare_refuses_signing_key_inside_source_package(tmp_path: Path) -> No
     assert not report_path.exists()
 
 
+def test_human_labeled_invariant_suggestion_corpus(tmp_path: Path) -> None:
+    import yaml
+
+    corpus = json.loads(
+        Path("tests/fixtures/invariant-suggestion-corpus.json").read_text(encoding="utf-8")
+    )
+    source = tmp_path / "source" / "sample-skill"
+    source.mkdir(parents=True)
+    (source / "SKILL.md").write_text(
+        "---\nname: sample-skill\ndescription: A sample skill.\n---\n\n"
+        + corpus["skill_markdown_body"],
+        encoding="utf-8",
+    )
+    output = tmp_path / "review" / "invariants.yaml"
+
+    status = main([
+        "init-manifest", str(source), "--out", str(output),
+        "--source-locale", "en", "--target-locale", "fr",
+    ])
+
+    assert status == 0
+    payload = yaml.safe_load(output.read_text(encoding="utf-8"))
+    observed = [
+        {"source_text": item["source_text"], "category": item["category"]}
+        for item in payload["invariants"]
+    ]
+    assert observed == corpus["expected_candidates"]
+    observed_text = {item["source_text"] for item in payload["invariants"]}
+    for excluded in corpus["expected_exclusions"]:
+        assert excluded not in observed_text
+    assert payload["manifest_reviewed"] is False
+
+
 def test_init_manifest_skips_code_examples_and_preserves_review_gate(
     tmp_path: Path, capsys: pytest.CaptureFixture[str],
 ) -> None:
