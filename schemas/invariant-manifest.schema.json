@@ -7,8 +7,8 @@
   "required": ["manifest_version", "source_locale", "invariants"],
   "properties": {
     "manifest_version": { "const": "1.0" },
-    "source_locale": { "type": "string", "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$" },
-    "target_locale": { "type": ["string", "null"], "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$" },
+    "source_locale": { "type": "string", "pattern": "^[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*$", "description": "Lexical envelope only. SkillTether applies full structural BCP 47 checks in its Pydantic model; registry membership and canonicalization are not checked." },
+    "target_locale": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*$", "description": "Lexical envelope only. SkillTether applies full structural BCP 47 checks in its Pydantic model; registry membership and canonicalization are not checked." },
     "manifest_reviewer": { "type": ["string", "null"] },
     "manifest_reviewed": { "type": "boolean", "default": false },
     "invariants": {
