@@ -62,7 +62,7 @@ Each item has or is receiving a regression fixture in the same pull request. The
 
 ### P2 — Stronger evidence
 - Establish a documented comparison against the official `skills-ref validate` reference implementation, with the tool version and expected differences recorded. Do not silently make the reference tool a mandatory network dependency.
-- Expand coverage in the CLI (67%) and package analysis (79%) modules; an aggregate floor does not guarantee that every risky branch is exercised.
+- Continue targeted branch coverage in the CLI (82%) and package analysis (80%) modules; these are now the lowest-covered high-risk areas in the latest measured snapshot. An aggregate floor does not guarantee that every risky branch is exercised.
 - Expand cross-platform CI beyond the current Ubuntu/Python 3.13 job before claiming cross-platform release readiness.
 - Improve Markdown reference/link/slug edge cases and specify exactly which Markdown dialects are supported.
 
