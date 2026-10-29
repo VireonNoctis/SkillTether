@@ -63,7 +63,7 @@ Each item has or is receiving a regression fixture in the same pull request. The
 ### P2 — Stronger evidence
 - Establish a documented comparison against the official `skills-ref validate` reference implementation, with the tool version and expected differences recorded. Do not silently make the reference tool a mandatory network dependency.
 - Continue targeted branch coverage in the CLI (82%) and package analysis (80%) modules; these are now the lowest-covered high-risk areas in the latest measured snapshot. An aggregate floor does not guarantee that every risky branch is exercised.
-- Expand cross-platform CI beyond the current Ubuntu/Python 3.13 job before claiming cross-platform release readiness.
+- CI now runs the suite on Ubuntu, macOS, and Windows with Python 3.13. Expand the matrix to supported Python minor versions and test additional filesystem configurations before claiming broad platform coverage.
 - Improve Markdown reference/link/slug edge cases and specify exactly which Markdown dialects are supported.
 
 ### P3 — Deliberately not a release promise
@@ -71,15 +71,15 @@ Each item has or is receiving a regression fixture in the same pull request. The
 
 ## Latest verification snapshot
 
-- Verified source/test commit: `48325bd8b85e989e29ccf85e5012da4dc8f8fd85`.
-- GitHub Actions run: [40869182974](https://github.com/VireonNoctis/SkillTether/actions/runs/40869182974).
-- Regression/property-based suite: **205 passed**.
-- Aggregate measured coverage: **85%** across 2,063 statements and 836 branches (245 statements missed; 159 partial branches).
+- Verified source/test commit: `3a3d49f15e7e10e406d880d83bc8df7de505dd39`.
+- GitHub Actions matrix run: [40869937709](https://github.com/VireonNoctis/SkillTether/actions/runs/40869937709).
+- Regression/property-based suite: **210 passed on each of Ubuntu, macOS, and Windows**.
+- Linux aggregate measured coverage: **86%** across 2,069 statements and 842 branches (244 statements missed; 158 partial branches).
 - Module coverage highlights: CLI 83%, package analysis 80%, comparison 84%, translation 85%, report writing 96%, safe I/O 96%, locale-tag validation 97%.
-- JSON Schema syntax/protected-token policy checks and bundled valid-skill validation passed.
-- CI reports line/branch coverage and enforces an 80% aggregate floor. It does not enforce per-module floors. Coverage is evidence of exercised code, not proof of correctness; branch-specific review remains necessary.
+- JSON Schema syntax/protected-token policy checks and bundled valid-skill validation passed on the matrix.
+- CI reports line/branch coverage on all three operating systems and enforces an 80% aggregate floor on Linux only. It does not enforce per-module floors. Coverage is evidence of exercised code, not proof of correctness; branch-specific review remains necessary.
 
-This run validates numeric-fact filtering, the human-labeled invariant-suggestion corpus, approval-output symlink handling, and the coverage gate. This audit text is a documentation-only follow-up; any later source/test change still needs its own passing CI run before release.
+This run validates binary-mode file reads/key loading, the human-labeled invariant-suggestion corpus, output-symlink guards, and the cross-platform matrix. This audit text is a documentation-only follow-up; any later source/test change still needs its own passing CI run before release.
 
 ## Acceptance gate
 
