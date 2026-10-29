@@ -33,7 +33,7 @@ This is a traceability audit, not a semantic-safety certification. “Implemente
 | Validate source/target locale tags consistently | `locale_tags.py`, CLI and Pydantic validators, schemas | `tests/test_locale_tags.py` | **Partial.** BCP 47 structure including one to three extlang subtags is checked, not live IANA registry membership or canonicalization. JSON Schema provides a lexical envelope; Pydantic performs the complete implemented structural checks. |
 | Produce versioned reports, require auditable approval, protect reports optionally with HMAC | `models.py`, `report.py`, `reviewing.py`, `signing.py`, `cli.py` | `tests/test_review_audit.py`, `tests/test_signing.py` | **Implemented / tested.** HMAC is a symmetric integrity seal, not reviewer identity or non-repudiation. |
 | Redact secrets and keep history local/minimal | `redaction.py`, `report.py`, `history.py`, `safeio.py` | redaction/history/safe-I/O test modules | **Partial.** Patterns catch common credential shapes; redaction is not a complete secret scanner. |
-| Exercise deterministic and heuristic checks with negative cases | `tests/`, Hypothesis and JSON Schema dependencies, `.github/workflows/ci.yml` | CI runs pytest, schema/policy checks and bundled fixture validation; this audit enables coverage reporting | **Partial.** There is not yet a separately versioned, human-labelled evaluation corpus with precision/recall by finding category, nor a coverage threshold. |
+| Exercise deterministic and heuristic checks with negative cases | `tests/`, Hypothesis and JSON Schema dependencies, `.github/workflows/ci.yml` | CI runs pytest, schema/policy checks and bundled fixture validation; this audit enables coverage reporting | **Partial.** There is not yet a separately versioned, human-labelled evaluation corpus with precision/recall by finding category. CI enforces an 80% aggregate coverage floor; per-module floors are not enforced. |
 | Optional reviewer UI | no production UI in current tree | none | **Deferred.** CLI/report contracts are the current interface. |
 | Provider-specific renamed-token mapping | no approved mapping schema/workflow yet | none | **Deferred.** Tokens are preserved or flagged; there is no silent automatic rename mechanism. |
 
@@ -56,7 +56,7 @@ Each item has or is receiving a regression fixture in the same pull request. The
 
 ### P2 — Stronger evidence
 - Establish a documented comparison against the official `skills-ref validate` reference implementation, with the tool version and expected differences recorded. Do not silently make the reference tool a mandatory network dependency.
-- Add a declared CI coverage target only after the report establishes a baseline and uncovered branches are triaged.
+- Expand coverage in the CLI (67%) and package analysis (79%) modules; an aggregate floor does not guarantee that every risky branch is exercised.
 - Expand cross-platform CI beyond the current Ubuntu/Python 3.13 job before claiming cross-platform release readiness.
 - Improve Markdown reference/link/slug edge cases and specify exactly which Markdown dialects are supported.
 
@@ -70,7 +70,7 @@ Each item has or is receiving a regression fixture in the same pull request. The
 - Aggregate measured coverage: **83%** across 2,008 statements and 814 branches (283 statements missed; 157 partial branches).
 - Module coverage highlights: CLI 67%, package analysis 79%, comparison 84%, translation 85%, report writing 96%, safe I/O 96%, locale-tag validation 97%.
 - JSON Schema syntax/protected-token policy checks and bundled valid-skill validation passed.
-- CI reports coverage but does not enforce a percentage threshold. Coverage is evidence of exercised code, not proof of correctness; lower-covered CLI and analysis paths are release-priority review areas.
+- CI reports line/branch coverage and enforces an 80% aggregate floor. It does not enforce per-module floors. Coverage is evidence of exercised code, not proof of correctness; lower-covered CLI and analysis paths are release-priority review areas.
 
 The CI result above verifies the source/tests at the audit-fix head before this final documentation update. Any subsequent source/test changes must be validated again before release.
 
