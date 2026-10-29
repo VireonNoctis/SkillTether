@@ -30,6 +30,17 @@ CUE_PATTERN = re.compile(
 NEGATION_PATTERN = re.compile(r"\b(not|never|no|without|don't|doesn't|mustn't|cannot|can't)\b", re.I)
 MANDATORY_PATTERN = re.compile(r"\b(must|required|shall|mandatory)\b", re.I)
 NUMBER_PATTERN = re.compile(r"(?<![A-Za-z])(?:[<>]=?\s*)?\d+(?:[.,]\d+)?(?:\s*(?:%|seconds?|minutes?|hours?|days?|files?|tokens?))?", re.I)
+NUMERIC_RULE_PATTERN = re.compile(
+    r"\b(at least|at most|no more than|up to|maximum|max(?:imum)?|minimum|min(?:imum)?|"
+    r"limit(?:ed)?|exactly|within|less than|greater than|more than)\b",
+    re.I,
+)
+ACTION_RULE_PATTERN = re.compile(
+    r"\b(use|set|keep|allow|wait|retry|run|limit|retain|provide|send|store|accept|reject|"
+    r"include|exclude|process|create|delete|remove|preserve|avoid|require|ensure|configure|"
+    r"return|stop|continue|call|execute|install|open|close)\b",
+    re.I,
+)
 
 
 def _manifest_arg(path_value: str | None, source: Path) -> InvariantManifest | None:
@@ -148,6 +159,19 @@ def _suggest_invariants(source_root: Path, source_locale: str, target_locale: st
         if not CUE_PATTERN.search(stripped):
             continue
         if len(stripped) > 1200:
+            continue
+        # A number by itself is usually descriptive prose, not a constraint.
+        # Keep numeric candidates only when the line also contains a limit,
+        # action, modality, negation, or conditional cue. This remains a
+        # language-specific heuristic and is intentionally only a draft filter.
+        if (
+            re.search(r"\d", stripped)
+            and not NUMERIC_RULE_PATTERN.search(stripped)
+            and not ACTION_RULE_PATTERN.search(stripped)
+            and not NEGATION_PATTERN.search(stripped)
+            and not MANDATORY_PATTERN.search(stripped)
+            and not re.search(r"\b(if|unless|before|after|only if)\b", stripped, re.I)
+        ):
             continue
         lower = stripped.lower()
         if NEGATION_PATTERN.search(lower):
