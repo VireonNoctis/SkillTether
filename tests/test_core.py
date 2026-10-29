@@ -255,6 +255,70 @@ def test_translate_rejects_reordered_markdown_delimiters() -> None:
         translate_markdown("Use **bold text**.\n", ReorderingAdapter(), "en", "fr")
 
 
+def test_translate_preserves_multiline_html_comments_and_opaque_blocks() -> None:
+    class TranslatingAdapter:
+        name = "html-aware"
+        remote = False
+
+        def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+            return text.replace("Visible prose", "Texte visible").replace(
+                "Do not translate", "NEVER TRANSLATE",
+            )
+
+    source = (
+        "Visible prose before the comment.\n"
+        "<!-- reviewer-only comment\n"
+        "Do not translate this comment body.\n"
+        "-->\n"
+        "<pre>\n"
+        "Do not translate this preformatted block.\n"
+        "</pre>\n"
+        "<script type=\"text/plain\">\n"
+        "Do not translate this script block.\n"
+        "</script>\n"
+        "Visible prose after the blocks.\n"
+    )
+    translated = translate_markdown(source, TranslatingAdapter(), "en", "fr")
+
+    assert "Texte visible before the comment." in translated
+    assert "Texte visible after the blocks." in translated
+    assert "Do not translate this comment body." in translated
+    assert "Do not translate this preformatted block." in translated
+    assert "Do not translate this script block." in translated
+    assert "NEVER TRANSLATE" not in translated
+
+
+def test_unclosed_multiline_html_comment_fails_closed() -> None:
+    class IdentityLikeAdapter:
+        name = "identity-like"
+        remote = False
+
+        def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+            return text
+
+    with pytest.raises(ValueError, match="Unclosed HTML comment"):
+        translate_markdown("Visible.\n<!-- never closed\nHidden.\n", IdentityLikeAdapter(), "en", "fr")
+
+
+def test_multiline_adapter_response_does_not_publish_candidate(tmp_path: Path) -> None:
+    source = make_package(tmp_path / "source" / "sample-skill", "A line that needs translation.")
+    source_before = (source / "SKILL.md").read_bytes()
+
+    class LineInjectingAdapter:
+        name = "line-injecting"
+        remote = False
+
+        def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+            return "Translated line.\n# Injected heading"
+
+    output = tmp_path / "candidate" / "sample-skill"
+    with pytest.raises(RuntimeError, match="multiline result"):
+        translate_package(source, output, LineInjectingAdapter(), "en", "fr")
+
+    assert not output.exists()
+    assert (source / "SKILL.md").read_bytes() == source_before
+
+
 def test_report_context_fence_cannot_be_closed_by_untrusted_text() -> None:
     from skilltether.report import _fenced_context
     import re
