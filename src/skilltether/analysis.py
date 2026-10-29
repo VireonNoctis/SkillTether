@@ -387,7 +387,8 @@ def validate_local_links(
     *, text_snapshot: dict[str, str] | None = None,
 ) -> list:
     findings = []
-    parsed = MarkdownIt("commonmark", {"html": False}).parse(text)
+    # GFM-style tables are common in instruction files; parse their links too.
+    parsed = MarkdownIt("commonmark", {"html": False}).enable("table").parse(text)
     for token in parsed:
         for child in token.children or []:
             if child.type not in {"link_open", "image"}:
@@ -452,7 +453,8 @@ def validate_local_links(
                 for heading in re.finditer(r"^#{1,6}\s+(.+?)\s*#*\s*$", target_text, re.M):
                     slug = re.sub(r"[^\w -]", "", heading.group(1).lower()).strip().replace(" ", "-")
                     fragments.add(slug)
-                if parsed_url.fragment not in fragments and target_text:
+                fragment = unquote(parsed_url.fragment)
+                if fragment not in fragments and target_text:
                     findings.append(new_finding(
                         "BROKEN_LINK_FRAGMENT", "medium", "links",
                         f"Local link fragment does not match a detected heading or HTML anchor: {href}",
