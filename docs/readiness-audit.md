@@ -30,7 +30,7 @@ This is a traceability audit, not a semantic-safety certification. “Implemente
 | Provider adapters behind a narrow interface; no provider enabled by default | `translation.py:TranslationAdapter`, `IdentityAdapter`, `HttpJsonAdapter`; `cli.py:cmd_translate` | HTTP adapter, no-network preflight, timeout, redirect and budget tests | **Implemented / tested** for the identity adapter and generic JSON bridge. There is no bundled vendor SDK or automatic provider discovery. |
 | Do not send private package text without explicit opt-in; bound provider I/O | `cli.py`, `translation.py:HttpJsonAdapter`, whole-package preflight and shared adapter output validation | `tests/test_translation_budget.py`, provider failure and injection tests | **Implemented / tested** for configured adapters and declared budgets. Provider retention/data handling remains the user's responsibility; transport-level timeouts do not guarantee remote deletion. |
 | Reject malformed/injected provider output and avoid partial candidates | `translation.py:translate_markdown`, parser signature, response validator, staging and final replace | line injection, structure injection, control characters, size caps, provider failure tests | **Implemented / tested** for covered checks. Parsing and output checks reduce structural drift but cannot detect every meaningful rewrite. |
-| Validate source/target locale tags consistently | `locale_tags.py`, CLI and Pydantic validators, schemas | `tests/test_locale_tags.py` | **Partial.** BCP 47 structural syntax is checked, not live IANA registry membership or canonicalization. JSON Schema provides a lexical envelope; Pydantic performs the complete implemented structural checks. |
+| Validate source/target locale tags consistently | `locale_tags.py`, CLI and Pydantic validators, schemas | `tests/test_locale_tags.py` | **Partial.** BCP 47 structure including one to three extlang subtags is checked, not live IANA registry membership or canonicalization. JSON Schema provides a lexical envelope; Pydantic performs the complete implemented structural checks. |
 | Produce versioned reports, require auditable approval, protect reports optionally with HMAC | `models.py`, `report.py`, `reviewing.py`, `signing.py`, `cli.py` | `tests/test_review_audit.py`, `tests/test_signing.py` | **Implemented / tested.** HMAC is a symmetric integrity seal, not reviewer identity or non-repudiation. |
 | Redact secrets and keep history local/minimal | `redaction.py`, `report.py`, `history.py`, `safeio.py` | redaction/history/safe-I/O test modules | **Partial.** Patterns catch common credential shapes; redaction is not a complete secret scanner. |
 | Exercise deterministic and heuristic checks with negative cases | `tests/`, Hypothesis and JSON Schema dependencies, `.github/workflows/ci.yml` | CI runs pytest, schema/policy checks and bundled fixture validation; this audit enables coverage reporting | **Partial.** There is not yet a separately versioned, human-labelled evaluation corpus with precision/recall by finding category, nor a coverage threshold. |
@@ -62,6 +62,17 @@ Each item has or is receiving a regression fixture in the same pull request. The
 
 ### P3 — Deliberately not a release promise
 - Full semantic-equivalence detection, automatic approval, complete shell/JavaScript/PowerShell parsing, full MDX AST transformation, registry-backed locale canonicalization, online URL reachability, automatic protected-token rename mappings, and the optional Svelte reviewer UI remain unsupported or deferred.
+
+## Latest verification snapshot
+
+- GitHub Actions run: [40847601787](https://github.com/VireonNoctis/SkillTether/actions/runs/40847601787).
+- Regression/property-based suite: **191 passed**.
+- Aggregate measured coverage: **83%** across 2,008 statements and 814 branches (283 statements missed; 157 partial branches).
+- Module coverage highlights: CLI 67%, package analysis 79%, comparison 84%, translation 85%, report writing 96%, safe I/O 96%, locale-tag validation 97%.
+- JSON Schema syntax/protected-token policy checks and bundled valid-skill validation passed.
+- CI reports coverage but does not enforce a percentage threshold. Coverage is evidence of exercised code, not proof of correctness; lower-covered CLI and analysis paths are release-priority review areas.
+
+The CI result above verifies the source/tests at the audit-fix head before this final documentation update. Any subsequent source/test changes must be validated again before release.
 
 ## Acceptance gate
 
