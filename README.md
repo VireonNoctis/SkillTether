@@ -25,6 +25,8 @@ SkillTether is a local-first localization and integrity-checking CLI for Agent S
 
 The optional Svelte + TypeScript review UI is intentionally deferred until the report contracts are stable.
 
+See [the requirements-to-code readiness audit](docs/readiness-audit.md) for a traceable implementation matrix, verified strengths, known gaps, and release priorities. The audit distinguishes implemented/tested behavior from heuristic or deferred capabilities.
+
 ## Install
 
 Requires Python 3.13 or newer.
