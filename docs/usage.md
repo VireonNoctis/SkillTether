@@ -54,6 +54,8 @@ The built-in identity adapter sends nothing and leaves prose unchanged. The gene
 
 ## Translate and compare
 
+Source and target locale arguments are checked against BCP 47 tag structure, including private-use tags, extension sequences, subtag order, and duplicate extension singletons or variants. Unknown but syntactically well-formed subtags are accepted: SkillTether does not bundle or query the versioned [IANA Language Subtag Registry](https://www.iana.org/assignments/language-subtag-registry/language-subtag-registry) and does not canonicalize casing or deprecated tags. See [RFC 5646](https://www.rfc-editor.org/rfc/rfc5646) for the language-tag format.
+
 ~~~sh
 skilltether translate ./sample-skill /tmp/candidate/sample-skill \
   --source-locale en --target-locale fr --adapter identity \
