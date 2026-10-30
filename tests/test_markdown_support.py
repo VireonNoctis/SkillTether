@@ -109,3 +109,28 @@ def test_parser_structure_rejects_added_footnote_or_table_structure() -> None:
     source = "# Guide\n\nThis is a simple paragraph.\n"
     changed = "# Guide\n\nThis is a simple paragraph.[^new]\n\n[^new]: Added note.\n"
     assert _markdown_structure_signature(source) != _markdown_structure_signature(changed)
+
+
+
+def test_mdx_package_resource_is_flagged_without_execution(tmp_path: Path) -> None:
+    from skilltether.analysis import inspect_package
+
+    package = tmp_path / "sample-skill"
+    package.mkdir()
+    (package / "SKILL.md").write_text(
+        "---\nname: sample-skill\ndescription: A package with an MDX reference.\n---\n\n"
+        "See [the interactive panel](references/panel.mdx).\n",
+        encoding="utf-8",
+    )
+    references = package / "references"
+    references.mkdir()
+    (references / "panel.mdx").write_text(
+        "import Panel from './Panel.jsx'\n\n<Panel />\n",
+        encoding="utf-8",
+    )
+
+    _inventory, findings, _texts = inspect_package(package)
+    mdx_finding = next(f for f in findings if f.code == "MDX_SYNTAX_UNSUPPORTED")
+    assert mdx_finding.path == "references/panel.mdx"
+    assert mdx_finding.severity == "high"
+    assert mdx_finding.requires_review is True
