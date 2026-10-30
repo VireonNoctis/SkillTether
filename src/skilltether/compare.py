@@ -608,27 +608,44 @@ def _contains_any_marker(text: str, markers: list[str]) -> bool:
     )
 
 
+_CONTEXT_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "before", "but", "by", "for",
+    "from", "if", "in", "into", "is", "it", "of", "on", "or", "the", "this",
+    "that", "these", "those", "to", "was", "were", "with", "within", "without",
+    "after", "then", "than", "when", "where", "which", "while",
+    "le", "la", "les", "un", "une", "des", "du", "de", "et", "ou", "dans",
+    "sur", "au", "aux", "ce", "cette", "ces", "est", "sont", "pour", "avec",
+    "avant", "après", "si", "que", "qui",
+    "el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "y",
+    "o", "en", "con", "por", "para", "si", "que", "es", "son", "antes", "después",
+    "der", "die", "das", "ein", "eine", "und", "oder", "in", "im", "am", "an",
+    "auf", "mit", "für", "von", "zu", "ist", "sind", "vor", "nach", "wenn",
+    "o", "os", "as", "um", "uma", "uns", "umas", "de", "do", "da", "e", "ou",
+    "em", "no", "na", "com", "por", "para", "que", "é", "são", "antes", "depois",
+    "il", "lo", "gli", "le", "un", "una", "uno", "di", "del", "della", "e",
+    "o", "in", "su", "con", "per", "che", "è", "sono", "prima", "dopo",
+}
+
+
+def _context_words(value: str) -> set[str]:
+    return {
+        word.casefold()
+        for word in re.findall(r"[\w-]{3,}", unicodedata.normalize("NFC", value))
+        if word.casefold() not in _CONTEXT_STOPWORDS
+    }
+
+
 def _find_invariant_context(
     text: str,
     statement: str,
     *,
     preferred_line: int | None = None,
 ) -> tuple[int, str, str] | None:
-    """Locate likely target context by token overlap or a clearly labelled positional fallback."""
-    words = {
-        word.casefold()
-        for word in re.findall(r"[\w-]{3,}", unicodedata.normalize("NFC", statement))
-    }
+    """Locate likely target context by stopword-filtered overlap or position."""
+    words = _context_words(statement)
     lines = text.splitlines()
     scored = [
-        (
-            len(words & {
-                word.casefold()
-                for word in re.findall(r"[\w-]{3,}", unicodedata.normalize("NFC", line))
-            }),
-            index,
-            line,
-        )
+        (len(words & _context_words(line)), index, line)
         for index, line in enumerate(lines, start=1)
     ]
     score, line_number, line = max(scored, default=(0, 1, ""))
