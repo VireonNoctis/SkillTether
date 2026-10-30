@@ -12,7 +12,8 @@ This page describes the repository implementation, not the entire long-term Skil
 - UTF-8 validation for expected text/script resources; arbitrary binary assets remain byte-oriented rather than being misclassified as malformed text.
 - YAML frontmatter and required `SKILL.md` metadata checks, including required non-empty `name` and `description`, name syntax/length/directory identity, description length, and types for supported optional fields.
 - Optional `license`, `compatibility`, `metadata`, and experimental `allowed-tools` are validated when present but are not required. Unknown frontmatter fields receive a low-severity notice rather than an automatic blocking failure.
-- Local Markdown links and images, table-cell links, percent-decoded fragments, malformed local-link URL findings, conventional resource references, heading/HTML fragments, and referenced package resources are checked within bounded reads. External URLs are not fetched.
+- Local Markdown links and images, GFM table and footnote content, percent-decoded fragments, malformed local-link URL findings, conventional resource references, duplicate Unicode heading anchors, and referenced package resources are checked within bounded reads. External URLs are not fetched.
+- Common portability hazards are detected deterministically: Windows-reserved component characters/names and trailing periods/spaces, plus case-folded Unicode NFC path collisions. The check is conservative and does not emulate every host filesystem.
 - Static syntax parsing is applied to supported Python, JSON, YAML, TOML, and XML resources. Referenced scripts are never executed.
 - Protected-token policies support configured literals and regular expressions, bounded token/pattern inputs, overlap handling, and conservative screening for common risky regex shapes. This screening does not prove all patterns computationally safe.
 
@@ -21,9 +22,11 @@ This page describes the repository implementation, not the entire long-term Skil
 - Protected spans cover common machine-facing material such as code fences, inline code, URLs, command flags, environment variables, paths, and configured identifiers/literals.
 - Translation is provider-neutral through the `TranslationAdapter` interface. The default identity adapter makes no network request and leaves prose unchanged; it is a pipeline test, not a translator. The generic JSON HTTP adapter requires an endpoint and explicit `--allow-remote` consent.
 - Translation performs a local whole-package preflight before the first provider call. The workload is capped at 10,000 translation requests and 10 MiB of aggregate outbound request bodies. The HTTP adapter also enforces request-count/byte budgets, a 2 MiB per-line request/response cap, a 10 MiB aggregate response cap, positive timeouts no longer than five minutes, and endpoint URL restrictions. Production endpoints must use HTTPS; plain HTTP is limited to loopback.
-- Markdown translation masks/restores supported syntax and opaque regions: frontmatter, fenced/indented code, inline-code spans, URLs and link/image/reference-link delimiters, emphasis delimiters, task-list checkboxes, escaped punctuation, hard line breaks, HTML tags, and table pipes. Table-cell prose can be translated while separators stay intact. Multiline HTML comments and recognized code-bearing HTML blocks remain opaque.
-- Translation fails closed on deleted/duplicated/reordered syntax placeholders, provider-injected line breaks or unsupported controls, invalid response values, exceeded budgets, or a changed parser-visible Markdown structure signature. All adapters, including custom adapters, are subject to shared output validation. This is not a full CommonMark/MDX AST transformation.
+- Markdown translation uses one shared parser profile: CommonMark plus GFM-like tables, strikethrough, task lists and alerts, plus footnotes and definition lists. It masks/restores supported syntax and opaque regions: frontmatter, fenced/indented code, inline-code spans, URLs and link/image/reference-link/footnote delimiters, emphasis delimiters, task-list checkboxes, escaped punctuation, hard line breaks, HTML tags, and table pipes. Table-cell prose can be translated while separators stay intact. Multiline HTML comments and recognized code-bearing HTML blocks remain opaque. The parser requires markdown-it-py 4.1+, mdit-py-plugins, and linkify-it-py.
+- Translation fails closed on deleted/duplicated/reordered syntax placeholders, provider-injected line breaks or unsupported controls, invalid response values, exceeded budgets, or a changed parser-visible Markdown structure signature. Obvious MDX imports/exports, JSX tags, and JavaScript expressions outside code examples produce a high-severity unsupported-syntax finding; MDX is never evaluated. This is not a full CommonMark/MDX AST transformation.
 - Package comparison covers line-block/content differences, protected tokens and their order, file paths, non-text resource hashes/modes, and human-authored invariants. Added/omitted-content findings are alignment evidence, not a complete classification of new operational instructions.
+- Invariant source paths, line ranges, and quoted source excerpts are checked against the current source. Draft cue profiles cover English, French, Spanish, German, Portuguese, and Italian; the labelled fixtures report exact-match precision/recall for this small curated corpus only. Unknown languages receive no automatic suggestions. Candidate and target-language marker lists remain unreviewed heuristics.
+- When multilingual word overlap cannot locate a target excerpt, comparison can use preserved line position only when source/target line counts match and the manifest has a source line. The report marks this as a high-uncertainty heuristic; it is not a semantic match and does not remove critical human sign-off.
 - Invariant source paths, line ranges, and quoted source excerpts are checked against the current source. Stale or invalid anchors create deterministic critical findings and cannot be bypassed by an approval disposition; fix the manifest and rerun comparison.
 - Count-preserving reordering of protected machine-facing tokens can be flagged as a high-uncertainty heuristic finding.
 
@@ -37,6 +40,7 @@ This page describes the repository implementation, not the entire long-term Skil
 - Common credential-shaped values are redacted or rejected in selected report/review fields. This is a limited guardrail, not a complete secret scanner.
 - Optional HMAC-SHA256 sealing can verify report integrity before review/export. It is symmetric integrity protection, not reviewer authentication or non-repudiation.
 - Optional SQLite history keeps run metadata, locale/provider/status values, and package fingerprints, not source/target document text or credentials. Local history improves traceability but is not itself cryptographically tamper-evident.
+- The offline reviewer workbench in reviewer/index.html loads a user-selected JSON report, filters findings, displays untrusted evidence as plain text, and appends timestamped decisions to unsigned reports before exporting a new JSON file. It makes no network requests and uses no browser storage. Signed reports are read-only; the CLI remains authoritative for signature verification and approval.
 
 ## Verification and CI
 
@@ -46,12 +50,12 @@ The most recent verified `main` run before this documentation branch is [GitHub 
 
 - No automated guarantee of translation fluency, semantic equivalence, completeness, or safety. Human review is required for critical or ambiguous meaning.
 - Invariant candidate generation and token/order/context heuristics are incomplete, language-dependent, and not a calibrated semantic classifier.
-- Markdown safeguards are lexical masking plus parser-visible structure comparison, not a complete CommonMark/MDX AST transformation. Unusual extensions and nested constructs require review.
+- Markdown safeguards cover a documented GFM-like/Pandoc subset through a shared parser, plus lexical masking; they are not a complete CommonMark/MDX AST transformation. MDX-specific syntax is flagged, not interpreted. Unusual extensions and nested constructs require review.
 - External URL reachability, IANA registry validation/canonicalization, and full shell/JavaScript/PowerShell semantic parsing are unsupported.
 - No automatic protected-token rename mapping; changed identifiers must be reviewed rather than silently renamed.
 - No bundled vendor SDK, hosted translation service, API-key management service, or built-in credentials. Provider privacy/retention remains the user's responsibility after explicit consent.
 - No comprehensive secret scanner, cryptographic reviewer identity, or tamper-proof local history.
-- The optional Svelte/TypeScript reviewer interface is not implemented; the CLI and report contracts are the current interface.
+- The browser workbench is intentionally plain HTML/JavaScript, not a production Svelte application. It edits reports only in memory and does not verify HMAC signatures, authenticate reviewer identity, or replace CLI approval.
 
 ## Specification boundary
 
