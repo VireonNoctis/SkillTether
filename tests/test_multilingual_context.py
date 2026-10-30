@@ -68,3 +68,14 @@ def test_positional_alignment_does_not_hide_missing_negation(tmp_path: Path) -> 
     missing = next(f for f in report.findings if f.code == "INVARIANT_NEGATION_UNCERTAIN")
     assert missing.analysis_method == "heuristic"
     assert missing.uncertainty == "high"
+
+
+def test_single_shared_word_does_not_confirm_target_context() -> None:
+    from skilltether.compare import _find_invariant_context
+
+    target = "This unrelated line mentions the source once.\nAnother unrelated instruction follows."
+    alignment = _find_invariant_context(
+        target,
+        "Never delete the source file before inspection.",
+    )
+    assert alignment is None
