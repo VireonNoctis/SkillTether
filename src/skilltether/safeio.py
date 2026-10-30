@@ -33,6 +33,10 @@ def read_bounded_regular_file(
     try:
         descriptor = os.open(source, flags)
         opened = os.fstat(descriptor)
+        if metadata.st_ino and opened.st_ino and (
+            metadata.st_dev != opened.st_dev or metadata.st_ino != opened.st_ino
+        ):
+            raise ValueError(f"{purpose} changed identity between lstat and open")
         if not stat.S_ISREG(opened.st_mode):
             raise ValueError(f"{purpose} changed to a non-regular filesystem entry while opening")
         if require_private_mode and os.name == "posix" and stat.S_IMODE(opened.st_mode) & 0o077:

@@ -114,3 +114,29 @@ def test_manifest_loader_bounds_input_and_rejects_symlink(tmp_path: Path, monkey
         pytest.skip("symlink creation is not permitted")
     with pytest.raises(ValueError, match="regular file"):
         compare.load_invariant_manifest(alias)
+
+def test_rejects_regular_file_replaced_between_lstat_and_open(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "input.txt"
+    path.write_bytes(b"original content")
+    replacement = tmp_path / "replacement.txt"
+    replacement.write_bytes(b"replacement content")
+
+    original_open = os.open
+    swapped = False
+
+    def replace_before_open(file, flags, *args, **kwargs):
+        nonlocal swapped
+        if Path(file) == path and not swapped:
+            swapped = True
+            os.replace(replacement, path)
+        return original_open(file, flags, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", replace_before_open)
+
+    with pytest.raises(ValueError, match="changed identity between lstat and open"):
+        read_bounded_regular_file(path, max_bytes=1024)
+
+    assert swapped
+
