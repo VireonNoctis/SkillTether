@@ -33,11 +33,11 @@ Built-in detection and a reviewed policy protect common code, commands, flags, i
 
 ### Human-reviewed operational invariants
 
-Versioned YAML manifests record reviewer-maintained expectations about requirements, negation, limits, prerequisites, and decision rules. The manifest generator suggests candidates using heuristics. Source anchors are checked against current source content, while target comparison uses exact-token/numeric/marker checks and contextual heuristics. These checks inform review; they do not establish semantic equivalence. Critical and ambiguous instructions need qualified human review and scenario testing.
+Versioned YAML manifests record reviewer-maintained expectations about requirements, negation, limits, prerequisites, and decision rules. Draft cue profiles now cover six primary languages (English, French, Spanish, German, Portuguese, and Italian) and are measured against a small human-labelled positive/negative corpus. Exact precision/recall on that corpus is regression evidence only, not a representative multilingual benchmark. Source anchors are checked against current source content. Target comparison uses exact-token/numeric/marker checks, Unicode-normalized marker matching, word overlap, and a labelled line-position fallback when source and target line counts are identical. Every non-deterministic context location remains heuristic; positional alignment cannot establish equivalent meaning. Critical and ambiguous instructions need qualified human review and scenario testing.
 
 ### Translation and provider boundary
 
-The identity adapter enables a no-network pipeline exercise but does not translate. The generic JSON HTTP adapter is used only when an endpoint is configured and remote consent is explicit. Whole-package preflight and adapter-level budgets constrain requests and output. Markdown syntax masking and parser-visible structure checks detect some structural drift; they are not a complete Markdown/MDX transformation.
+The identity adapter enables a no-network pipeline exercise but does not translate. The generic JSON HTTP adapter is used only when an endpoint is configured and remote consent is explicit. Whole-package preflight and adapter-level budgets constrain requests and output. The shared parser supports CommonMark plus GFM-like tables, strikethrough, task lists, alerts, footnotes, and definition lists. Parser-visible structure comparison detects some structural drift. Common MDX-only constructs are flagged as unsupported instead of being treated as plain Markdown; there is still no complete MDX AST transformer.
 
 ### Locale metadata and audit evidence
 
@@ -57,6 +57,12 @@ BCP 47 tag structure is validated consistently across CLI/model/history surfaces
 | Hostile files or model output | Inputs may trigger resource exhaustion or unsafe publication | Bounded reads, symlink/special-file checks, staging and output validation; platform/filesystem behavior remains a residual risk |
 
 ## Open research and engineering gaps
+
+1. Expand the multilingual corpus beyond the six currently profiled languages and measure precision/recall by rule family, writing system, and locale variant; the current corpus is small and curated.
+2. Replace positional context heuristics with stronger evidence-linked multilingual alignment while preserving explicit uncertainty and reviewer control.
+3. Evaluate fuller MDX support only with a parser that can safely model JSX/JavaScript syntax without executing it; current behavior flags obvious cases and refuses to localize those files.
+4. Expand portability testing to normalization variants and more filesystem configurations; the current path check covers common Windows name hazards and casefold/NFC collisions.
+5. Consider a typed component-based reviewer UI if the offline HTML workbench grows beyond its intentionally small scope.
 
 1. Expand the human-reviewed positive/negative invariant corpus across languages and Markdown constructs, then measure precision/recall by rule family.
 2. Improve Markdown reference/slug and extension handling without claiming a complete CommonMark/MDX AST.
