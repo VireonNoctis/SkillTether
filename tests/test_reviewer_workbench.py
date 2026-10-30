@@ -16,6 +16,9 @@ def test_reviewer_workbench_is_offline_and_renders_untrusted_content_as_text() -
     assert "innerHTML" not in document
     assert "integrity_signature" in document
     assert "review_history" in document
+    assert "Content-Security-Policy" in document
+    assert "connect-src 'none'" in document
+    assert "historyIsConsistent" in document
 
 
 def test_reviewer_workbench_keeps_signed_reports_read_only() -> None:
