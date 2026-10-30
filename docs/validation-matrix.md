@@ -9,6 +9,18 @@ The latest verified implementation baseline before this documentation-only branc
 
 | Test class | Example | Expected result |
 |---|---|---|
+| Multilingual invariant evaluation | Human-labelled English/French/Spanish/German/Portuguese/Italian candidate examples with operational positives and descriptive/code negatives | Exact fixture match; record TP/FP/FN and precision/recall without presenting the curated sample as a general benchmark |
+| Language profile selection | BCP 47 tag with a supported primary language and region/script subtags | Select primary-language profile; unknown language returns no candidate suggestions rather than guessing |
+| Cross-language context fallback | Source English instruction and translated French line with no shared words but preserved line count | Emit an explicitly high-uncertainty positional alignment finding; retain critical human sign-off |
+| Negation-loss negative case | Same positional mapping but target translation omits locale negation markers | Emit heuristic negation uncertainty; positional mapping does not suppress drift warnings |
+| GFM/Pandoc Markdown | Table, task list, alert, strikethrough, footnote, and definition list | Shared parser recognizes structure; translation masks delimiters and preserves parser-visible signature |
+| MDX unsupported syntax | Import/export, JSX tag, or embedded JavaScript expression outside code fence | High-severity unsupported-syntax finding; code-fenced examples are negative cases; no evaluation/execution |
+| Windows path portability | Reserved device name, forbidden character, trailing dot/space | Deterministic portability finding |
+| Unicode/case path collision | Two file paths share NFC + case-folded key | Critical normalized-path collision finding on case-sensitive hosts; aliasing hosts skip fixture |
+| Offline reviewer workbench | Load unsigned JSON, append a review event and export; attempt to edit signed report | Unsigned report edits are local and append-only; signed report remains read-only; content is rendered as text and no network/storage API is used |
+
+| Test class | Example | Expected result |
+|---|---|---|
 | Package structure | Valid package with references and assets | All declared resources resolve |
 | Markdown links in tables | GFM-style table cell contains a local link | Link is parsed and broken target is reported |
 | Malformed local-link URL | Markdown URL contains invalid bracketed host syntax | Explicit `LOCAL_LINK_URL_INVALID` finding; validator does not crash |
