@@ -75,7 +75,7 @@ PROFILES: dict[str, InvariantLanguageProfile] = {
     "es": _profile(
         "es",
         negation=r"\b(?:nunca|sin|ning[uú]n(?:a|os|as)?|no(?!\s+m[áa]s\s+de))\b",
-        mandatory=r"\b(?:debe|deben|deberá|deberán|obligatorio|es\s+necesario\s+que)\b",
+        mandatory=r"\b(?:debe|debes|deben|deberá|deberán|obligatorio|es\s+necesario\s+que)\b",
         conditional=r"\b(?:solo\s+si|solamente\s+si|a\s+menos\s+que|antes|después|si|siempre\s+que)\b",
         numeric_limit=r"\b(?:al\s+menos|como\s+m[áa]ximo|no\s+m[áa]s\s+de|no\s+menos\s+de|hasta|m[áa]ximo|m[íi]nimo|l[íi]mite|exactamente|menos\s+de|m[áa]s\s+de)\b",
         action=r"\b(?:usar|usa|use|utilizar|utilice|conservar|conserve|preservar|preserve|enviar|envíe|almacenar|almacene|aceptar|rechazar|ejecutar|ejecute|eliminar|elimine|evitar|evite|configurar|configure|esperar|espere|reintentar|incluya|excluir|crear|detener|llamar|abrir|cerrar)\b",
@@ -85,7 +85,7 @@ PROFILES: dict[str, InvariantLanguageProfile] = {
     "de": _profile(
         "de",
         negation=r"\b(?:niemals|kein(?:e|en|em|er|es)?|ohne|nicht(?!\s+mehr\s+als))\b",
-        mandatory=r"\b(?:muss|müssen|verpflichtend|erforderlich|ist\s+verpflichtet)\b",
+        mandatory=r"\b(?:muss|musst|müssen|verpflichtend|erforderlich|ist\s+verpflichtet)\b",
         conditional=r"\b(?:nur\s+wenn|es\s+sei\s+denn|bevor|nachdem|nach|vor|wenn|falls)\b",
         numeric_limit=r"\b(?:mindestens|höchstens|nicht\s+mehr\s+als|nicht\s+weniger\s+als|bis\s+zu|maximal|minimal|grenze|genau|innerhalb|weniger\s+als|mehr\s+als)\b",
         action=r"\b(?:verwenden|verwende|nutzen|nutze|behalten|bewahren|senden|speichern|akzeptieren|ablehnen|ausführen|löschen|entfernen|vermeiden|konfigurieren|warten|wiederholen|einschließen|ausschließen|erstellen|stoppen|aufrufen|öffnen|schließen|ausgeben)\b",
@@ -105,7 +105,7 @@ PROFILES: dict[str, InvariantLanguageProfile] = {
     "it": _profile(
         "it",
         negation=r"\b(?:mai|nessun(?:o|a|i|e)?|senza|non(?!\s+più\s+di))\b",
-        mandatory=r"\b(?:deve|devono|dovrà|obbligatorio|è\s+necessario\s+che)\b",
+        mandatory=r"\b(?:deve|devi|devono|dovrà|obbligatorio|è\s+necessario\s+che)\b",
         conditional=r"\b(?:solo\s+se|a\s+meno\s+che|prima|dopo|se|purché)\b",
         numeric_limit=r"\b(?:almeno|al\s+massimo|non\s+più\s+di|non\s+meno\s+di|fino\s+a|massimo|minimo|limite|esattamente|entro|meno\s+di|più\s+di)\b",
         action=r"\b(?:usare|usa|utilizzare|utilizza|mantenere|conservare|preservare|inviare|memorizzare|accettare|rifiutare|eseguire|eliminare|rimuovere|evitare|configurare|attendere|riprovare|includere|escludere|creare|interrompere|chiamare|aprire|chiudere)\b",
