@@ -9,7 +9,7 @@ description = "Local-first localization and integrity checks for Agent Skill pac
 readme = "README.md"
 requires-python = ">=3.13"
 license = { text = "GPL-3.0-only" }
-dependencies = ["markdown-it-py>=3.0.0", "pydantic>=2.8.0", "PyYAML>=6.0.2"]
+dependencies = ["markdown-it-py>=4.1.0", "mdit-py-plugins>=0.5.0", "pydantic>=2.8.0", "PyYAML>=6.0.2"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.3.0", "hypothesis>=6.112.0", "coverage[toml]>=7.6.0", "jsonschema>=4.23.0"]
