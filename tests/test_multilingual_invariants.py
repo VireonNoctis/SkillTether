@@ -14,6 +14,7 @@ def test_multilingual_invariant_suggestions_match_curated_corpus(tmp_path: Path)
         Path("tests/fixtures/invariant-suggestion-multilingual.json").read_text(encoding="utf-8")
     )
     aggregate = {"tp": 0, "fp": 0, "fn": 0}
+    per_locale: dict[str, dict[str, int]] = {}
 
     for case in corpus["cases"]:
         source = tmp_path / case["locale"] / f"skill-{case['locale']}"
@@ -47,6 +48,11 @@ def test_multilingual_invariant_suggestions_match_curated_corpus(tmp_path: Path)
         aggregate["tp"] += true_positive
         aggregate["fp"] += false_positive
         aggregate["fn"] += false_negative
+        per_locale[case["locale"]] = {
+            "tp": true_positive,
+            "fp": false_positive,
+            "fn": false_negative,
+        }
 
         observed_text = {item["source_text"] for item in payload["invariants"]}
         for excluded in case["expected_exclusions"]:
@@ -62,6 +68,10 @@ def test_multilingual_invariant_suggestions_match_curated_corpus(tmp_path: Path)
             assert negation["negation_markers"] == ["not", "never", "without", "cannot", "can't", "mustn't", "don't"]
 
     assert aggregate == {"tp": 25, "fp": 0, "fn": 0}
+    assert per_locale == {
+        locale: {"tp": 5, "fp": 0, "fn": 0}
+        for locale in ("fr", "es", "de", "pt", "it")
+    }
     precision = aggregate["tp"] / (aggregate["tp"] + aggregate["fp"])
     recall = aggregate["tp"] / (aggregate["tp"] + aggregate["fn"])
     assert precision == 1.0
