@@ -5,6 +5,7 @@ import difflib
 import hashlib
 import json
 import re
+import unicodedata
 from collections import Counter
 from pathlib import Path
 
@@ -24,7 +25,8 @@ FATAL_STRUCTURE_CODES = {
     "METADATA_INVALID", "SKILL_BODY_EMPTY", "SYMLINK_NOT_ALLOWED", "FILE_TOO_LARGE",
     "FILE_STAT_ERROR", "FILE_READ_ERROR", "PATH_TRAVERSAL_LINK", "BROKEN_LOCAL_LINK",
     "SCRIPT_NOT_UTF8", "SPECIAL_FILE_NOT_ALLOWED", "RESOURCE_SYNTAX_INVALID", "MISSING_REFERENCED_RESOURCE",
-    "PATH_TRAVERSAL_RESOURCE",
+    "PATH_TRAVERSAL_RESOURCE", "MDX_SYNTAX_UNSUPPORTED",
+    "PACKAGE_PATH_NOT_PORTABLE", "PACKAGE_PATH_NORMALIZATION_COLLISION",
 }
 MAX_DIFF_LINE_CELLS = 4_000_000
 
@@ -346,14 +348,54 @@ def compare_packages(
                 if closing is not None:
                     context_doc = "\n".join(target_lines[closing + 1:])
                     context_offset = closing + 2
-            alignment = _find_invariant_context(context_doc, invariant.source_text or invariant.statement)
+            source_context_offset = 1
+            if invariant.source_path == "SKILL.md":
+                source_lines_for_alignment = source_doc.splitlines()
+                if source_lines_for_alignment and source_lines_for_alignment[0].strip() == "---":
+                    source_close = next(
+                        (index for index in range(1, len(source_lines_for_alignment))
+                         if source_lines_for_alignment[index].strip() == "---"),
+                        None,
+                    )
+                    if source_close is not None:
+                        source_context_offset = source_close + 2
+            preferred_target_line = None
+            if (
+                invariant.source_lines
+                and len(source_doc.splitlines()) == len(target_doc.splitlines())
+            ):
+                candidate_line = invariant.source_lines[0] - source_context_offset + 1
+                if candidate_line > 0:
+                    preferred_target_line = candidate_line
+            alignment = _find_invariant_context(
+                context_doc,
+                invariant.source_text or invariant.statement,
+                preferred_line=preferred_target_line,
+            )
             if alignment is None:
                 target_line, target_context = None, None
+                alignment_method = None
             else:
-                relative_line, target_context = alignment
+                relative_line, target_context, alignment_method = alignment
                 target_line = context_offset + relative_line - 1
+            if alignment_method == "positional":
+                findings.append(new_finding(
+                    "INVARIANT_TARGET_CONTEXT_POSITIONAL", "info", "semantic_invariant",
+                    f"Invariant {invariant.id!r} was aligned by preserved source/target line position, not by shared vocabulary.",
+                    "This fallback supports translated languages with no shared words, but unchanged line counts do not prove that the target sentence has the same meaning.",
+                    path=invariant.source_path,
+                    source_line=invariant.source_lines[0] if invariant.source_lines else None,
+                    target_line=target_line,
+                    original_context=invariant.source_text or invariant.statement,
+                    target_context=target_context,
+                    proposed_change="Review this target line against the complete source instruction and its surrounding conditions.",
+                    requires_review=False,
+                    analysis_method="heuristic",
+                    uncertainty="high",
+                    severity_rationale="The context location is approximate; the report records the method so it cannot be mistaken for semantic confirmation.",
+                ))
 
-            if invariant.severity == "high" and target_context is None:
+            if invariant.severity in {"high", "critical"} and target_context is None:
                 findings.append(new_finding(
                     "INVARIANT_TARGET_CONTEXT_UNCERTAIN", "high", "semantic_invariant",
                     f"Invariant {invariant.id!r} could not be aligned confidently to a target-language context.",
@@ -440,7 +482,7 @@ def compare_packages(
                     requires_review=True,
                 ))
             if invariant.negation_required and invariant.negation_markers and (
-                not target_context or not any(marker in target_context for marker in invariant.negation_markers)
+                not target_context or not _contains_any_marker(target_context, invariant.negation_markers)
             ):
                 findings.append(new_finding(
                     "INVARIANT_NEGATION_UNCERTAIN", "critical", "semantic_invariant",
@@ -455,7 +497,7 @@ def compare_packages(
                     requires_review=True,
                 ))
             if invariant.mandatory_required and invariant.mandatory_markers and (
-                not target_context or not any(marker in target_context for marker in invariant.mandatory_markers)
+                not target_context or not _contains_any_marker(target_context, invariant.mandatory_markers)
             ):
                 findings.append(new_finding(
                     "INVARIANT_MODALITY_UNCERTAIN", "critical", "semantic_invariant",
@@ -554,15 +596,50 @@ def compare_packages(
     )
 
 
-def _find_invariant_context(text: str, statement: str) -> tuple[int, str] | None:
-    """Return (1-based line number, excerpt) by approximate word overlap, not semantics."""
-    words = {word.lower() for word in re.findall(r"[A-Za-z0-9_-]{4,}", statement)}
-    if not words:
-        return None
+def _normalized_marker_text(value: str) -> str:
+    return re.sub(r"\s+", " ", unicodedata.normalize("NFC", value).casefold()).strip()
+
+
+def _contains_any_marker(text: str, markers: list[str]) -> bool:
+    normalized_text = _normalized_marker_text(text)
+    return any(
+        (normalized := _normalized_marker_text(marker)) and normalized in normalized_text
+        for marker in markers
+    )
+
+
+def _find_invariant_context(
+    text: str,
+    statement: str,
+    *,
+    preferred_line: int | None = None,
+) -> tuple[int, str, str] | None:
+    """Locate likely target context by token overlap or a clearly labelled positional fallback."""
+    words = {
+        word.casefold()
+        for word in re.findall(r"[\w-]{3,}", unicodedata.normalize("NFC", statement))
+    }
     lines = text.splitlines()
     scored = [
-        (len(words & {word.lower() for word in re.findall(r"[A-Za-z0-9_-]{4,}", line)}), index, line)
+        (
+            len(words & {
+                word.casefold()
+                for word in re.findall(r"[\w-]{3,}", unicodedata.normalize("NFC", line))
+            }),
+            index,
+            line,
+        )
         for index, line in enumerate(lines, start=1)
     ]
     score, line_number, line = max(scored, default=(0, 1, ""))
-    return (line_number, line[:1000]) if score > 0 else None
+    # A weak one-word collision must not beat a known line-preserving mapping.
+    threshold = max(1, min(3, (len(words) + 5) // 6))
+    if score >= threshold:
+        return line_number, line[:1000], "word-overlap"
+    if preferred_line is not None and 1 <= preferred_line <= len(lines):
+        positional = lines[preferred_line - 1]
+        if positional.strip():
+            return preferred_line, positional[:1000], "positional"
+    if score > 0 and line.strip():
+        return line_number, line[:1000], "weak-overlap"
+    return None
