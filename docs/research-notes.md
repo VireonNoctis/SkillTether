@@ -58,18 +58,13 @@ BCP 47 tag structure is validated consistently across CLI/model/history surfaces
 
 ## Open research and engineering gaps
 
-1. Expand the multilingual corpus beyond the six currently profiled languages and measure precision/recall by rule family, writing system, and locale variant; the current corpus is small and curated.
-2. Replace positional context heuristics with stronger evidence-linked multilingual alignment while preserving explicit uncertainty and reviewer control.
-3. Evaluate fuller MDX support only with a parser that can safely model JSX/JavaScript syntax without executing it; current behavior flags obvious cases and refuses to localize those files.
-4. Expand portability testing to normalization variants and more filesystem configurations; the current path check covers common Windows name hazards and casefold/NFC collisions.
+1. Expand the multilingual labelled corpus beyond the six current profiles. Current exact-match metrics are reported by language and rule family on 30 curated positive examples, but dialect, regional, script, and real-world package coverage remain limited.
+2. Replace word-overlap and positional context heuristics with stronger evidence-linked multilingual alignment while preserving explicit uncertainty and reviewer control.
+3. Evaluate fuller MDX support only with a parser that can safely model JSX/JavaScript syntax without executing it; current behavior flags obvious constructs and refuses to localize those files.
+4. Expand portability testing to additional normalization variants, network/removable filesystems, and platform-specific path semantics; the current path check covers common Windows name hazards and casefold/NFC collisions.
 5. Consider a typed component-based reviewer UI if the offline HTML workbench grows beyond its intentionally small scope.
-
-1. Expand the human-reviewed positive/negative invariant corpus across languages and Markdown constructs, then measure precision/recall by rule family.
-2. Improve Markdown reference/slug and extension handling without claiming a complete CommonMark/MDX AST.
-3. Define a documented differential compatibility corpus for the pinned reference validator and selected optional/unknown metadata fields.
-4. Explore better evidence-linked semantic review methods with explicit calibration and reviewer control; do not turn model confidence into an approval guarantee.
-5. Decide how provider-specific configuration and provenance should be represented without coupling the core to one vendor.
-6. Evaluate extra filesystem configurations and new Python minors before claiming support outside the currently tested CI matrix.
+6. Define a documented differential compatibility corpus for the pinned reference validator and selected optional/unknown metadata fields.
+7. Improve evidence-linked drift analysis without treating language-model confidence as ground truth or an approval guarantee.
 
 ## Limits
 
