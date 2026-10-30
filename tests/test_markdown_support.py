@@ -7,6 +7,7 @@ from skilltether.markdown_support import (
     markdown_heading_anchors,
     markdown_link_targets,
     mdx_syntax_locations,
+    walk_tokens,
 )
 from skilltether.translation import translate_markdown
 
@@ -39,7 +40,7 @@ Read this note[^memo].
 
 [^memo]: an old note.
 """
-    types = [token.type for token in create_markdown_parser().parse(text)]
+    types = [token.type for token in walk_tokens(create_markdown_parser().parse(text))]
     assert "table_open" in types
     assert "footnote_ref" in types
     assert "footnote_block_open" in types
