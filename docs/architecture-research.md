@@ -1,16 +1,18 @@
-# SkillTether Architecture Research
+# SkillTether Architecture and Research Notes
+
+This document records the architecture behind the current CLI implementation and separates shipped behavior from longer-term proposals. The [implementation-status page](implementation-status.md) and [readiness audit](readiness-audit.md) are the source of truth for implemented scope.
 
 ## Pipeline
-Inventory package → parse structure → identify protected spans → apply configured translation adapter → re-parse output → compare invariants → human review → export to a separate directory.
 
-## Intended stack
-- Python 3.13+ for CLI, parsing, diffing, rules, and translation-provider interfaces.
-- YAML parser and Markdown parser selected with strict modes and well-defined error handling.
-- Pydantic and JSON Schema for manifests and report contracts.
-- BCP 47 language tags for source and target locale identifiers.
-- SQLite only if local review history proves valuable.
-- Svelte + TypeScript as a later optional review interface.
-- pytest, property-based tests, and GitHub Actions for regressions and adversarial fixtures.
+Inventory package → validate metadata/resources → identify protected spans → apply the selected adapter to eligible prose → validate adapter output and Markdown structure → compare source/target packages and invariants → record human review → export to a separate directory.
+
+## Architecture status
+
+- **Implemented:** Python 3.13+ CLI; PyYAML and markdown-it-py parsing; Pydantic models and JSON Schema contracts; provider-neutral translation adapters; dependency-free BCP 47 structural checks; pytest/Hypothesis regression tests; GitHub Actions CI.
+- **Implemented, optional:** SQLite run history stores metadata and package fingerprints without document-text columns.
+- **Implemented, deliberately bounded:** local package inventory, safe I/O/output guards, protected-token policy, Markdown syntax masking, structural comparison, heuristic invariant suggestions, audit reports, and optional HMAC-SHA256 report sealing.
+- **Deferred:** Svelte + TypeScript review UI, vendor-specific SDK integrations, automatic protected-token rename mappings, and full semantic-equivalence analysis.
+- **Not claimed:** canonicalization or IANA registry membership for language tags, online link reachability, complete shell/JavaScript/PowerShell parsing, or full CommonMark/MDX AST transformation.
 
 ## Specification boundary
 
@@ -18,23 +20,28 @@ The normative format reference is the [official Agent Skills specification](http
 
 ## Package inventory
 
-The local-link validator parses links inside table cells, decodes percent-encoded fragments, and reports malformed URL syntax without crashing. Fragment checks should reuse the bounded inventory snapshot; any fallback read is bounded and refuses a final-component symlink. See [the requirements-to-code readiness audit](readiness-audit.md) for the traced scope and remaining gaps.
-
-Record original file path, type, size, hash, filesystem mode, encoding where detectable, frontmatter metadata, link targets, and referenced resources. Bound per-file/aggregate bytes and directory traversal. Avoid reading or executing a script merely to translate its surrounding documentation.
+The validator inspects a bounded package snapshot including file paths, file types, sizes, hashes, filesystem modes, expected text encodings, frontmatter metadata, local link targets, and conventional resource references. The local-link validator parses links in table cells, decodes percent-encoded fragments, and reports malformed URL syntax instead of crashing. Fragment validation reuses the bounded inventory where possible; fallback reads are bounded and refuse a final-component symlink. External URLs are not fetched and referenced scripts are never executed.
 
 ## Protected-span model
-Each span has path, source range, category, exact literal or matching rule, criticality, and policy. Categories may include tool names, commands, file paths, environment variables, URLs, code, safety constraints, numeric limits, and identifiers. A rule must be able to distinguish a literal code example from narrative prose. Policy regexes are size/count bounded and screened for common catastrophic-backtracking shapes; this heuristic is not a proof of safe complexity.
+
+Protected spans cover categories such as tool names, commands, file paths, environment variables, URLs, code, safety constraints, numeric limits, and identifiers. Sources include built-in patterns and the reviewed `config/protected-tokens.yaml` policy. The patterns are bounded and screened for common catastrophic-backtracking shapes; that screening is conservative and does not prove safe complexity or detect every operational literal.
 
 ## Invariant model
-Represent an invariant as a stable ID, source text or reference, category, condition, required/forbidden action, threshold or limit if relevant, criticality, reviewer, and status. Findings must point back to the relevant source and target ranges.
 
-## Translation adapters
-Define a narrow adapter interface with source locale, target locale, provider identity, configuration, and data-handling declaration. Provider use should require explicit configuration. Enforce per-line and aggregate response budgets at the adapter boundary, not only in the built-in HTTP implementation; reject line separators, unsupported control characters, and invalid Unicode before writing a candidate. Store neither API keys nor raw credentials in reports. A failed provider call must not create partially translated output that appears complete.
+Each invariant can carry a stable ID, statement, category, source file and line range, source excerpt, tokens/numbers, criticality/severity, reviewer, and review status. Source anchors are checked against the current source text. Manifest suggestion generation is heuristic: it avoids several common code/example regions and unactionable numeric facts, but it is neither complete nor authoritative. Findings preserve locations and evidence where available.
 
-After prose translation and placeholder restoration, compare parser-visible Markdown structure while ignoring ordinary text tokens. This catches accidental or malicious insertion/removal of links, emphasis, lists, headings, code blocks, and tables even when the original placeholders remain present. Keep this structural signature deterministic and separate from multilingual semantic heuristics; it is not a semantic-equivalence score or a complete parser for MDX extensions.
+## Translation adapters and Markdown boundaries
+
+The core uses a narrow `TranslationAdapter` interface. The identity adapter is local and does not translate. The generic JSON HTTP adapter requires an explicit endpoint and `--allow-remote`; the CLI performs a whole-package preflight before the first request and enforces request/response budgets. Provider failures, malformed results, control characters, placeholder violations, and detected Markdown structure changes must not publish a partial candidate.
+
+The Markdown transformer uses lexical masks and placeholders for supported syntax and keeps selected opaque regions unchanged. A parser-visible structure signature detects many inserted or removed links, emphasis, lists, headings, code blocks, and tables. It intentionally ignores ordinary prose text. This is a structural guard, not a full CommonMark/MDX AST transformer and not a semantic-equivalence score.
 
 ## Trust boundaries
-Source packages, scripts, links, model outputs, and imported manifests are untrusted. Parse safely, bound file sizes, never execute scripts during analysis, and write output to a new path. Reports should escape arbitrary source text when rendered.
+
+Source packages, scripts, link targets, imported manifests, configured regular expressions, and provider outputs are untrusted. Reads and traversal are bounded; special files and symlink cases are guarded; scripts are inspected statically and never executed; outputs are staged separately. Reports escape/fence untrusted content before rendering. Credential redaction recognizes selected common patterns only and is not a complete secret scanner.
+
+Remote services can receive eligible prose only after the user explicitly configures and consents to the remote adapter. The user's provider agreement, retention choices, and access controls remain outside SkillTether's control.
 
 ## Status semantics
-Structural check outcomes: pass, fail, unsupported, or error. Semantic check outcomes: no issue detected, review recommended, reviewer approved, reviewer rejected, or unknown. Do not merge these states into one “safe” bit.
+
+Structural check outcomes and semantic-review outcomes are kept distinct. Deterministic findings report a specific detected mismatch; heuristic findings can be false positives or misses; the absence of a finding is not proof of equivalence. Human review and scenario testing remain necessary for critical or ambiguous instructions. Never collapse these signals into a single “safe translation” bit.

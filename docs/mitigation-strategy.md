@@ -1,32 +1,32 @@
 # SkillTether Mitigation Strategy
 
-SkillTether aims to reduce localization defects in Agent Skill packages, especially changes that affect execution, safety, or decision-making.
+SkillTether reduces localization defects in Agent Skill packages, especially changes that affect execution, safety, or decision-making. The table distinguishes controls implemented today from controls that remain heuristic. All tests named below are regression evidence, not proof of completeness.
 
-| Risk | Planned mitigation | Validation | Residual risk |
+| Risk | Current control and maturity | Validation evidence | Residual risk |
 |---|---|---|---|
-| Constraint weakened | Protected invariant manifest for must/must-not, preconditions, thresholds, and escalation rules | Pairs differing only in modal strength or condition | Language models may miss subtle pragmatic shifts |
-| Negation reversed or omitted | Detect polarity and condition changes; require human review on critical invariants | Negation and double-negative fixtures | Natural language can remain ambiguous |
-| Tool/command/path altered | Extract and protect exact spans; validate referenced resources | Exact-token and path-resolution tests | A legitimate rename requires explicit mapping |
-| Package structure broken | Parse YAML frontmatter and Markdown; verify files and links; cap per-file/aggregate bytes, entry counts, and directory depth; reject symlinks and non-regular files | Missing file, invalid YAML, broken-link, named-pipe, and aggregate-limit fixtures | Client extensions differ; filesystem races cannot be eliminated on every platform |
-| Unrequested details added | Diff content and protected tokens; compare non-text resources by hash; scope invariant literals to an approximate matched context | Unexpected-instruction, binary asset, and context-misalignment fixtures | Approximate multilingual context alignment can be wrong and remains review-only |
-| Translation provider receives confidential text | Provider adapters off by default; clear disclosure and explicit consent before remote processing | Mock provider verifies no network call by default | User may approve a provider without understanding its retention policy |
-| Malformed or hostile provider output | Exact-once syntax placeholders, parser-visible Markdown structure comparison, one-line response validation, per-line and aggregate response caps, and control-character rejection | Injected links/formatting/newlines, oversized custom-adapter responses, control characters, and no-partial-publication fixtures | Lexical parsing has limits; valid-looking prose can still change meaning, and unusual Markdown/MDX constructs require review |
-| Machine score mistaken for guarantee | Distinguish deterministic, heuristic, and human-review signals; attach uncertainty and severity rationale | Schema-validated report fixtures and finding-method assertions | Reviewers can still over-trust scores |
-| Source overwritten | Read-only source, separate target output, report/history path containment checks, and atomic mode-restricted report writes | Source hashes remain unchanged; symlink-alias report-path tests | External processes can still mutate shared files; output alias handling varies by OS |
+| Constraint weakened | **Partial:** reviewed invariant manifests, exact tokens/numbers, configured modality/negation markers, and contextual findings | Modal-strength, threshold, precondition, invariant-source-anchor and comparison tests | Linguistic nuance and paraphrases can evade lexical/heuristic checks |
+| Negation reversed or omitted | **Partial:** target-locale negation markers plus human review gates for critical/review-required findings | Negation, marker, double-negative and negative-case fixtures | Marker absence can be grammatical, and no general polarity model proves correctness |
+| Tool/command/path altered | **Implemented for detected spans:** extract/protect built-in and configured exact literals, compare tokens/resources, validate local references | Exact-token mutation, token-order, resource-integrity and path-resolution tests | Detection is pattern-driven; legitimate renames require explicit human handling; no automatic mapping is supported |
+| Package structure broken | **Implemented within bounded formats:** frontmatter and resource/link checks, package inventory, size/depth limits, symlink/special-file rejection, safe staging | Missing file, invalid YAML, broken-link, malformed-URL, named-pipe, symlink, race and aggregate-limit tests | Client extensions differ; external links are not fetched; filesystem races cannot be eliminated on every platform |
+| Unrequested details added | **Partial:** line/content diffs, protected-token differences, resource hashes and context-linked invariant findings | Unexpected-instruction, binary-asset and context-misalignment fixtures | Added imperative classification and multilingual context alignment are not complete |
+| Translation provider receives confidential text | **Implemented consent boundary:** identity adapter is local; remote JSON bridge requires an endpoint and `--allow-remote`; local workload preflight runs before requests | Mock/provider privacy, opt-in, timeout, redirect and request-budget tests | User must assess endpoint approval, retention and data-handling terms |
+| Malformed or hostile provider output | **Implemented structural/output guards:** placeholders, one-line validation, control-character rejection, per-line and aggregate budgets, Markdown structure comparison and staged publication | Injected links/formatting/newlines, oversized custom-adapter, control-character and failure/no-partial-publication fixtures | Lexical/structure checks do not detect every semantic rewrite; unusual Markdown/MDX still needs review |
+| Machine score mistaken for guarantee | **Implemented evidence model:** findings separate deterministic/heuristic methods, uncertainty, severity rationale, and reviewer disposition/history | Report-schema, finding-method, review-audit and approval-gate tests | Reviewers may still over-trust warnings or clean results |
+| Source overwritten or outputs leaked into packages | **Implemented path/integrity guards:** source kept separate, bounded safe reads, staging/fingerprint checks, report/history path containment, atomic restricted report writes | Source immutability, copy-race, symlink-alias, approval-output and safe-I/O tests | Concurrent external changes and OS/filesystem differences remain residual risks |
+| Report edited after review | **Optional HMAC integrity seal:** verify sealed reports before review/export when signing is requested; history tracks decisions in the normal CLI workflow | Valid/tampered HMAC, signed review update, key hygiene and review-audit tests | HMAC is symmetric, not reviewer identity/non-repudiation; unsigned reports remain possible unless signing is required |
+| Credentials appear in reports/notes | **Partial redaction/guardrail:** selected credential patterns are redacted or rejected in defined fields | API-key/bearer/provider-token/PEM and reviewer-note negative fixtures | It is not a complete secret scanner and cannot promise that sensitive information has been removed |
 
 ## Operating safeguards
 
-- Preserve the original skill package and calculate a manifest before transformation.
-- Keep source and target languages explicit.
-- Protect identifiers and machine-readable values by default.
-- Never silently resolve an ambiguous instruction.
-- Critical safety invariants must be reviewed before export.
-- Keep automated warnings and human approval as different fields.
-- Do not transmit package contents to remote services without explicit consent.
-- Do not execute referenced scripts as part of translation or validation.
+- Preserve the original skill package and compare fingerprints before publishing a transformed or approved copy.
+- Keep source and target language tags explicit; do not silently canonicalize tags or rewrite identifiers.
+- Treat invariant suggestions as unreviewed candidates; validate source anchors and rerun comparison after changing the manifest.
+- Keep structural findings, heuristic warnings, uncertainty, and human approval as separate signals.
+- Require explicit consent before sending package prose to a remote provider; never execute referenced scripts as part of inspection or translation.
 - Treat binary assets as package content: same-path byte changes require review rather than being silently ignored.
-- Keep machine-generated context alignment explicitly heuristic; never present an unrelated document-wide token as a confirmed contextual invariant violation.
-- Do not write reports or local history into source/candidate directories; report outputs are written atomically and made user-private on POSIX systems.
+- Treat generated context alignment as heuristic and avoid presenting unrelated document-wide token matches as confirmed violations.
+- Keep reports and local history outside source/candidate directories. Report files are written atomically and use restricted POSIX permissions where supported.
 
 ## Release gates
-A release needs structural validation, a fixture suite for semantic invariants, evidence-linked warnings, clear uncertainty labels, and privacy tests for translation adapters. Avoid claims such as “meaning guaranteed” or “safe translation”.
+
+A release should pass the current CI matrix, include a fixture for each new rule plus a meaningful negative case, preserve source-package fingerprints, validate schemas and bundled fixtures, and document coverage/platform limits. Critical or ambiguous semantic changes remain subject to explicit human review. Avoid claims such as “meaning guaranteed” or “safe translation.”

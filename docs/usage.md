@@ -25,10 +25,10 @@ External HTTP(S) links are preserved but are not fetched. Scripts and other asse
 ## Create a manifest for human review
 
 ~~~sh
-skilltether init-manifest ./sample-skill --out ./sample-skill/.skilltether-invariants.yaml --source-locale en --target-locale fr
+skilltether init-manifest ./sample-skill --out ./review/sample-skill.invariants.yaml --source-locale en --target-locale fr
 ~~~
 
-The generator looks for lines that may express negation, a requirement, a prerequisite, a number, or a limit. It skips lines inside fenced backtick/tilde code examples, headings, table rows, and candidate lines longer than 1,200 characters to reduce common false positives. This remains a heuristic: it can miss real rules and misclassify prose. It intentionally creates an unreviewed manifest. A reviewer must:
+The generator looks for lines that may express negation, a requirement, a prerequisite, a number, or a limit. It skips fenced and indented code examples, recognized HTML `<pre>`/`<code>` examples, headings, table rows, descriptive numeric facts without operational cues, and candidate lines longer than 1,200 characters to reduce common false positives. These filters are heuristic, not a Markdown AST guarantee: they can miss real rules and misclassify prose. The command intentionally creates an unreviewed manifest. Keep the output outside the source package; the CLI refuses manifest destinations inside that package and refuses to overwrite an existing destination. A reviewer must:
 1. Confirm each suggestion is a real requirement, and add invariants the heuristic missed.
 2. Correct its category/severity, source lines, and supporting text. When source_lines or source_text are supplied, they must still match the current source package; comparison rejects stale source evidence, and approval remains blocked until the manifest is corrected and comparison is rerun.
 3. Set reviewed=true and reviewer to an accountable reviewer identifier on each approved invariant.
@@ -59,7 +59,7 @@ Source and target locale arguments are checked against BCP 47 tag structure, inc
 ~~~sh
 skilltether translate ./sample-skill /tmp/candidate/sample-skill \
   --source-locale en --target-locale fr --adapter identity \
-  --invariants ./sample-skill/.skilltether-invariants.yaml
+  --invariants ./review/sample-skill.invariants.yaml
 ~~~
 
 The identity adapter is for testing the pipeline, not for producing a real translation. For a configured HTTP bridge, set --adapter http-json --endpoint URL --allow-remote.
@@ -74,7 +74,7 @@ To rerun comparison after manifest edits or reviewer changes:
 
 ~~~sh
 skilltether compare ./sample-skill /tmp/candidate/sample-skill \
-  --invariants ./sample-skill/.skilltether-invariants.yaml \
+  --invariants ./review/sample-skill.invariants.yaml \
   --target-locale fr --policy config/protected-tokens.yaml \
   --out ./review/report.json --markdown ./review/report.md
 ~~~
@@ -92,7 +92,7 @@ Run the command separately for each finding and provide a meaningful, non-empty 
 ~~~sh
 skilltether approve ./sample-skill /tmp/candidate/sample-skill \
   --report ./review/report.json --output ./approved/sample-skill \
-  --invariants ./sample-skill/.skilltether-invariants.yaml \
+  --invariants ./review/sample-skill.invariants.yaml \
   --policy config/protected-tokens.yaml
 ~~~
 

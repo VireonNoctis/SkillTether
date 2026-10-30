@@ -1,7 +1,7 @@
 # Requirements-to-code readiness audit
 
 **Audit date:** 2026-10-29  
-**Scope:** the repository state on `feat/review-audit-hardening`, including README, research/architecture notes, current parser and CLI, Pydantic models, schemas, comparison and translation paths, test fixtures, and CI.  
+**Scope:** the implementation on `main` at commit `90f1b922c7d93971638631ad95db7fb4f547914e` (the documentation changes on this branch are not code changes), including the CLI, parser, Pydantic models, schemas, comparison and translation paths, test fixtures, and CI.  
 **Normative reference:** [official Agent Skills specification](https://agentskills.io/specification), checked on the audit date; [RFC 5646 / BCP 47](https://www.rfc-editor.org/rfc/rfc5646).
 
 This is a traceability audit, not a semantic-safety certification. “Implemented” means the behavior exists and has regression coverage; it does not mean all possible inputs or operating systems are proven safe. “Partial” identifies heuristic, client-dependent, or deliberately bounded support.
@@ -67,7 +67,7 @@ Each item has or is receiving a regression fixture in the same pull request. The
 
 ### P2 — Stronger evidence
 - Expand the pinned skills-ref v0.0.1 smoke check into a documented differential corpus covering optional fields, unknown extensions, naming edge cases, and expected differences. Keep the reference tool CI-only and non-mandatory at runtime.
-- Continue targeted branch coverage in the CLI (83%) and package analysis (80%) modules; these are now the lowest-covered high-risk areas in the latest measured snapshot. An aggregate floor does not guarantee that every risky branch is exercised.
+- Continue targeted branch coverage in the CLI (84%) and package analysis (81%) modules; these are now among the lowest-covered high-risk areas in the latest measured snapshot. An aggregate floor does not guarantee that every risky branch is exercised.
 - CI now runs the suite on Ubuntu, macOS, and Windows with Python 3.13 and 3.14. Add future supported Python minor versions and test additional filesystem configurations before claiming broad platform coverage.
 - Improve Markdown reference/link/slug edge cases and specify exactly which Markdown dialects are supported.
 
@@ -76,15 +76,15 @@ Each item has or is receiving a regression fixture in the same pull request. The
 
 ## Latest verification snapshot
 
-- Verified matrix head: `1556cde73d35946ba1db9be19204629c43f13bfd`.
-- GitHub Actions matrix and reference-conformance run: [40870914531](https://github.com/VireonNoctis/SkillTether/actions/runs/40870914531).
-- Regression/property-based suite: **214 passed in all six OS/Python combinations** (Ubuntu, macOS, Windows × Python 3.13 and 3.14).
-- Linux/macOS measured coverage: **86%** across 2,072 statements and 844 branches (237 statements missed; 157 partial branches); Windows measured 85%.
+- Verified implementation head: `90f1b922c7d93971638631ad95db7fb4f547914e` (README-only commit; the implementation code is unchanged by this documentation branch).
+- GitHub Actions matrix and reference-conformance run: [40873536059](https://github.com/VireonNoctis/SkillTether/actions/runs/40873536059), completed successfully on 2026-10-29.
+- Regression/property-based suite: **215 passed in all six OS/Python combinations** (Ubuntu, macOS, Windows × Python 3.13 and 3.14).
+- Linux/macOS measured coverage: **86%** across 2,072 statements and 844 branches (237 statements missed; 156 partial branches); Windows measured 85%.
 - Linux module coverage highlights: CLI 84%, package analysis 81%, comparison 84%, translation 86%, report writing 96%, safe I/O 96%, locale-tag validation 97%.
-- JSON Schema syntax/protected-token policy checks and the existing bundled valid-skill fixture passed across the matrix. The pinned `skills-ref@v0.0.1` reference-conformance smoke job passed against valid and invalid fixtures.
+- JSON Schema syntax checks, protected-token policy loading, and both bundled valid-skill fixtures passed across the six-job matrix. The separate pinned `skills-ref@v0.0.1` reference-conformance smoke job passed against valid, optional-field, and invalid fixtures.
 - CI enforces an 80% aggregate coverage floor on Linux only. Other jobs report coverage without a per-OS threshold; no per-module floors are enforced. Coverage is evidence of exercised code, not proof of correctness.
 
-This was the last fully green matrix before the optional-metadata reference fixture was added. The run validates binary-mode file reads/key loading, invariant-suggestion regression corpus, output-symlink guards, and pinned reference-validator integration; the added fixture is awaiting current-head CI before release claims are updated.
+The snapshot above describes the last green implementation CI run, not a claim that documentation-only changes have already passed CI. Run CI again for the documentation branch before merging it.
 ## Acceptance gate
 
 A release candidate should pass the current CI suite; include traceable tests for each newly implemented rule plus a hard negative; preserve source-package fingerprints; validate schemas and bundled fixtures; document coverage and cross-platform limits; and leave critical or ambiguous semantic changes for explicit human review. No single score should be presented as a “safe translation” certificate.
