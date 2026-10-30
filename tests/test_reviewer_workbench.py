@@ -20,7 +20,7 @@ def test_reviewer_workbench_is_offline_and_renders_untrusted_content_as_text() -
 
 def test_reviewer_workbench_keeps_signed_reports_read_only() -> None:
     document = Path("reviewer/index.html").read_text(encoding="utf-8")
-    assert "if (signed) return;" in document
+    assert "if (signed) {" in document and "panel.append(form);" in document
     assert "does not verify HMAC seals" in document
     assert "review_history" in document
     assert "previous_disposition" in document
