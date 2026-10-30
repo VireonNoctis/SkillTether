@@ -633,13 +633,11 @@ def _find_invariant_context(
     ]
     score, line_number, line = max(scored, default=(0, 1, ""))
     # A weak one-word collision must not beat a known line-preserving mapping.
-    threshold = max(1, min(3, (len(words) + 5) // 6))
+    threshold = max(2, min(3, (len(words) + 3) // 4))
     if score >= threshold:
         return line_number, line[:1000], "word-overlap"
     if preferred_line is not None and 1 <= preferred_line <= len(lines):
         positional = lines[preferred_line - 1]
         if positional.strip():
             return preferred_line, positional[:1000], "positional"
-    if score > 0 and line.strip():
-        return line_number, line[:1000], "weak-overlap"
     return None
