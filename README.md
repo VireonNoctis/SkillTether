@@ -1,5 +1,13 @@
 # SkillTether
 
+<!-- REPOSITORY-HEALTH:START -->
+[![Code quality](https://github.com/VireonNoctis/SkillTether/actions/workflows/repository-health.yml/badge.svg?branch=main)](https://github.com/VireonNoctis/SkillTether/actions/workflows/repository-health.yml)
+[![Top language](https://img.shields.io/github/languages/top/VireonNoctis/SkillTether?style=flat-square)](https://github.com/VireonNoctis/SkillTether)
+[![Languages](https://img.shields.io/github/languages/count/VireonNoctis/SkillTether?style=flat-square)](https://github.com/VireonNoctis/SkillTether)
+[![Automated tech stack](https://img.shields.io/badge/tech_stack-auto--detected-64748b?style=flat-square)](TECH_STACK.md)
+<!-- REPOSITORY-HEALTH:END -->
+
+
 **Translate the words. Preserve the intent.**
 
 SkillTether is a local-first CLI for validating and localizing [Agent Skills](https://agentskills.io/specification). It treats a skill as a package—`SKILL.md`, metadata, scripts, references, assets, and relative paths—not just a block of prose.
