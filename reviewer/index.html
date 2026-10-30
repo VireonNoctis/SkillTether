@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="light dark">
+  <title>SkillTether Review Workbench</title>
+  <style>
+    :root { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color-scheme: light dark; }
+    body { margin: 0; background: Canvas; color: CanvasText; }
+    header { padding: 1.25rem clamp(1rem, 3vw, 2.5rem); border-bottom: 1px solid color-mix(in srgb, CanvasText 18%, transparent); }
+    h1 { font-size: clamp(1.4rem, 3vw, 2rem); margin: 0 0 .35rem; }
+    p { line-height: 1.5; }
+    .muted { opacity: .75; }
+    main { padding: 1.25rem clamp(1rem, 3vw, 2.5rem) 2.5rem; max-width: 1500px; margin: auto; }
+    .toolbar, .metrics, .filters, .context-grid, .review-fields { display: flex; gap: .75rem; flex-wrap: wrap; align-items: end; }
+    .toolbar { align-items: center; }
+    .metrics { margin: 1.1rem 0; }
+    .metric { border: 1px solid color-mix(in srgb, CanvasText 20%, transparent); border-radius: .75rem; padding: .8rem 1rem; min-width: 8rem; }
+    .metric strong { display:block; font-size:1.35rem; font-variant-numeric: tabular-nums; }
+    .metric span, small { font-size: .82rem; opacity: .75; }
+    .notice { border: 1px solid color-mix(in srgb, CanvasText 25%, transparent); border-radius: .6rem; padding: .75rem 1rem; margin: .8rem 0; }
+    .notice[hidden], [hidden] { display:none !important; }
+    .notice.warning { border-color: #b7791f; }
+    .notice.error { border-color: #c53030; }
+    button, input, select, textarea { font: inherit; }
+    button, .file-label { cursor: pointer; border: 1px solid color-mix(in srgb, CanvasText 30%, transparent); border-radius: .5rem; padding: .55rem .85rem; background: ButtonFace; color: ButtonText; }
+    button:disabled { opacity:.45; cursor:not-allowed; }
+    input[type="search"], input[type="text"], select, textarea { width: 100%; box-sizing: border-box; padding: .55rem .65rem; border: 1px solid color-mix(in srgb, CanvasText 28%, transparent); border-radius: .45rem; background: Field; color: FieldText; }
+    label { display:grid; gap:.3rem; min-width: 11rem; flex: 1; }
+    .layout { display:grid; grid-template-columns: minmax(17rem, .85fr) minmax(0, 1.7fr); gap:1rem; align-items:start; }
+    .panel { border:1px solid color-mix(in srgb, CanvasText 20%, transparent); border-radius:.75rem; overflow:hidden; }
+    .panel h2 { font-size:1.05rem; padding:.85rem 1rem; margin:0; border-bottom:1px solid color-mix(in srgb, CanvasText 16%, transparent); }
+    .filters { padding:.75rem; align-items:end; }
+    .finding-list { max-height:70vh; overflow:auto; }
+    .finding { display:block; width:100%; text-align:left; border:0; border-radius:0; border-top:1px solid color-mix(in srgb, CanvasText 12%, transparent); padding:.85rem 1rem; background:transparent; }
+    .finding[aria-current="true"] { background: color-mix(in srgb, Highlight 13%, Canvas); box-shadow: inset 3px 0 Highlight; }
+    .finding-title { display:flex; gap:.5rem; justify-content:space-between; align-items:center; }
+    .finding strong { overflow-wrap:anywhere; }
+    .severity { font-size:.72rem; border:1px solid currentColor; border-radius:999px; padding:.1rem .45rem; white-space:nowrap; }
+    .detail { padding:1rem; }
+    .detail h3 { margin:.2rem 0 .5rem; overflow-wrap:anywhere; }
+    .metadata { display:flex; gap:.5rem 1rem; flex-wrap:wrap; font-size:.84rem; opacity:.8; margin:.6rem 0 1rem; }
+    .context-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
+    .context { min-width:0; }
+    .context h4 { margin:.5rem 0; font-size:.9rem; }
+    pre { white-space:pre-wrap; overflow-wrap:anywhere; background:color-mix(in srgb, CanvasText 7%, Canvas); padding:.75rem; border-radius:.5rem; min-height:3rem; max-height:18rem; overflow:auto; font: .88rem/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .review { border-top:1px solid color-mix(in srgb, CanvasText 18%, transparent); margin-top:1rem; padding-top:1rem; }
+    .review-fields { align-items:start; }
+    .review-fields label { min-width:12rem; }
+    textarea { min-height:6rem; resize:vertical; }
+    .actions { display:flex; gap:.6rem; flex-wrap:wrap; margin-top:.8rem; }
+    .history { margin-top:1rem; }
+    .history-item { border-left:2px solid color-mix(in srgb, CanvasText 30%, transparent); padding:.25rem .75rem; margin:.6rem 0; }
+    @media (max-width: 850px) { .layout { grid-template-columns:1fr; } .finding-list { max-height:35vh; } .context-grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+<header>
+  <h1>SkillTether Review Workbench</h1>
+  <p class="muted">Local-only report review. Inspect the matched evidence, record attributable decisions, and export an updated report.</p>
+</header>
+<main>
+  <div class="toolbar">
+    <label class="file-label" for="report-file">Open comparison report (JSON)</label>
+    <input id="report-file" type="file" accept=".json,application/json">
+    <button id="export" disabled>Export reviewed report</button>
+    <span id="filename" class="muted">No report loaded</span>
+  </div>
+  <div id="notice" class="notice" role="status" aria-live="polite">Choose a SkillTether JSON comparison report. The file is processed in this tab; this workbench makes no network requests and stores no report in browser storage.</div>
+  <div id="signed-notice" class="notice warning" hidden>Signed report detected. This workbench is read-only for signed reports and does not verify HMAC seals. Use <code>skilltether verify-report</code> and <code>skilltether review --signing-key</code> in the CLI to preserve the seal.</div>
+  <div id="metrics" class="metrics" hidden>
+    <div class="metric"><strong id="total">0</strong><span>Findings</span></div>
+    <div class="metric"><strong id="critical">0</strong><span>Critical</span></div>
+    <div class="metric"><strong id="needs-review">0</strong><span>Review required</span></div>
+    <div class="metric"><strong id="approved">0</strong><span>Approved with audit event</span></div>
+  </div>
+  <section id="workspace" hidden>
+    <div class="filters">
+      <label>Search findings<input id="search" type="search" placeholder="Code, path, message, or context"></label>
+      <label>Severity<select id="severity"><option value="">All severities</option><option>critical</option><option>high</option><option>medium</option><option>low</option><option>info</option></select></label>
+      <label>Disposition<select id="disposition"><option value="">All dispositions</option><option>pending</option><option>approved</option><option>rejected</option><option>deferred</option></select></label>
+    </div>
+    <div class="layout">
+      <section class="panel" aria-label="Finding list">
+        <h2>Findings</h2>
+        <div id="finding-list" class="finding-list" role="list"></div>
+      </section>
+      <section class="panel" aria-label="Finding details">
+        <h2>Evidence and review</h2>
+        <div id="detail" class="detail"><p class="muted">Select a finding to inspect its evidence.</p></div>
+      </section>
+    </div>
+  </section>
+</main>
+<script>
+(() => {
+  "use strict";
+  const byId = (id) => document.getElementById(id);
+  const state = { report: null, selectedId: null, filename: "" };
+  const allowedSeverities = new Set(["critical", "high", "medium", "low", "info"]);
+  const allowedDispositions = new Set(["pending", "approved", "rejected", "deferred"]);
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = String(text);
+    return node;
+  }
+  function showNotice(message, kind) {
+    const node = byId("notice");
+    node.textContent = message;
+    node.className = "notice" + (kind ? " " + kind : "");
+  }
+  function isSigned(report) {
+    return Boolean(report.integrity_algorithm || report.integrity_signature);
+  }
+  function validateReport(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("The file is not a JSON object.");
+    if (value.report_version !== "1.0") throw new Error("Unsupported report version. This workbench accepts report_version 1.0.");
+    if (!Array.isArray(value.findings)) throw new Error("The report has no findings array.");
+    for (const [index, finding] of value.findings.entries()) {
+      if (!finding || typeof finding !== "object" || typeof finding.id !== "string" ||
+          typeof finding.code !== "string" || !allowedSeverities.has(finding.severity) ||
+          !allowedDispositions.has(finding.disposition || "pending")) {
+        throw new Error("Finding " + index + " does not match the supported report contract.");
+      }
+      if (finding.review_history !== undefined && !Array.isArray(finding.review_history)) {
+        throw new Error("Finding " + finding.id + " has an invalid review history.");
+      }
+    }
+    return value;
+  }
+  function selectedFinding() {
+    return state.report?.findings.find(item => item.id === state.selectedId) || null;
+  }
+  function reviewIsAudited(finding) {
+    const history = Array.isArray(finding.review_history) ? finding.review_history : [];
+    if (finding.disposition !== "approved" || !finding.reviewer || !finding.review_note || !history.length) return false;
+    const finalEvent = history[history.length - 1];
+    return finalEvent.disposition === "approved" &&
+      finalEvent.reviewer === finding.reviewer &&
+      finalEvent.note === finding.review_note;
+  }
+  function updateMetrics() {
+    const findings = state.report.findings;
+    byId("total").textContent = findings.length;
+    byId("critical").textContent = findings.filter(f => f.severity === "critical").length;
+    byId("needs-review").textContent = findings.filter(f => f.requires_review || f.severity === "critical" || f.severity === "high").length;
+    byId("approved").textContent = findings.filter(reviewIsAudited).length;
+  }
+  function renderList() {
+    const list = byId("finding-list");
+    list.replaceChildren();
+    if (!state.report) return;
+    const q = byId("search").value.trim().toLocaleLowerCase();
+    const severity = byId("severity").value;
+    const disposition = byId("disposition").value;
+    const filtered = state.report.findings.filter(f => {
+      if (severity && f.severity !== severity) return false;
+      if (disposition && (f.disposition || "pending") !== disposition) return false;
+      const haystack = [f.id, f.code, f.path, f.message, f.original_context, f.target_context]
+        .filter(Boolean).join(" ").toLocaleLowerCase();
+      return !q || haystack.includes(q);
+    });
+    if (!filtered.length) {
+      list.append(el("p", "muted", "No findings match these filters."));
+      return;
+    }
+    for (const finding of filtered) {
+      const button = el("button", "finding");
+      button.type = "button";
+      button.setAttribute("role", "listitem");
+      button.setAttribute("aria-current", finding.id === state.selectedId ? "true" : "false");
+      const title = el("div", "finding-title");
+      title.append(el("strong", "", finding.code));
+      title.append(el("span", "severity", finding.severity));
+      button.append(title);
+      button.append(el("div", "muted", finding.path || "(package)"));
+      button.append(el("small", "", (finding.disposition || "pending") + (finding.requires_review ? " · review required" : "")));
+      button.addEventListener("click", () => {
+        state.selectedId = finding.id;
+        renderList();
+        renderDetail();
+      });
+      list.append(button);
+    }
+  }
+  function addContext(parent, title, value) {
+    const section = el("section", "context");
+    section.append(el("h4", "", title));
+    section.append(el("pre", "", value || "No context recorded."));
+    parent.append(section);
+  }
+  function renderHistory(parent, finding) {
+    const wrap = el("section", "history");
+    wrap.append(el("h4", "", "Review history"));
+    const history = Array.isArray(finding.review_history) ? finding.review_history : [];
+    if (!history.length) wrap.append(el("p", "muted", "No review decisions recorded."));
+    for (const event of history) {
+      const item = el("div", "history-item");
+      item.append(el("strong", "", event.disposition + " · " + event.reviewer));
+      item.append(el("div", "muted", event.recorded_at));
+      item.append(el("p", "", event.note));
+      wrap.append(item);
+    }
+    parent.append(wrap);
+  }
+  function looksLikeSecret(value) {
+    return /(?:api[_-]?key|password|secret|token)\s*[:=]\s*["']?[A-Za-z0-9_\-]{8,}/i.test(value) ||
+      /\bBearer\s+[A-Za-z0-9._~+/-]{12,}/i.test(value) ||
+      /\bgh[pousr]_[A-Za-z0-9]{20,}\b/.test(value) ||
+      /-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(value);
+  }
+  function renderDetail() {
+    const panel = byId("detail");
+    panel.replaceChildren();
+    const finding = selectedFinding();
+    if (!finding) {
+      panel.append(el("p", "muted", "Select a finding to inspect its evidence."));
+      return;
+    }
+    panel.append(el("h3", "", finding.message || finding.code));
+    panel.append(el("div", "metadata", [
+      "ID: " + finding.id,
+      "Severity: " + finding.severity,
+      "Category: " + finding.category,
+      "Method: " + (finding.analysis_method || "unknown"),
+      "Uncertainty: " + (finding.uncertainty || "unknown"),
+      "Source: " + (finding.path || "—") + (finding.source_line ? ":" + finding.source_line : ""),
+      "Target line: " + (finding.target_line || "—"),
+      "Disposition: " + (finding.disposition || "pending")
+    ].join(" · ")));
+    const rationale = el("p", "", finding.rationale || "");
+    panel.append(rationale);
+    if (finding.severity_rationale) panel.append(el("p", "muted", "Severity rationale: " + finding.severity_rationale));
+    if (finding.proposed_change) panel.append(el("p", "", "Suggested follow-up: " + finding.proposed_change));
+    const contexts = el("div", "context-grid");
+    addContext(contexts, "Source evidence", finding.original_context);
+    addContext(contexts, "Target evidence", finding.target_context);
+    panel.append(contexts);
+    renderHistory(panel, finding);
+    const signed = isSigned(state.report);
+    const form = el("section", "review");
+    form.append(el("h4", "", signed ? "Review editing disabled for signed report" : "Record a review decision"));
+    if (signed) {
+      form.append(el("p", "muted", "Use the SkillTether CLI with the matching HMAC key to verify, update, and re-sign this report."));
+      panel.append(form);
+      return;
+    }
+    const fields = el("div", "review-fields");
+    const reviewerLabel = el("label", "", "Reviewer identifier");
+    const reviewer = el("input");
+    reviewer.type = "text";
+    reviewer.maxLength = 200;
+    reviewer.value = finding.reviewer || "";
+    reviewerLabel.append(reviewer);
+    const dispositionLabel = el("label", "", "Decision");
+    const decision = el("select");
+    for (const value of ["approved", "rejected", "deferred"]) {
+      const option = el("option", "", value);
+      option.value = value;
+      option.selected = finding.disposition === value;
+      decision.append(option);
+    }
+    dispositionLabel.append(decision);
+    fields.append(reviewerLabel, dispositionLabel);
+    form.append(fields);
+    const noteLabel = el("label", "", "Rationale (required)");
+    const note = el("textarea");
+    note.maxLength = 4000;
+    note.value = finding.review_note || "";
+    noteLabel.append(note);
+    form.append(noteLabel);
+    const save = el("button", "", "Record decision");
+    save.type = "button";
+    save.addEventListener("click", () => {
+      const reviewerValue = reviewer.value.trim();
+      const noteValue = note.value.trim();
+      if (!reviewerValue || !noteValue) {
+        showNotice("A reviewer identifier and a non-empty rationale are required.", "error");
+        return;
+      }
+      if (reviewerValue.length > 200 || noteValue.length > 4000 || looksLikeSecret(reviewerValue) || looksLikeSecret(noteValue)) {
+        showNotice("The reviewer fields exceed their limits or resemble credential material. Remove sensitive data and try again.", "error");
+        return;
+      }
+      const previous = finding.disposition || "pending";
+      const nextTimestamp = new Date().toISOString();
+      const history = Array.isArray(finding.review_history) ? finding.review_history : [];
+      if (history.length) {
+        const lastTime = Date.parse(history[history.length - 1].recorded_at);
+        if (!Number.isFinite(lastTime) || Date.parse(nextTimestamp) < lastTime) {
+          showNotice("The new review time precedes the last event. Use the CLI to repair this report's review history.", "error");
+          return;
+        }
+      }
+      const event = {
+        recorded_at: nextTimestamp,
+        previous_disposition: previous,
+        disposition: decision.value,
+        reviewer: reviewerValue,
+        note: noteValue
+      };
+      finding.review_history = history.concat([event]);
+      finding.disposition = decision.value;
+      finding.reviewer = reviewerValue;
+      finding.review_note = noteValue;
+      updateMetrics();
+      renderList();
+      renderDetail();
+      showNotice("Decision appended to this report in memory. Export the JSON to keep the updated audit trail.", "");
+    });
+    form.append(save);
+    panel.append(form);
+  }
+  byId("report-file").addEventListener("change", async event => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    try {
+      if (file.size > 20 * 1024 * 1024) throw new Error("Report exceeds the 20 MiB browser workbench limit.");
+      const parsed = validateReport(JSON.parse(await file.text()));
+      state.report = parsed;
+      state.filename = file.name;
+      state.selectedId = parsed.findings[0]?.id || null;
+      const signed = isSigned(parsed);
+      byId("signed-notice").hidden = !signed;
+      byId("metrics").hidden = false;
+      byId("workspace").hidden = false;
+      byId("export").disabled = signed;
+      byId("filename").textContent = file.name + (signed ? " · signed / read-only" : "");
+      updateMetrics();
+      renderList();
+      renderDetail();
+      showNotice("Loaded " + parsed.findings.length + " findings. Source and target excerpts are untrusted text and are rendered as plain text.", "");
+    } catch (error) {
+      state.report = null;
+      state.selectedId = null;
+      byId("workspace").hidden = true;
+      byId("metrics").hidden = true;
+      byId("export").disabled = true;
+      byId("signed-notice").hidden = true;
+      showNotice(error instanceof Error ? error.message : "Unable to read report.", "error");
+    }
+  });
+  ["search", "severity", "disposition"].forEach(id => byId(id).addEventListener("input", renderList));
+  byId("export").addEventListener("click", () => {
+    if (!state.report || isSigned(state.report)) return;
+    const payload = JSON.stringify(state.report, null, 2) + "\n";
+    const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
+    const anchor = el("a");
+    anchor.href = url;
+    anchor.download = state.filename.replace(/\.json$/i, "") + ".reviewed.json";
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    showNotice("Downloaded the updated report. Validate and review it with the SkillTether CLI before approval/export.", "");
+  });
+})();
+</script>
+</body>
+</html>
