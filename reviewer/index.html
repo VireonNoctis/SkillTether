@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="color-scheme" content="light dark">
   <title>SkillTether Review Workbench</title>
   <style>
@@ -135,13 +136,34 @@
   function selectedFinding() {
     return state.report?.findings.find(item => item.id === state.selectedId) || null;
   }
-  function reviewIsAudited(finding) {
+  function historyIsConsistent(finding) {
     const history = Array.isArray(finding.review_history) ? finding.review_history : [];
-    if (finding.disposition !== "approved" || !finding.reviewer || !finding.review_note || !history.length) return false;
+    if (!history.length) return false;
+    let expected = history[0].disposition;
+    let previousTime = null;
+    for (const [index, event] of history.entries()) {
+      if (!event || !allowedDispositions.has(event.disposition) ||
+          !allowedDispositions.has(event.previous_disposition) ||
+          typeof event.reviewer !== "string" || !event.reviewer.trim() ||
+          typeof event.note !== "string" || !event.note.trim() ||
+          typeof event.recorded_at !== "string" ||
+          !/(?:Z|[+-]\d{2}:\d{2})$/i.test(event.recorded_at)) return false;
+      if (index > 0 && event.previous_disposition !== expected) return false;
+      const timestamp = Date.parse(event.recorded_at);
+      if (!Number.isFinite(timestamp) || (previousTime !== null && timestamp < previousTime)) return false;
+      previousTime = timestamp;
+      expected = event.disposition;
+    }
     const finalEvent = history[history.length - 1];
-    return finalEvent.disposition === "approved" &&
+    return expected === finding.disposition &&
       finalEvent.reviewer === finding.reviewer &&
       finalEvent.note === finding.review_note;
+  }
+  function reviewIsAudited(finding) {
+    return finding.disposition === "approved" &&
+      Boolean(finding.reviewer && finding.reviewer.trim()) &&
+      Boolean(finding.review_note && finding.review_note.trim()) &&
+      historyIsConsistent(finding);
   }
   function updateMetrics() {
     const findings = state.report.findings;
@@ -289,10 +311,14 @@
       const previous = finding.disposition || "pending";
       const nextTimestamp = new Date().toISOString();
       const history = Array.isArray(finding.review_history) ? finding.review_history : [];
+      if (history.length && !historyIsConsistent(finding)) {
+        showNotice("This finding has inconsistent review history. Use the CLI to inspect and repair the report before adding another event.", "error");
+        return;
+      }
       if (history.length) {
         const lastTime = Date.parse(history[history.length - 1].recorded_at);
-        if (!Number.isFinite(lastTime) || Date.parse(nextTimestamp) < lastTime) {
-          showNotice("The new review time precedes the last event. Use the CLI to repair this report's review history.", "error");
+        if (Date.parse(nextTimestamp) < lastTime) {
+          showNotice("The new review time precedes the last event. Use the CLI to inspect the report's review history.", "error");
           return;
         }
       }
