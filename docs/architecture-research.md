@@ -30,7 +30,7 @@ Protected spans cover categories such as tool names, commands, file paths, envir
 
 ## Invariant model
 
-The suggestion layer has explicit cue profiles for English, French, Spanish, German, Portuguese, and Italian. Its labelled corpus computes exact precision/recall on curated positives and negatives; it is not a representative evaluation or a semantic model. When word overlap cannot locate translated context, comparison may use source/target line position when line counts match, and marks this method high-uncertainty. Neither cue profiles nor positional location establish equivalent meaning.
+The suggestion layer has explicit cue profiles for English, French, Spanish, German, Portuguese, and Italian. Its 30-positive labelled corpus computes exact precision/recall by primary language and four rule families; it is not representative of naturalistic text or language varieties. Target context uses NFC/casefold, stopword-filtered overlap, and then a preserved-line-position fallback when line counts match; positional mapping is explicitly high-uncertainty. Neither cue profiles nor positional location establish equivalent meaning.
 
 Each invariant can carry a stable ID, statement, category, source file and line range, source excerpt, tokens/numbers, criticality/severity, reviewer, and review status. Source anchors are checked against the current source text. Manifest suggestion generation is heuristic: it avoids several common code/example regions and unactionable numeric facts, but it is neither complete nor authoritative. Findings preserve locations and evidence where available.
 
