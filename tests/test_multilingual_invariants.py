@@ -15,6 +15,7 @@ def test_multilingual_invariant_suggestions_match_curated_corpus(tmp_path: Path)
     )
     aggregate = {"tp": 0, "fp": 0, "fn": 0}
     per_locale: dict[str, dict[str, int]] = {}
+    per_category: dict[str, dict[str, int]] = {}
 
     for case in corpus["cases"]:
         source = tmp_path / case["locale"] / f"skill-{case['locale']}"
@@ -53,6 +54,20 @@ def test_multilingual_invariant_suggestions_match_curated_corpus(tmp_path: Path)
             "fp": false_positive,
             "fn": false_negative,
         }
+        for category in {item["category"] for item in case["expected_candidates"]} | {
+            item["category"] for item in observed
+        }:
+            expected_category = {
+                item["source_text"] for item in case["expected_candidates"]
+                if item["category"] == category
+            }
+            actual_category = {
+                item["source_text"] for item in observed if item["category"] == category
+            }
+            metrics = per_category.setdefault(category, {"tp": 0, "fp": 0, "fn": 0})
+            metrics["tp"] += len(expected_category & actual_category)
+            metrics["fp"] += len(actual_category - expected_category)
+            metrics["fn"] += len(expected_category - actual_category)
 
         observed_text = {item["source_text"] for item in payload["invariants"]}
         for excluded in case["expected_exclusions"]:
@@ -67,11 +82,20 @@ def test_multilingual_invariant_suggestions_match_curated_corpus(tmp_path: Path)
         if negation is not None:
             assert negation["negation_markers"] == ["not", "never", "without", "cannot", "can't", "mustn't", "don't"]
 
-    assert aggregate == {"tp": 25, "fp": 0, "fn": 0}
+    assert aggregate == {"tp": 30, "fp": 0, "fn": 0}
     assert per_locale == {
         locale: {"tp": 5, "fp": 0, "fn": 0}
-        for locale in ("fr", "es", "de", "pt", "it")
+        for locale in ("en", "fr", "es", "de", "pt", "it")
     }
+    assert per_category == {
+        "negation": {"tp": 6, "fp": 0, "fn": 0},
+        "numeric_limit": {"tp": 12, "fp": 0, "fn": 0},
+        "precondition": {"tp": 6, "fp": 0, "fn": 0},
+        "mandatory_condition": {"tp": 6, "fp": 0, "fn": 0},
+    }
+    for metrics in per_category.values():
+        assert metrics["tp"] / (metrics["tp"] + metrics["fp"]) == 1.0
+        assert metrics["tp"] / (metrics["tp"] + metrics["fn"]) == 1.0
     precision = aggregate["tp"] / (aggregate["tp"] + aggregate["fp"])
     recall = aggregate["tp"] / (aggregate["tp"] + aggregate["fn"])
     assert precision == 1.0
@@ -81,6 +105,7 @@ def test_multilingual_invariant_suggestions_match_curated_corpus(tmp_path: Path)
 @pytest.mark.parametrize(
     ("locale", "text", "category"),
     [
+        ("en-GB", "Never remove the file.", "negation"),
         ("fr", "Ne supprimez jamais le fichier.", "negation"),
         ("es", "Debes conservar el archivo.", "mandatory_condition"),
         ("de", "Du musst die Datei erhalten.", "mandatory_condition"),
