@@ -13,7 +13,7 @@ import urllib.request
 from pathlib import Path
 from typing import Protocol
 
-from markdown_it import MarkdownIt
+from .markdown_support import create_markdown_parser
 
 from .analysis import (
     MAX_EXPLICIT_TOKEN_CHARS, MAX_EXPLICIT_TOKENS, MAX_POLICY_PATTERNS,
@@ -42,11 +42,19 @@ MASK_SPAN = re.compile(
 # Keep Markdown punctuation opaque while allowing text between delimiters to
 # translate. These are lexical safeguards, not a complete CommonMark parser.
 MARKDOWN_SYNTAX = re.compile(
-    r"\\[\\\x60*{}\[\]()#+.!_|>~-]"
-    r"|\[[ xX]\]"
+    r"\\[\\\\\\x60*{}\[\]()#+.!_|>~-]"
+    r"|\[ xX\]"
+    r"|\[\^[^\]\r\n]+\]"
     r"|\]\[[^\]\r\n]*\]"
     r"|!\[|\]\(|\*\*|__|~~|\x60|\[|\]|\(|\)|\*|_|~|\|| {2,}$"
 )
+
+FOOTNOTE_DEFINITION = re.compile(r"^(\s{0,3}\[\^[^\]\r\n]+\]:\s*)(.*?)(\r?\n?)$")
+GFM_ALERT_PREFIX = re.compile(
+    r"^(\s{0,3}>\s*\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s+)(.*?)(\r?\n?)$",
+    re.I,
+)
+DEFINITION_LIST_MARKER = re.compile(r"^(\s{0,3}[:~]\s+)(.*?)(\r?\n?)$")
 
 
 class TranslationAdapter(Protocol):
@@ -255,16 +263,22 @@ def translate_markdown(
             if not re.search(rf"</{re.escape(tag)}\s*>", line, re.I):
                 html_opaque_tag = tag
             continue
+        is_footnote_definition = FOOTNOTE_DEFINITION.match(line) is not None
         if (
             not stripped or line.startswith("    ") or line.startswith("\t")
-            or re.match(r"^\s{0,3}\[[^\]]+\]:", line)
+            or (re.match(r"^\s{0,3}\[[^\]]+\]:", line) and not is_footnote_definition)
             or stripped.startswith("<!--") or stripped.startswith("<!DOCTYPE")
             or re.match(r"^\s*</?[A-Za-z][^>]*>\s*$", line)
         ):
             output.append(line)
             continue
 
-        matched = PREFIX.match(line)
+        matched = (
+            FOOTNOTE_DEFINITION.match(line)
+            or GFM_ALERT_PREFIX.match(line)
+            or DEFINITION_LIST_MARKER.match(line)
+            or PREFIX.match(line)
+        )
         if not matched:
             output.append(line)
             continue
@@ -312,7 +326,7 @@ def _markdown_structure_signature(text: str) -> tuple[tuple[object, ...], ...]:
     every source placeholder is retained. It is a structural guard, not semantic
     analysis, and intentionally does not compare ordinary text tokens.
     """
-    parser = MarkdownIt("commonmark").enable("table")
+    parser = create_markdown_parser()
     signature: list[tuple[object, ...]] = []
 
     def visit(token: object) -> None:

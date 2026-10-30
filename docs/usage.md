@@ -133,3 +133,12 @@ JSON reports are intended for tooling; Markdown reports fence untrusted context 
 SQLite history defaults to ~/.skilltether/history.sqlite3. It contains run timestamps, provider name, locales, status, and package fingerprints—not translated prose, source content, API credentials, or authorization headers. Input metadata is validated, symlink/special-file database paths are rejected, and new/existing database files use mode 0600 on POSIX systems. Pass --history-db to select another local database.
 
 Reports carry source/target fingerprints (including file permission bits), a canonical manifest fingerprint (when supplied), a protected-policy fingerprint, locale information, tool version, and the adapter name for translation runs. Configuration and report readers use bounded, regular-file-only reads; symlink inputs are rejected. Finding IDs are deterministic for the same evidence and fields; the generated timestamp changes from run to run.
+
+
+## Offline reviewer workbench
+
+Open reviewer/index.html in a browser from a local checkout. Choose a JSON report to filter findings and inspect source/target contexts, analysis method, uncertainty, severity rationale, and prior review events. For unsigned reports, enter a reviewer identifier, disposition, and rationale; the workbench appends a timestamped event in memory and exports a new JSON file without overwriting the original.
+
+The browser workbench makes no network requests and uses no browser storage. It renders untrusted report fields as plain text. It does not run the complete report schema validator and does not verify HMAC signatures. Signed reports are read-only in the UI; use the CLI with the matching key to verify and re-sign them. See the [reviewer workbench guide](reviewer-workbench.md).
+
+After exporting, use the CLI approval gate with the same source, target, manifest, and policy to validate fingerprints, review-history integrity, and structural status before exporting an approved package.

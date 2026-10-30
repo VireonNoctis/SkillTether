@@ -22,25 +22,13 @@ from .signing import create_signing_key
 from .translation import HttpJsonAdapter, IdentityAdapter, translate_package
 from .locale_tags import validate_bcp47_tag
 from .reviewing import has_audited_approval, record_review
+from .invariant_language import classify_candidate, language_profile, suggested_target_markers
 
-CUE_PATTERN = re.compile(
-    r"\b(must|must not|mustn't|never|do not|don't|only if|unless|at least|at most|no more than|required|before|after|if)\b|\d",
+NUMBER_PATTERN = re.compile(
+    r"(?<![A-Za-z])(?:[<>]=?\s*)?\d+(?:[.,]\d+)?(?:\s*(?:%|seconds?|minutes?|hours?|days?|files?|tokens?))?",
     re.I,
 )
-NEGATION_PATTERN = re.compile(r"\b(not|never|no|without|don't|doesn't|mustn't|cannot|can't)\b", re.I)
-MANDATORY_PATTERN = re.compile(r"\b(must|required|shall|mandatory)\b", re.I)
-NUMBER_PATTERN = re.compile(r"(?<![A-Za-z])(?:[<>]=?\s*)?\d+(?:[.,]\d+)?(?:\s*(?:%|seconds?|minutes?|hours?|days?|files?|tokens?))?", re.I)
-NUMERIC_RULE_PATTERN = re.compile(
-    r"\b(at least|at most|no more than|up to|maximum|max(?:imum)?|minimum|min(?:imum)?|"
-    r"limit(?:ed)?|exactly|within|less than|greater than|more than)\b",
-    re.I,
-)
-ACTION_RULE_PATTERN = re.compile(
-    r"\b(use|set|keep|allow|wait|retry|run|limit|retain|provide|send|store|accept|reject|"
-    r"include|exclude|process|create|delete|remove|preserve|avoid|require|ensure|configure|"
-    r"return|stop|continue|call|execute|install|open|close)\b",
-    re.I,
-)
+
 
 
 def _manifest_arg(path_value: str | None, source: Path) -> InvariantManifest | None:
@@ -111,19 +99,17 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 
 def _suggest_invariants(source_root: Path, source_locale: str, target_locale: str | None) -> InvariantManifest:
-    inventory, findings, texts = inspect_package(source_root)
+    _inventory, _findings, texts = inspect_package(source_root)
     if "SKILL.md" not in texts:
         raise ValueError("Cannot suggest invariants without a readable SKILL.md")
+    source_profile = language_profile(source_locale)
     suggestions: list[Invariant] = []
     fence_character: str | None = None
     fence_length = 0
     html_code_tag: str | None = None
     for line_no, line in enumerate(texts["SKILL.md"].splitlines(), start=1):
-        fence_match = re.match(r"^\s{0,3}(`{3,}|~{3,})", line)
+        fence_match = re.match(r"^\s{0,3}(\x60{3,}|~{3,})", line)
         if fence_character is not None:
-            # Markdown fencing has precedence over embedded HTML-looking examples.
-            # Otherwise an unmatched <pre>/<code> inside a fence could leak parser
-            # state beyond the matching fence and hide real instructions later.
             if (
                 fence_match
                 and fence_match.group(1)[0] == fence_character
@@ -148,50 +134,27 @@ def _suggest_invariants(source_root: Path, source_locale: str, target_locale: st
             if not re.search(rf"</{tag}\s*>", line, re.I):
                 html_code_tag = tag
             continue
-        # Indented code examples are not source-language instructions to extract.
-        # This is intentionally conservative; nested-list indentation may be skipped
-        # and generated candidates always remain unreviewed.
+        # Indented code and obvious blockquotes are excluded conservatively.
         if line.startswith("    ") or line.startswith("\t"):
             continue
 
         stripped = line.strip()
-        if not stripped or stripped.startswith("#") or stripped.startswith("|"):
-            continue
-        if not CUE_PATTERN.search(stripped):
-            continue
-        if len(stripped) > 1200:
-            continue
-        # A number by itself is usually descriptive prose, not a constraint.
-        # Keep numeric candidates only when the line also contains a limit,
-        # action, modality, negation, or conditional cue. This remains a
-        # language-specific heuristic and is intentionally only a draft filter.
         if (
-            re.search(r"\d", stripped)
-            and not NUMERIC_RULE_PATTERN.search(stripped)
-            and not ACTION_RULE_PATTERN.search(stripped)
-            and not NEGATION_PATTERN.search(stripped)
-            and not MANDATORY_PATTERN.search(stripped)
-            and not re.search(r"\b(if|unless|before|after|only if)\b", stripped, re.I)
+            not stripped or stripped.startswith("#") or stripped.startswith("|")
+            or stripped.startswith(">")
+            or len(stripped) > 1200
+            or source_profile is None
+            or not source_profile.cue.search(stripped)
         ):
             continue
-        lower = stripped.lower()
-        if NEGATION_PATTERN.search(lower):
-            category = "negation"
-            severity = "critical"
-        elif NUMBER_PATTERN.search(stripped):
-            category = "numeric_limit"
-            severity = "critical"
-        elif MANDATORY_PATTERN.search(lower):
-            category = "mandatory_condition"
-            severity = "high"
-        elif re.search(r"\b(if|unless|before|after|only if)\b", lower):
-            category = "precondition"
-            severity = "high"
-        else:
-            category = "decision_rule"
-            severity = "high"
+        category = classify_candidate(stripped, source_profile)
+        if category is None:
+            continue
+        severity = "critical" if category in {"negation", "numeric_limit"} else "high"
         numbers = NUMBER_PATTERN.findall(stripped)
-        # A single line is a draft candidate. Review and refine before marking it trusted.
+        target_negation, target_mandatory = suggested_target_markers(target_locale, category)
+        # Suggestions and suggested locale markers are untrusted draft material.
+        # The manifest remains unreviewed until a person checks every candidate.
         suggestions.append(Invariant(
             id=f"INV-{len(suggestions)+1:04d}",
             statement=stripped.lstrip("-*0123456789. "),
@@ -200,13 +163,17 @@ def _suggest_invariants(source_root: Path, source_locale: str, target_locale: st
             source_path="SKILL.md",
             source_lines=(line_no, line_no),
             source_text=stripped,
-            expected_numbers=sorted(set(n.strip() for n in numbers if n.strip())),
+            expected_numbers=sorted(set(value.strip() for value in numbers if value.strip())),
             negation_required=category == "negation",
+            negation_markers=target_negation,
             mandatory_required=category == "mandatory_condition",
+            mandatory_markers=target_mandatory,
             reviewed=False,
         ))
     return InvariantManifest(
-        source_locale=source_locale, target_locale=target_locale, invariants=suggestions,
+        source_locale=source_locale,
+        target_locale=target_locale,
+        invariants=suggestions,
         manifest_reviewed=False,
     )
 
@@ -221,6 +188,11 @@ def cmd_init_signing_key(args: argparse.Namespace) -> int:
 def cmd_init_manifest(args: argparse.Namespace) -> int:
     source = normalize_package_root(args.source)
     manifest = _suggest_invariants(source, args.source_locale, args.target_locale)
+    if language_profile(args.source_locale) is None:
+        print(
+            f"No built-in invariant suggestion profile for {args.source_locale!r}; "
+            "the draft will not contain automatically suggested rules."
+        )
     output = Path(os.path.abspath(Path(args.out).expanduser()))
     _ensure_outputs_outside_packages([output], [source], label="Invariant manifest")
     if output.exists() or output.is_symlink():

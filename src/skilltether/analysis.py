@@ -8,14 +8,15 @@ import os
 import re
 import stat
 import tomllib
+import unicodedata
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlsplit
 
 import yaml
-from markdown_it import MarkdownIt
 
+from .markdown_support import markdown_heading_anchors, markdown_link_targets, mdx_syntax_locations
 from .yamlio import safe_load_unique
 from .safeio import read_bounded_regular_file
 from .regex_safety import validate_policy_regex
@@ -73,6 +74,36 @@ def normalize_package_root(root: str | Path) -> Path:
     if not resolved.is_dir():
         raise ValueError(f"Package root is not a directory: {resolved}")
     return resolved
+
+
+_WINDOWS_RESERVED_NAMES = {
+    "CON", "PRN", "AUX", "NUL",
+    *(f"COM{index}" for index in range(1, 10)),
+    *(f"LPT{index}" for index in range(1, 10)),
+}
+
+
+def path_portability_key(path: str) -> str:
+    """Canonical key for collisions on common case-insensitive/normalizing filesystems."""
+    return unicodedata.normalize("NFC", path).casefold()
+
+
+def path_portability_issue(path: str) -> str | None:
+    """Return why a POSIX path cannot be represented reliably on Windows."""
+    for segment in path.split("/"):
+        if not segment:
+            continue
+        if segment.endswith((" ", ".")):
+            return "a path component ends in a space or period"
+        if any(
+            ord(character) < 32 or character in '<>:"|?*' or character == chr(92)
+            for character in segment
+        ):
+            return "a path component contains a Windows-reserved character"
+        stem = segment.split(".", 1)[0].upper()
+        if stem in _WINDOWS_RESERVED_NAMES:
+            return f"a path component uses the reserved device name {stem}"
+    return None
 
 
 def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list, dict[str, str]]:
@@ -259,6 +290,39 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
                 mode=stat.S_IMODE(opened.st_mode),
             )
 
+    # Detect names that alias after Unicode normalization/case-folding and paths
+    # that cannot be represented consistently on Windows.
+    portable_groups: dict[str, list[str]] = {}
+    for rel in sorted(inventory):
+        issue = path_portability_issue(rel)
+        if issue:
+            findings.append(new_finding(
+                "PACKAGE_PATH_NOT_PORTABLE", "high", "package_integrity",
+                f"Package path {rel!r} is not portable: {issue}.",
+                "A package that works on one filesystem may be unrepresentable or ambiguous on another supported operating system.",
+                path=rel,
+                original_context=rel,
+                proposed_change="Rename the resource to a portable relative path and update references consistently.",
+                requires_review=True,
+                analysis_method="deterministic",
+                uncertainty="none",
+            ))
+        portable_groups.setdefault(path_portability_key(rel), []).append(rel)
+    for colliding_paths in portable_groups.values():
+        if len(colliding_paths) > 1:
+            joined = ", ".join(colliding_paths)
+            findings.append(new_finding(
+                "PACKAGE_PATH_NORMALIZATION_COLLISION", "critical", "package_integrity",
+                "Distinct package paths collide after Unicode normalization and case-folding.",
+                "Case-insensitive or Unicode-normalizing filesystems may treat these resources as the same path, causing overwrites or ambiguous references.",
+                path=colliding_paths[0],
+                original_context=joined,
+                proposed_change="Rename the colliding resources so their normalized, case-folded paths are unique.",
+                requires_review=True,
+                analysis_method="deterministic",
+                uncertainty="none",
+            ))
+
     if "SKILL.md" not in inventory:
         findings.append(new_finding(
             "SKILL_MD_MISSING", "critical", "structure",
@@ -276,6 +340,22 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
         ))
 
     for rel, text in sorted(texts.items()):
+        if Path(rel).suffix.lower() == ".mdx":
+            lines = text.splitlines()
+            for line_no, reason in mdx_syntax_locations(text):
+                excerpt = lines[line_no - 1][:1000] if line_no <= len(lines) else None
+                findings.append(new_finding(
+                    "MDX_SYNTAX_UNSUPPORTED", "high", "markdown_dialect",
+                    f"MDX-only syntax is not transformed by the Markdown pipeline: {reason}.",
+                    "JavaScript expressions, module declarations, and JSX components require an MDX-aware parser; treating them as ordinary prose could alter executable or structural content.",
+                    path=rel,
+                    source_line=line_no,
+                    original_context=excerpt,
+                    proposed_change="Keep this resource unchanged and review it manually, or convert the construct to supported Markdown before localization.",
+                    requires_review=True,
+                    analysis_method="deterministic",
+                    uncertainty="low",
+                ))
         findings.extend(validate_resource_syntax(rel, text))
         if Path(rel).suffix.lower() in TEXT_SUFFIXES:
             findings.extend(validate_local_links(root_path, rel, text, text_snapshot=texts))
@@ -411,83 +491,70 @@ def validate_local_links(
     root: Path, rel_path: str, text: str,
     *, text_snapshot: dict[str, str] | None = None,
 ) -> list:
+    """Check parsed CommonMark/GFM/Pandoc links against the bounded package inventory."""
     findings = []
-    # GFM-style tables are common in instruction files; parse their links too.
-    parsed = MarkdownIt("commonmark", {"html": False}).enable("table").parse(text)
-    for token in parsed:
-        for child in token.children or []:
-            if child.type not in {"link_open", "image"}:
-                continue
-            attrs = dict(child.attrs or [])
-            href = attrs.get("href") if child.type == "link_open" else attrs.get("src")
-            if not href:
-                continue
-            try:
-                parsed_url = urlsplit(href)
-            except ValueError:
+    for child_type, href in markdown_link_targets(text):
+        try:
+            parsed_url = urlsplit(href)
+        except ValueError:
+            findings.append(new_finding(
+                "LOCAL_LINK_URL_INVALID", "medium", "links",
+                "A Markdown link has malformed URL syntax and could not be checked.",
+                "Malformed URL syntax can confuse link resolution across Markdown consumers; the validator should report the input rather than crash.",
+                path=rel_path,
+                proposed_change="Correct the URL or confirm the intended client-specific syntax.",
+                requires_review=True,
+                analysis_method="deterministic",
+                uncertainty="none",
+                severity_rationale="The URL parser deterministically rejected the literal; whether a target client accepts it still needs contextual review.",
+            ))
+            continue
+        if parsed_url.scheme or href.startswith("//"):
+            continue
+        decoded = unquote(parsed_url.path)
+        if not decoded and parsed_url.fragment:
+            decoded = Path(rel_path).name
+        destination = (root / Path(rel_path).parent / decoded).resolve()
+        if not destination.is_relative_to(root.resolve()):
+            findings.append(new_finding(
+                "PATH_TRAVERSAL_LINK", "high", "links",
+                "Local link resolves outside the package root.",
+                "A translated or hostile path must not escape the package boundary.",
+                path=rel_path, proposed_change="Use a relative link that resolves within the package.",
+            ))
+            continue
+        if not destination.exists():
+            findings.append(new_finding(
+                "BROKEN_LOCAL_LINK", "high", "links",
+                f"Local link target does not exist: {href}",
+                "Broken links can make required reference material or assets unavailable.",
+                path=rel_path, proposed_change="Restore the resource or correct the link while preserving the intended path.",
+            ))
+            continue
+        if parsed_url.fragment and destination.is_file():
+            target_rel = destination.relative_to(root.resolve()).as_posix()
+            target_text = (text_snapshot or {}).get(target_rel)
+            if target_text is None:
+                try:
+                    target_bytes = read_bounded_regular_file(
+                        destination, max_bytes=MAX_FILE_BYTES,
+                        purpose="Local link fragment target",
+                    )
+                    target_text = target_bytes.decode("utf-8")
+                except (OSError, UnicodeDecodeError, ValueError):
+                    continue
+            fragments = set(re.findall(r"\bid\s*=\s*['\"]([^'\"]+)", target_text, re.I))
+            fragments.update(re.findall(r"\bname\s*=\s*['\"]([^'\"]+)", target_text, re.I))
+            fragments.update(markdown_heading_anchors(target_text))
+            fragment = unquote(parsed_url.fragment)
+            if fragment not in fragments and target_text:
                 findings.append(new_finding(
-                    "LOCAL_LINK_URL_INVALID", "medium", "links",
-                    "A Markdown link has malformed URL syntax and could not be checked.",
-                    "Malformed URL syntax can confuse link resolution across Markdown consumers; the validator should report the input rather than crash.",
-                    path=rel_path,
-                    proposed_change="Correct the URL or confirm the intended client-specific syntax.",
-                    requires_review=True,
-                    analysis_method="deterministic",
-                    uncertainty="none",
-                    severity_rationale="The URL parser deterministically rejected the literal; whether a target client accepts it still needs contextual review.",
+                    "BROKEN_LINK_FRAGMENT", "medium", "links",
+                    f"Local link fragment does not match a detected heading or HTML anchor: {href}",
+                    "A path can exist while its in-document reference is broken.",
+                    path=rel_path, proposed_change="Update the fragment or restore the referenced heading/anchor.",
                 ))
-                continue
-            if parsed_url.scheme or href.startswith("//"):
-                continue
-            decoded = unquote(parsed_url.path)
-            if not decoded and parsed_url.fragment:
-                decoded = Path(rel_path).name
-            destination = (root / Path(rel_path).parent / decoded).resolve()
-            if not destination.is_relative_to(root.resolve()):
-                findings.append(new_finding(
-                    "PATH_TRAVERSAL_LINK", "high", "links",
-                    "Local link resolves outside the package root.",
-                    "A translated or hostile path must not escape the package boundary.",
-                    path=rel_path, proposed_change="Use a relative link that resolves within the package.",
-                ))
-                continue
-            if not destination.exists():
-                findings.append(new_finding(
-                    "BROKEN_LOCAL_LINK", "high", "links",
-                    f"Local link target does not exist: {href}",
-                    "Broken links can make required reference material or assets unavailable.",
-                    path=rel_path, proposed_change="Restore the resource or correct the link while preserving the intended path.",
-                ))
-                continue
-            if parsed_url.fragment and destination.is_file():
-                target_rel = destination.relative_to(root.resolve()).as_posix()
-                target_text = (text_snapshot or {}).get(target_rel)
-                if target_text is None:
-                    # Preserve support for callers that validate one document in
-                    # isolation, but keep fallback reads bounded and non-following.
-                    try:
-                        target_bytes = read_bounded_regular_file(
-                            destination, max_bytes=MAX_FILE_BYTES,
-                            purpose="Local link fragment target",
-                        )
-                        target_text = target_bytes.decode("utf-8")
-                    except (OSError, UnicodeDecodeError, ValueError):
-                        continue
-                fragments = set(re.findall(r"\bid\s*=\s*['\"]([^'\"]+)", target_text, re.I))
-                fragments.update(re.findall(r"\bname\s*=\s*['\"]([^'\"]+)", target_text, re.I))
-                for heading in re.finditer(r"^#{1,6}\s+(.+?)\s*#*\s*$", target_text, re.M):
-                    slug = re.sub(r"[^\w -]", "", heading.group(1).lower()).strip().replace(" ", "-")
-                    fragments.add(slug)
-                fragment = unquote(parsed_url.fragment)
-                if fragment not in fragments and target_text:
-                    findings.append(new_finding(
-                        "BROKEN_LINK_FRAGMENT", "medium", "links",
-                        f"Local link fragment does not match a detected heading or HTML anchor: {href}",
-                        "A path can exist while its in-document reference is broken.",
-                        path=rel_path, proposed_change="Update the fragment or restore the referenced heading/anchor.",
-                    ))
     return findings
-
 
 
 def validate_resource_syntax(rel_path: str, text: str) -> list:

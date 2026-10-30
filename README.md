@@ -10,9 +10,10 @@ SkillTether is a local-first CLI for validating and localizing [Agent Skills](ht
 
 - **Validate the package:** check frontmatter, metadata types, local links and fragments, referenced resources, path safety, file modes, encodings, and bounded package size. Scripts are inspected statically and **never executed**.
 - **Protect machine-facing content:** identify commands, code, URLs, paths, environment variables, and configured identifiers; flag token changes and package-resource drift.
-- **Track operational invariants:** create a draft YAML manifest for requirements, negations, numeric limits, prerequisites, and decision rules. A human must curate and approve every invariant.
-- **Localize Markdown carefully:** mask syntax and opaque regions, enforce provider response budgets, and reject altered placeholders or parser-visible structure changes. This is a structural guard—not a complete Markdown/MDX AST transformation.
+- **Track operational invariants:** create a draft YAML manifest for requirements, negations, numeric limits, prerequisites, and decision rules. Draft suggestions include explicit cue profiles for English, French, Spanish, German, Portuguese, and Italian, with a curated evaluation fixture that reports precision/recall by language and rule family; the cues remain heuristic and unreviewed until a person curates them.
+- **Localize Markdown carefully:** use a shared GFM-like parser with tables, task lists, alerts, strikethrough, footnotes, and definition lists. Protect syntax, enforce provider budgets, and reject detected structure drift; obvious MDX-only constructs are flagged rather than translated. This is not a complete CommonMark/MDX AST transformation.
 - **Keep decisions auditable:** generate JSON/Markdown reports, retain review history and rationale, and require fingerprint-matched evidence before exporting an approved candidate.
+- **Review reports offline:** open the dependency-free local workbench in reviewer/index.html to inspect evidence, filter findings, record decisions on unsigned reports, and export the updated JSON. HMAC-signed reports remain read-only in the browser.
 - **Make remote translation opt-in:** the default identity adapter sends no content. The generic JSON adapter requires an endpoint and explicit `--allow-remote` consent; per-line and aggregate limits bound provider output.
 - **Keep local run metadata minimal:** optional SQLite history stores fingerprints and run metadata, not source/target document text.
 - **Support report integrity:** optionally seal JSON reports using a local HMAC-SHA256 key and verify the seal before review or approval.
@@ -164,9 +165,10 @@ GitHub Actions tests the suite on **Python 3.13 and 3.14 × Ubuntu, macOS, and W
 
 - **No semantic-equivalence guarantee.** Invariants and marker comparisons are heuristic and context-sensitive. Critical operational instructions need human review.
 - **Locale validation is structural.** BCP 47 formatting and ordering are checked, but IANA registry membership and canonicalization are not.
-- **Reference and syntax coverage is bounded.** External URLs are not fetched; Markdown heading slugs are heuristic; this is not a full MDX transformer or a complete shell, JavaScript, or PowerShell parser.
+- **Reference and syntax coverage is bounded.** External URLs are not fetched. The parser supports a documented GFM-like/Pandoc subset; heading fragments and MDX detection have known limits. JSX and JavaScript constructs are flagged as unsupported, not parsed or translated. Shell, JavaScript, and PowerShell resources are not fully semantically parsed.
 - **Protected-token detection is incomplete.** Unknown identifiers may be missed. Automatic renamed-token mappings are not implemented.
 - **Secret redaction is not a secret scanner.** Common credential shapes are redacted, but unfamiliar formats may pass through. Do not store credentials in skill content, policy files, or review notes.
+- **Filesystem portability is checked, not guaranteed.** Common Windows-invalid path components and case/Unicode-normalization collisions are reported. This does not model every filesystem, Unicode equivalence rule, or race condition.
 - **Hostile-system isolation is not provided.** File and path protections reduce common risks, but SkillTether is not a sandbox for malicious operating-system inputs.
 - **Coverage is not a correctness proof.** Per-module coverage floors are not enforced, and platform-specific filesystem behavior still requires care.
 
@@ -178,6 +180,7 @@ GitHub Actions tests the suite on **Python 3.13 and 3.14 × Ubuntu, macOS, and W
 - [Specification boundary and reference-validator check](docs/spec-compatibility.md)
 - [Validation matrix](docs/validation-matrix.md)
 - [Implementation status and limits](docs/implementation-status.md)
+- [Offline reviewer workbench](docs/reviewer-workbench.md)
 - [Requirements-to-code readiness audit](docs/readiness-audit.md)
 - [Architecture research](docs/architecture-research.md)
 - [Mitigation strategy](docs/mitigation-strategy.md)

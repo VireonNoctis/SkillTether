@@ -1,0 +1,192 @@
+{
+  "description": "Curated human-reviewed multilingual invariant suggestion corpus. Exact-match metrics are computed by language and rule category. Labels measure this finite fixture only and are not a general semantic benchmark.",
+  "cases": [
+    {
+      "locale": "en",
+      "body": "Do not delete the source archive.\nAt most 3 attempts are allowed.\nUse 3 retries when the first request times out.\nOnly run this step if the configuration file exists.\nYou must preserve the original order.\nThe service has 3 ports.\nThe release was on day 4.\n~~~sh\nDo not delete the source archive in this example.\n~~~\n\n    Do not delete the source archive in this indented example.\n",
+      "expected_candidates": [
+        {
+          "source_text": "Do not delete the source archive.",
+          "category": "negation"
+        },
+        {
+          "source_text": "At most 3 attempts are allowed.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Use 3 retries when the first request times out.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Only run this step if the configuration file exists.",
+          "category": "precondition"
+        },
+        {
+          "source_text": "You must preserve the original order.",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "The service has 3 ports.",
+        "The release was on day 4.",
+        "Do not delete the source archive in this example.",
+        "Do not delete the source archive in this indented example."
+      ]
+    },
+    {
+      "locale": "fr",
+      "body": "Ne supprimez jamais l’archive source.\nAu maximum 3 tentatives sont autorisées.\nUtilisez 3 nouvelles tentatives si la première requête expire.\nExécutez cette étape seulement si le fichier de configuration existe.\nVous devez conserver l’ordre initial.\nLe service dispose de 3 ports.\nLa version 4 est disponible.\n\n~~~sh\nNe supprimez jamais l’archive source dans cet exemple.\n~~~\n\n    Ne supprimez jamais l’archive source dans cet exemple indenté.\n\n<pre>\nNe supprimez jamais l’archive source dans cet exemple HTML.\n</pre>\n",
+      "expected_candidates": [
+        {
+          "source_text": "Ne supprimez jamais l’archive source.",
+          "category": "negation"
+        },
+        {
+          "source_text": "Au maximum 3 tentatives sont autorisées.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Utilisez 3 nouvelles tentatives si la première requête expire.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Exécutez cette étape seulement si le fichier de configuration existe.",
+          "category": "precondition"
+        },
+        {
+          "source_text": "Vous devez conserver l’ordre initial.",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "Le service dispose de 3 ports.",
+        "La version 4 est disponible.",
+        "Ne supprimez jamais l’archive source dans cet exemple.",
+        "Ne supprimez jamais l’archive source dans cet exemple indenté.",
+        "Ne supprimez jamais l’archive source dans cet exemple HTML."
+      ]
+    },
+    {
+      "locale": "es",
+      "body": "No elimines la copia original.\nComo máximo 3 intentos están permitidos.\nUsa 3 reintentos si la solicitud expira.\nEjecuta esta etapa solo si existe el archivo de configuración.\nDebes conservar el orden original.\nEl servicio tiene 3 puertos.\nLa versión 4 está disponible.\n~~~sh\nNo elimines la copia original en este ejemplo.\n~~~\n",
+      "expected_candidates": [
+        {
+          "source_text": "No elimines la copia original.",
+          "category": "negation"
+        },
+        {
+          "source_text": "Como máximo 3 intentos están permitidos.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Usa 3 reintentos si la solicitud expira.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Ejecuta esta etapa solo si existe el archivo de configuración.",
+          "category": "precondition"
+        },
+        {
+          "source_text": "Debes conservar el orden original.",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "El servicio tiene 3 puertos.",
+        "La versión 4 está disponible.",
+        "No elimines la copia original en este ejemplo."
+      ]
+    },
+    {
+      "locale": "de",
+      "body": "Lösche niemals die Sicherung.\nHöchstens 3 Versuche sind erlaubt.\nVerwende 3 Wiederholungen, wenn die Anfrage fehlschlägt.\nFühre diesen Schritt nur aus, wenn die Datei vorhanden ist.\nDu musst die ursprüngliche Reihenfolge beibehalten.\nDer Dienst hat 3 Ports.\nDie Version 4 ist verfügbar.\n",
+      "expected_candidates": [
+        {
+          "source_text": "Lösche niemals die Sicherung.",
+          "category": "negation"
+        },
+        {
+          "source_text": "Höchstens 3 Versuche sind erlaubt.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Verwende 3 Wiederholungen, wenn die Anfrage fehlschlägt.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Führe diesen Schritt nur aus, wenn die Datei vorhanden ist.",
+          "category": "precondition"
+        },
+        {
+          "source_text": "Du musst die ursprüngliche Reihenfolge beibehalten.",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "Der Dienst hat 3 Ports.",
+        "Die Version 4 ist verfügbar."
+      ]
+    },
+    {
+      "locale": "pt",
+      "body": "Não exclua o arquivo original.\nNo máximo 3 tentativas são permitidas.\nUse 3 novas tentativas se a primeira solicitação expirar.\nExecute esta etapa somente se o arquivo existir.\nVocê deve preservar a ordem original.\nO serviço possui 3 portas.\nA versão 4 está disponível.\n",
+      "expected_candidates": [
+        {
+          "source_text": "Não exclua o arquivo original.",
+          "category": "negation"
+        },
+        {
+          "source_text": "No máximo 3 tentativas são permitidas.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Use 3 novas tentativas se a primeira solicitação expirar.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Execute esta etapa somente se o arquivo existir.",
+          "category": "precondition"
+        },
+        {
+          "source_text": "Você deve preservar a ordem original.",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "O serviço possui 3 portas.",
+        "A versão 4 está disponível."
+      ]
+    },
+    {
+      "locale": "it",
+      "body": "Non eliminare il file originale.\nAl massimo 3 tentativi sono consentiti.\nUsa 3 nuovi tentativi se la richiesta scade.\nEsegui questo passaggio solo se il file esiste.\nDevi conservare l’ordine originale.\nIl servizio ha 3 porte.\nLa versione 4 è disponibile.\n",
+      "expected_candidates": [
+        {
+          "source_text": "Non eliminare il file originale.",
+          "category": "negation"
+        },
+        {
+          "source_text": "Al massimo 3 tentativi sono consentiti.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Usa 3 nuovi tentativi se la richiesta scade.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Esegui questo passaggio solo se il file esiste.",
+          "category": "precondition"
+        },
+        {
+          "source_text": "Devi conservare l’ordine originale.",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "Il servizio ha 3 porte.",
+        "La versione 4 è disponibile."
+      ]
+    }
+  ],
+  "limitations": "Exact matches and exclusions on this small curated corpus are regression metrics only. They do not imply multilingual precision or recall outside these examples, dialects, or constructions."
+}

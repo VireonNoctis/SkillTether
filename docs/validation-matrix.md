@@ -2,10 +2,22 @@
 
 ## Current CI baseline
 
-The latest verified implementation baseline before this documentation-only branch is [run 40873536059](https://github.com/VireonNoctis/SkillTether/actions/runs/40873536059), commit `90f1b922c7d93971638631ad95db7fb4f547914e` (2026-10-29). It passed 215 tests on each of Ubuntu/macOS/Windows with Python 3.13/3.14 and the separate pinned `skills-ref@v0.0.1` reference-conformance job. Linux/macOS measured 86% coverage and Windows 85%; the 80% aggregate floor is enforced only on Linux. This baseline does not mean the documentation branch itself has run CI yet.
+The latest verified code/test baseline is [run 41030648870](https://github.com/VireonNoctis/SkillTether/actions/runs/41030648870), head `bf2698d72d70e311b95d5fb948b64ed9ddc73464` (2026-10-30). It passed 244 tests on Ubuntu/macOS and 239 with five platform-specific skips on Windows, across Python 3.13/3.14; the separate pinned `skills-ref@v0.0.1` reference-conformance job passed. Aggregate coverage was 86% on Linux and Windows; only Linux enforces the 80% floor. Documentation updates after this baseline run need their own CI verification.
 
 
 ## Required fixtures
+
+| Test class | Example | Expected result |
+|---|---|---|
+| Multilingual invariant evaluation | Human-labelled English/French/Spanish/German/Portuguese/Italian candidate examples with operational positives and descriptive/code negatives | Exact fixture match; record TP/FP/FN and precision/recall without presenting the curated sample as a general benchmark |
+| Language profile selection | BCP 47 tag with a supported primary language and region/script subtags | Select primary-language profile; unknown language returns no candidate suggestions rather than guessing |
+| Cross-language context fallback | Source English instruction and translated French line with no shared words but preserved line count | Emit an explicitly high-uncertainty positional alignment finding; retain critical human sign-off |
+| Negation-loss negative case | Same positional mapping but target translation omits locale negation markers | Emit heuristic negation uncertainty; positional mapping does not suppress drift warnings |
+| GFM/Pandoc Markdown | Table, task list, alert, strikethrough, footnote, and definition list | Shared parser recognizes structure; translation masks delimiters and preserves parser-visible signature |
+| MDX unsupported syntax | Import/export, JSX tag, or embedded JavaScript expression outside code fence | High-severity unsupported-syntax finding; code-fenced examples are negative cases; no evaluation/execution |
+| Windows path portability | Reserved device name, forbidden character, trailing dot/space | Deterministic portability finding |
+| Unicode/case path collision | Two file paths share NFC + case-folded key | Critical normalized-path collision finding on case-sensitive hosts; aliasing hosts skip fixture |
+| Offline reviewer workbench | Load unsigned JSON, append a review event and export; attempt to edit signed report | Unsigned report edits are local and append-only; signed report remains read-only; content is rendered as text and no network/storage API is used |
 
 | Test class | Example | Expected result |
 |---|---|---|
