@@ -1,6 +1,38 @@
 {
-  "description": "Curated human-reviewed multilingual invariant suggestion corpus. Labels measure this finite fixture only and are not a general semantic benchmark.",
+  "description": "Curated human-reviewed multilingual invariant suggestion corpus. Exact-match metrics are computed by language and rule category. Labels measure this finite fixture only and are not a general semantic benchmark.",
   "cases": [
+    {
+      "locale": "en",
+      "body": "Do not delete the source archive.\nAt most 3 attempts are allowed.\nUse 3 retries when the first request times out.\nOnly run this step if the configuration file exists.\nYou must preserve the original order.\nThe service has 3 ports.\nThe release was on day 4.\n~~~sh\nDo not delete the source archive in this example.\n~~~\n\n    Do not delete the source archive in this indented example.\n",
+      "expected_candidates": [
+        {
+          "source_text": "Do not delete the source archive.",
+          "category": "negation"
+        },
+        {
+          "source_text": "At most 3 attempts are allowed.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Use 3 retries when the first request times out.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Only run this step if the configuration file exists.",
+          "category": "precondition"
+        },
+        {
+          "source_text": "You must preserve the original order.",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "The service has 3 ports.",
+        "The release was on day 4.",
+        "Do not delete the source archive in this example.",
+        "Do not delete the source archive in this indented example."
+      ]
+    },
     {
       "locale": "fr",
       "body": "Ne supprimez jamais l’archive source.\nAu maximum 3 tentatives sont autorisées.\nUtilisez 3 nouvelles tentatives si la première requête expire.\nExécutez cette étape seulement si le fichier de configuration existe.\nVous devez conserver l’ordre initial.\nLe service dispose de 3 ports.\nLa version 4 est disponible.\n\n~~~sh\nNe supprimez jamais l’archive source dans cet exemple.\n~~~\n\n    Ne supprimez jamais l’archive source dans cet exemple indenté.\n\n<pre>\nNe supprimez jamais l’archive source dans cet exemple HTML.\n</pre>\n",
