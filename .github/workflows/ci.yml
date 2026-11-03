@@ -2,9 +2,18 @@ name: SkillTether CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
+  contents: read
+
+# Feature branches are validated by their pull_request event. Avoid duplicate
+# push + pull_request matrices and stop obsolete runs when a PR head advances.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
   contents: read
 
 jobs:
