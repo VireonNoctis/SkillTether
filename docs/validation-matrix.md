@@ -47,6 +47,7 @@ The latest verified code/test baseline is [run 41030648870](https://github.com/V
 | Output path integrity | Report path inside package or reached through a symlink alias; candidate/approval output is a broken symlink or parent-symlink alias to source | Command refuses before writing; package remains unchanged |
 | Frontmatter | Missing required field, invalid YAML, wrong field type | Explicit validation failure |
 | Frontmatter edge cases | Explicit `compatibility: null` or a non-string top-level YAML key mixed with normal fields | Null compatibility is rejected; non-string keys produce a high-severity finding without crashing; omitted compatibility remains valid |
+| Unicode skill-name grammar | Lowercase Unicode alphanumeric identifiers, an NFKC-equivalent directory spelling, uppercase Unicode, and invalid hyphen sequences | Accept valid Unicode identifiers and normalized directory equivalents without rewriting; reject uppercase and invalid separator forms |
 | Draft invariant false positive | Rule-like words inside tilde/backtick code fences or a line over 1,200 characters | Example content/long line is not emitted as a candidate; manifest remains unreviewed |
 | Text resource encoding | Invalid UTF-8 in Markdown/script resource versus invalid bytes in `.bin` asset | Expected text/script suffix reports an encoding finding; binary asset is not called malformed text |
 | Manifest output race | Destination exists or appears during generation | Create-only publication refuses the destination and leaves it unchanged |
