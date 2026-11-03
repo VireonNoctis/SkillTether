@@ -99,15 +99,28 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 
 def _suggest_invariants(source_root: Path, source_locale: str, target_locale: str | None) -> InvariantManifest:
-    _inventory, _findings, texts = inspect_package(source_root)
+    _inventory, package_findings, texts = inspect_package(source_root)
     if "SKILL.md" not in texts:
         raise ValueError("Cannot suggest invariants without a readable SKILL.md")
+    if any(
+        finding.path == "SKILL.md" and finding.code == "FRONTMATTER_INVALID"
+        for finding in package_findings
+    ):
+        raise ValueError("Cannot suggest invariants from malformed SKILL.md frontmatter")
     source_profile = language_profile(source_locale)
     suggestions: list[Invariant] = []
     fence_character: str | None = None
     fence_length = 0
     html_code_tag: str | None = None
-    for line_no, line in enumerate(texts["SKILL.md"].splitlines(), start=1):
+    skill_lines = texts["SKILL.md"].splitlines()
+    first_line = skill_lines[0].removeprefix("\ufeff") if skill_lines else ""
+    frontmatter_open = bool(first_line.strip() == "---")
+    frontmatter_closed = not frontmatter_open
+    for line_no, line in enumerate(skill_lines, start=1):
+        if not frontmatter_closed:
+            if line_no > 1 and line.strip() == "---":
+                frontmatter_closed = True
+            continue
         fence_match = re.match(r"^\s{0,3}(\x60{3,}|~{3,})", line)
         if fence_character is not None:
             if (
