@@ -79,6 +79,23 @@ def test_nfkc_equivalent_unicode_directory_name_is_compared_without_rewriting(
     }]
 
 
+def test_nfkc_compatibility_form_name_matches_ascii_directory_without_rewriting(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "skill-tool"
+    package.mkdir()
+    path = package / "SKILL.md"
+    original = Path("tests/fixtures/skill-tool/SKILL.md").read_text(encoding="utf-8")
+    path.write_text(original, encoding="utf-8")
+
+    _inventory, findings, _texts = inspect_package(package)
+
+    assert path.read_text(encoding="utf-8") == original
+    assert not [finding for finding in findings if finding.code in {
+        "SKILL_NAME_INVALID", "SKILL_NAME_DIRECTORY_MISMATCH",
+    }]
+
+
 def test_unicode_skill_name_limit_counts_characters_not_utf8_bytes(tmp_path: Path) -> None:
     for length, expected_invalid in ((64, False), (65, True)):
         skill_name = "é" * length
