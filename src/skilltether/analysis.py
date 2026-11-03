@@ -537,7 +537,7 @@ def validate_local_links(
             continue
         try:
             decoded = unquote(parsed_url.path)
-            if "\\x00" in decoded:
+            if "\x00" in decoded:
                 raise ValueError("Decoded local link path contains a NUL character")
             if not decoded and parsed_url.fragment:
                 decoded = Path(rel_path).name
