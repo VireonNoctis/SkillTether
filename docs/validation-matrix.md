@@ -36,6 +36,7 @@ The latest verified code/test baseline is [run 41030648870](https://github.com/V
 | Python and OS matrix | Python 3.13/3.14 × Ubuntu/macOS/Windows | Full pytest suite, coverage report, schema/policy checks, and bundled fixtures run on all six combinations; aggregate 80% floor is enforced only on Linux |
 | Invariant manifest output path | Destination is inside source, already exists, is a symlink, or appears during publication | Refuse write; preserve source and destination target |
 | Approval output symlink | Requested approved-output path is a final-component symlink, including a broken symlink | Refuse approval before report access or publication |
+| Approval report input symlink | Report argument is a symlink to an otherwise valid JSON report | Reject with the bounded-reader regular-file error; do not resolve/follow the final-component symlink |
 | Invariant suggestion examples | Fenced, indented, or recognized HTML code examples contain imperative words/numbers | Do not emit those code-example lines as invariant candidates; candidates remain unreviewed |
 | Numeric fact vs. numeric constraint | A factual sentence contains a number but no limit/action/modality/negation/conditional cue | Do not suggest it solely because a digit is present; retain explicit numeric limits and action-oriented numeric rules |
 | Binary asset/key bytes on Windows | File contains CRLF and `0x1A` bytes | Binary-mode descriptors preserve exact bytes for fingerprints, package limits, and signing-key verification |
