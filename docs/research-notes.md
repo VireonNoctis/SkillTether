@@ -52,7 +52,7 @@ BCP 47 tag structure is validated consistently across CLI/model/history surfaces
 | Identifier mutation | Tools and commands may stop working | Protected spans and exact-token tests; unrecognized literals may be missed |
 | Broken package structure | Agent may fail to load the skill or miss resources | Bounded inventory, metadata/link/resource checks, structural comparisons; external links are not checked online |
 | Hallucinated instruction | Translation may add unsupported steps | Line/content diffs, added-content findings, and review gates; new imperative classification is incomplete |
-| Different client behaviours | Consumers may interpret extensions differently | Normative specification boundary and a pinned reference-validator smoke test, not a guarantee for all clients |
+| Different client behaviours | Consumers may interpret extensions differently | Normative specification boundary and a pinned differential fixture; unknown top-level fields intentionally warn/accept in SkillTether but reject in `skills-ref@v0.0.1`; this does not guarantee compatibility for all clients |
 | Confidential skill disclosure | Provider receives private operational content | Local default/identity path, explicit remote opt-in and budget checks; provider retention remains external |
 | Hostile files or model output | Inputs may trigger resource exhaustion or unsafe publication | Bounded reads, symlink/special-file checks, staging and output validation; platform/filesystem behavior remains a residual risk |
 
