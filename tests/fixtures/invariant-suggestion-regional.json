@@ -1,0 +1,173 @@
+{
+  "description": "Regional-tag evaluation fixture with document-like instruction sections and explicit hard negatives. Metrics describe these finite authored cases only; they are not estimates of real-world dialect or semantic accuracy.",
+  "cases": [
+    {
+      "locale": "en-GB",
+      "package": "regional-english",
+      "body": "## Source handling\n- Never overwrite the source package.\n- Keep at most 2 backup copies.\n- Only publish the candidate after validation succeeds.\n- You must retain the original file modes.\n\n## Package facts\nThe package contains 12 reference files.\nThe release was published on 3 March.\n\n## Example only\n```sh\nNever overwrite the source package in this example.\n```",
+      "expected_candidates": [
+        {
+          "source_text": "Never overwrite the source package.",
+          "category": "negation"
+        },
+        {
+          "source_text": "Keep at most 2 backup copies.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Only publish the candidate after validation succeeds.",
+          "category": "precondition"
+        },
+        {
+          "source_text": "You must retain the original file modes.",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "The package contains 12 reference files.",
+        "The release was published on 3 March.",
+        "Never overwrite the source package in this example."
+      ]
+    },
+    {
+      "locale": "fr-CA",
+      "package": "regional-francais",
+      "body": "## Gestion des sources\n- Ne supprimez jamais la copie source.\n- Au maximum 4 tentatives sont autorisées.\n- Exécutez cette étape avant de publier le paquet.\n- Vous devez conserver les chemins relatifs.\n\n## Informations descriptives\nLe paquet contient 12 fichiers de référence.\nLa version 3 est disponible.\n\n## Exemple uniquement\n```sh\nNe supprimez jamais la copie source dans cet exemple.\n```",
+      "expected_candidates": [
+        {
+          "source_text": "Ne supprimez jamais la copie source.",
+          "category": "negation"
+        },
+        {
+          "source_text": "Au maximum 4 tentatives sont autorisées.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Exécutez cette étape avant de publier le paquet.",
+          "category": "precondition"
+        },
+        {
+          "source_text": "Vous devez conserver les chemins relatifs.",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "Le paquet contient 12 fichiers de référence.",
+        "La version 3 est disponible.",
+        "Ne supprimez jamais la copie source dans cet exemple."
+      ]
+    },
+    {
+      "locale": "es-MX",
+      "package": "regional-espanol",
+      "body": "## Tratamiento de los archivos\n- No elimines la copia original.\n- Como máximo 4 intentos están permitidos.\n- Ejecuta el paso solo si existe el archivo de configuración.\n- Debes conservar las referencias originales.\n\n## Datos del paquete\nEl paquete contiene 8 archivos.\nLa versión 2 está disponible.\n\n## Solo como ejemplo\n```sh\nNo elimines la copia original en este ejemplo.\n```",
+      "expected_candidates": [
+        {
+          "source_text": "No elimines la copia original.",
+          "category": "negation"
+        },
+        {
+          "source_text": "Como máximo 4 intentos están permitidos.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Ejecuta el paso solo si existe el archivo de configuración.",
+          "category": "precondition"
+        },
+        {
+          "source_text": "Debes conservar las referencias originales.",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "El paquete contiene 8 archivos.",
+        "La versión 2 está disponible.",
+        "No elimines la copia original en este ejemplo."
+      ]
+    },
+    {
+      "locale": "de-AT",
+      "package": "regional-deutsch",
+      "body": "## Umgang mit Quelldateien\n- Lösche niemals das Quellpaket.\n- Höchstens 4 Versuche sind erlaubt.\n- Führe diesen Schritt nur aus, wenn die Quelldatei existiert.\n- Du musst die ursprüngliche Reihenfolge beibehalten.\n\n## Paketinformationen\nDas Paket enthält 12 Referenzdateien.\nVersion 3 ist verfügbar.\n\n## Nur ein Beispiel\n```sh\nLösche niemals das Quellpaket in diesem Beispiel.\n```",
+      "expected_candidates": [
+        {
+          "source_text": "Lösche niemals das Quellpaket.",
+          "category": "negation"
+        },
+        {
+          "source_text": "Höchstens 4 Versuche sind erlaubt.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Führe diesen Schritt nur aus, wenn die Quelldatei existiert.",
+          "category": "precondition"
+        },
+        {
+          "source_text": "Du musst die ursprüngliche Reihenfolge beibehalten.",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "Das Paket enthält 12 Referenzdateien.",
+        "Version 3 ist verfügbar.",
+        "Lösche niemals das Quellpaket in diesem Beispiel."
+      ]
+    },
+    {
+      "locale": "pt-BR",
+      "package": "regional-portugues",
+      "body": "## Gerenciamento dos arquivos\n- Não exclua o arquivo de origem.\n- No máximo 4 tentativas são permitidas.\n- Execute esta etapa somente se o arquivo existir.\n- Você deve preservar a ordem original.\n\n## Informações do pacote\nO pacote contém 12 arquivos de referência.\nA versão 3 está disponível.\n\n## Apenas um exemplo\n```sh\nNão exclua o arquivo de origem neste exemplo.\n```",
+      "expected_candidates": [
+        {
+          "source_text": "Não exclua o arquivo de origem.",
+          "category": "negation"
+        },
+        {
+          "source_text": "No máximo 4 tentativas são permitidas.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Execute esta etapa somente se o arquivo existir.",
+          "category": "precondition"
+        },
+        {
+          "source_text": "Você deve preservar a ordem original.",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "O pacote contém 12 arquivos de referência.",
+        "A versão 3 está disponível.",
+        "Não exclua o arquivo de origem neste exemplo."
+      ]
+    },
+    {
+      "locale": "it-CH",
+      "package": "regional-italiano",
+      "body": "## Gestione dei file sorgente\n- Non eliminare il file originale.\n- Al massimo 4 tentativi sono consentiti.\n- Esegui questo passaggio solo se il file esiste.\n- Devi conservare l'ordine originale.\n\n## Informazioni descrittive\nIl pacchetto contiene 12 file di riferimento.\nLa versione 3 è disponibile.\n\n## Solo un esempio\n```sh\nNon eliminare il file originale in questo esempio.\n```",
+      "expected_candidates": [
+        {
+          "source_text": "Non eliminare il file originale.",
+          "category": "negation"
+        },
+        {
+          "source_text": "Al massimo 4 tentativi sono consentiti.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Esegui questo passaggio solo se il file esiste.",
+          "category": "precondition"
+        },
+        {
+          "source_text": "Devi conservare l'ordine originale.",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "Il pacchetto contiene 12 file di riferimento.",
+        "La versione 3 è disponibile.",
+        "Non eliminare il file originale in questo esempio."
+      ]
+    }
+  ]
+}
