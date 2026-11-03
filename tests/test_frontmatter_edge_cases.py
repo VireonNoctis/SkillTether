@@ -24,7 +24,7 @@ def make_skill(tmp_path: Path, extra_frontmatter: str = "") -> Path:
 
 
 def test_crlf_frontmatter_is_accepted_without_normalizing_source(tmp_path: Path) -> None:
-    package = tmp_path / "crlf-skill"
+    package = tmp_path / "crlf-frontmatter"
     package.mkdir()
     source = Path("tests/fixtures/crlf-frontmatter/SKILL.md").read_bytes()
     path = package / "SKILL.md"
