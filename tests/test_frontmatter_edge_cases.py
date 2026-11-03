@@ -93,6 +93,92 @@ def test_uppercase_unicode_skill_name_remains_invalid(tmp_path: Path) -> None:
     assert any(finding.code == "SKILL_NAME_INVALID" for finding in findings)
 
 
+@pytest.mark.parametrize(
+    "skill_name",
+    ["-leading", "trailing-", "double--hyphen", "Uppercase", "with_underscore", "contains.dot"],
+)
+def test_invalid_skill_name_separators_and_characters_are_rejected(
+    tmp_path: Path, skill_name: str,
+) -> None:
+    package = tmp_path / skill_name
+    package.mkdir()
+    (package / "SKILL.md").write_text(
+        f"---\\nname: {skill_name}\\ndescription: Invalid name fixture.\\n---\\n\\n"
+        "# Instructions\\n\\nFollow the documented workflow.\\n",
+        encoding="utf-8",
+    )
+
+    _inventory, findings, _texts = inspect_package(package)
+
+    assert any(finding.code == "SKILL_NAME_INVALID" for finding in findings)
+
+
+def test_skill_name_over_64_characters_is_rejected(tmp_path: Path) -> None:
+    skill_name = "a" * 65
+    package = tmp_path / skill_name
+    package.mkdir()
+    (package / "SKILL.md").write_text(
+        f"---\\nname: {skill_name}\\ndescription: Long name fixture.\\n---\\n\\n"
+        "# Instructions\\n\\nFollow the documented workflow.\\n",
+        encoding="utf-8",
+    )
+
+    _inventory, findings, _texts = inspect_package(package)
+
+    assert any(finding.code == "SKILL_NAME_INVALID" for finding in findings)
+
+
+def test_specification_maximum_frontmatter_boundaries_are_accepted() -> None:
+    from skilltether.analysis import validate_skill_markdown
+
+    skill_name = "a" * 64
+    text = (
+        f"---\\nname: {skill_name}\\n"
+        f"description: {'d' * 1024}\\n"
+        f"compatibility: {'c' * 500}\\n"
+        "---\\n\\n"
+        "# Instructions\\n\\nFollow the documented workflow.\\n"
+    )
+
+    findings = validate_skill_markdown(Path(skill_name), text)
+
+    assert not {
+        "SKILL_NAME_INVALID", "DESCRIPTION_TOO_LONG", "COMPATIBILITY_INVALID",
+    } & {finding.code for finding in findings}
+
+
+def test_description_over_1024_characters_is_rejected() -> None:
+    from skilltether.analysis import validate_skill_markdown
+
+    text = (
+        "---\\nname: sample-skill\\n"
+        f"description: {'d' * 1025}\\n"
+        "---\\n\\n"
+        "# Instructions\\n\\nFollow the documented workflow.\\n"
+    )
+
+    findings = validate_skill_markdown(Path("sample-skill"), text)
+
+    assert any(finding.code == "DESCRIPTION_TOO_LONG" for finding in findings)
+
+
+def test_reference_boundary_fixtures_exercise_limits_and_invalid_name() -> None:
+    from skilltether.analysis import validate_skill_markdown
+
+    valid_text = Path("tests/fixtures/" + "a" * 64 + "/SKILL.md").read_text(encoding="utf-8")
+    invalid_text = Path("tests/fixtures/bad--name/SKILL.md").read_text(encoding="utf-8")
+
+    valid_findings = validate_skill_markdown(Path("a" * 64), valid_text)
+    invalid_findings = validate_skill_markdown(Path("bad--name"), invalid_text)
+
+    assert not {
+        "SKILL_NAME_INVALID", "DESCRIPTION_TOO_LONG", "COMPATIBILITY_INVALID",
+    } & {finding.code for finding in valid_findings}
+    assert {
+        "SKILL_NAME_INVALID", "COMPATIBILITY_INVALID",
+    } <= {finding.code for finding in invalid_findings}
+
+
 def test_non_string_frontmatter_key_is_reported_without_crashing(tmp_path: Path) -> None:
     package = make_skill(tmp_path, "7: unexpected\n")
 
