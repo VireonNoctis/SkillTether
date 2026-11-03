@@ -40,6 +40,50 @@ def test_new_key_is_private_random_and_never_overwrites(tmp_path: Path) -> None:
         create_signing_key(path)
 
 
+def test_signing_key_generation_failure_does_not_leave_a_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skilltether.signing as signing
+
+    destination = tmp_path / "keys" / "failed.key"
+
+    def fail_token_bytes(_size: int) -> bytes:
+        raise RuntimeError("synthetic CSPRNG failure")
+
+    monkeypatch.setattr(signing.secrets, "token_bytes", fail_token_bytes)
+
+    with pytest.raises(RuntimeError, match="synthetic CSPRNG failure"):
+        create_signing_key(destination)
+
+    assert not destination.exists()
+
+
+def test_signing_key_loader_rejects_short_key(tmp_path: Path) -> None:
+    key_path = tmp_path / "short.key"
+    key_path.write_bytes(b"too-short")
+    if os.name == "posix":
+        key_path.chmod(0o600)
+
+    with pytest.raises(ValueError, match="at least 32 bytes"):
+        load_signing_key(key_path)
+
+
+def test_verify_payload_rejects_missing_or_invalid_signature_metadata(tmp_path: Path) -> None:
+    from skilltether.signing import verify_payload
+
+    key = create_signing_key(tmp_path / "key")
+
+    assert verify_payload({}, key) is False
+    assert verify_payload({
+        "integrity_algorithm": "sha512",
+        "integrity_signature": "0" * 64,
+    }, key) is False
+    assert verify_payload({
+        "integrity_algorithm": "hmac-sha256",
+        "integrity_signature": 123,
+    }, key) is False
+
+
 def test_signing_key_loader_preserves_all_raw_bytes(tmp_path: Path) -> None:
     key_path = tmp_path / "binary.key"
     key_bytes = b"A" * 16 + b"\x1a\r\n" + b"B" * 20
