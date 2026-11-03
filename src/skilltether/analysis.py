@@ -525,11 +525,28 @@ def validate_local_links(
             continue
         if parsed_url.scheme or href.startswith("//"):
             continue
-        decoded = unquote(parsed_url.path)
-        if not decoded and parsed_url.fragment:
-            decoded = Path(rel_path).name
-        destination = (root / Path(rel_path).parent / decoded).resolve()
-        if not destination.is_relative_to(root.resolve()):
+        try:
+            decoded = unquote(parsed_url.path)
+            if not decoded and parsed_url.fragment:
+                decoded = Path(rel_path).name
+            destination = (root / Path(rel_path).parent / decoded).resolve()
+            package_root = root.resolve()
+            is_within_package = destination.is_relative_to(package_root)
+            target_exists = destination.exists()
+        except (OSError, ValueError, RuntimeError):
+            findings.append(new_finding(
+                "LOCAL_LINK_PATH_INVALID", "medium", "links",
+                "A local Markdown link contains a path that cannot be resolved safely.",
+                "Invalid filesystem path values, including decoded NUL characters, must be reported rather than aborting package inspection.",
+                path=rel_path,
+                proposed_change="Correct the link to use a valid package-relative resource path.",
+                requires_review=True,
+                analysis_method="deterministic",
+                uncertainty="none",
+                severity_rationale="The platform path API rejected the decoded target; the intended resource remains unresolved.",
+            ))
+            continue
+        if not is_within_package:
             findings.append(new_finding(
                 "PATH_TRAVERSAL_LINK", "high", "links",
                 "Local link resolves outside the package root.",
@@ -537,7 +554,7 @@ def validate_local_links(
                 path=rel_path, proposed_change="Use a relative link that resolves within the package.",
             ))
             continue
-        if not destination.exists():
+        if not target_exists:
             findings.append(new_finding(
                 "BROKEN_LOCAL_LINK", "high", "links",
                 f"Local link target does not exist: {href}",
