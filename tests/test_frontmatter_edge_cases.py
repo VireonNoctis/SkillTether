@@ -179,6 +179,21 @@ def test_reference_boundary_fixtures_exercise_limits_and_invalid_name() -> None:
     } <= {finding.code for finding in invalid_findings}
 
 
+def test_unknown_extension_fixture_is_warning_not_blocking() -> None:
+    package = Path("tests/fixtures/extension-skill")
+    _inventory, findings, _texts = inspect_package(package)
+
+    extension = next(
+        finding for finding in findings if finding.code == "FRONTMATTER_UNKNOWN_FIELDS"
+    )
+    assert extension.severity == "low"
+    assert not [finding for finding in findings if finding.severity in ("high", "critical")]
+
+    from skilltether.cli import main
+
+    assert main(["validate", str(package)]) == 0
+
+
 def test_non_string_frontmatter_key_is_reported_without_crashing(tmp_path: Path) -> None:
     package = make_skill(tmp_path, "7: unexpected\n")
 
