@@ -6,7 +6,7 @@ How can an Agent Skill be localized while preserving operational constraints, id
 
 ## Specification and package model
 
-The Agent Skills format uses a directory package whose core file is `SKILL.md`, with metadata and optional scripts, references, and assets. The public specification is maintained at [agentskills.io](https://agentskills.io/specification) and [the Agent Skills repository](https://github.com/agentskills/agentskills). The current name grammar permits lowercase Unicode alphanumeric characters and hyphens; NFKC is used only for comparison, and the original identifier is preserved.
+The Agent Skills format uses a directory package whose core file is `SKILL.md`, with metadata and optional scripts, references, and assets. The public specification is maintained at [agentskills.io](https://agentskills.io/specification) and [the Agent Skills repository](https://github.com/agentskills/agentskills). Current reference-differential fixtures cover Unicode identifiers and metadata limits. Unknown top-level fields are an intentional policy divergence: SkillTether emits a reviewable low-severity warning, while pinned `skills-ref@v0.0.1` rejects them. The current name grammar permits lowercase Unicode alphanumeric characters and hyphens; NFKC is used only for comparison, and the original identifier is preserved.
 
 **Design implication:** localization must operate on the package, not only on a text blob. Metadata, references, relative paths, scripts, permission bits, binary resources, and resource names require integrity checks before and after translation.
 
