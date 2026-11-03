@@ -58,6 +58,29 @@ def test_signing_key_generation_failure_does_not_leave_a_file(
     assert not destination.exists()
 
 
+def test_signing_key_fdopen_failure_closes_descriptor_and_removes_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skilltether.signing as signing
+
+    destination = tmp_path / "keys" / "fdopen-failure.key"
+    opened: list[int] = []
+
+    def fail_fdopen(descriptor: int, *_args, **_kwargs):
+        opened.append(descriptor)
+        raise RuntimeError("synthetic fdopen failure")
+
+    monkeypatch.setattr(signing.os, "fdopen", fail_fdopen)
+
+    with pytest.raises(RuntimeError, match="synthetic fdopen failure"):
+        create_signing_key(destination)
+
+    assert len(opened) == 1
+    assert not destination.exists()
+    with pytest.raises(OSError):
+        os.fstat(opened[0])
+
+
 def test_signing_key_loader_rejects_short_key(tmp_path: Path) -> None:
     key_path = tmp_path / "short.key"
     key_path.write_bytes(b"too-short")
