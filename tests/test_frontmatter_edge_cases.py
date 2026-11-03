@@ -79,6 +79,22 @@ def test_nfkc_equivalent_unicode_directory_name_is_compared_without_rewriting(
     }]
 
 
+def test_unicode_skill_name_limit_counts_characters_not_utf8_bytes(tmp_path: Path) -> None:
+    for length, expected_invalid in ((64, False), (65, True)):
+        skill_name = "é" * length
+        package = tmp_path / f"length-{length}"
+        package.mkdir()
+        (package / "SKILL.md").write_text(
+            f"---\\nname: {skill_name}\\ndescription: Unicode length fixture.\\n---\\n\\n"
+            "# Instructions\\n\\nFollow the documented workflow.\\n",
+            encoding="utf-8",
+        )
+
+        _inventory, findings, _texts = inspect_package(package)
+        invalid = any(finding.code == "SKILL_NAME_INVALID" for finding in findings)
+        assert invalid is expected_invalid
+
+
 def test_uppercase_unicode_skill_name_remains_invalid(tmp_path: Path) -> None:
     package = tmp_path / "Café-tool"
     package.mkdir()
