@@ -55,6 +55,14 @@ def test_heading_anchor_slugs_include_unicode_and_duplicate_suffixes() -> None:
     assert {"setup", "setup-1", "über-café", "nested-title"} <= anchors
 
 
+def test_heading_anchor_suffixes_do_not_collide_with_literal_headings() -> None:
+    anchors = markdown_heading_anchors(
+        "# Setup\n\n# Setup\n\n# Setup-1\n\n# Setup\n\n# Setup-1\n"
+    )
+
+    assert anchors == {"setup", "setup-1", "setup-1-1", "setup-2", "setup-1-2"}
+
+
 def test_mdx_syntax_is_detected_but_code_examples_are_ignored() -> None:
     text = """---
 name: sample-skill
