@@ -2,7 +2,7 @@
 
 ## Current CI baseline
 
-The latest verified code/test baseline is [run 41030648870](https://github.com/VireonNoctis/SkillTether/actions/runs/41030648870), head `bf2698d72d70e311b95d5fb948b64ed9ddc73464` (2026-10-30). It passed 244 tests on Ubuntu/macOS and 239 with five platform-specific skips on Windows, across Python 3.13/3.14; the separate pinned `skills-ref@v0.0.1` reference-conformance job passed. Aggregate coverage was 86% on Linux and Windows; only Linux enforces the 80% floor. Documentation updates after this baseline run need their own CI verification.
+The last fully verified baseline before the current PR #7 extension is [run 41030648870](https://github.com/VireonNoctis/SkillTether/actions/runs/41030648870), head `bf2698d72d70e311b95d5fb948b64ed9ddc73464` (2026-10-30). It does not cover the added PR #7 fixtures and changes; the current PR head needs its own passing matrix and reference-conformance result. It passed 244 tests on Ubuntu/macOS and 239 with five platform-specific skips on Windows, across Python 3.13/3.14; the separate pinned `skills-ref@v0.0.1` reference-conformance job passed. Aggregate coverage was 86% on Linux and Windows; only Linux enforces the 80% floor. Documentation updates after this baseline run need their own CI verification.
 
 
 ## Required fixtures
