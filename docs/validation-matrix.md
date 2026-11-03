@@ -11,6 +11,7 @@ The latest verified code/test baseline is [run 41030648870](https://github.com/V
 |---|---|---|
 | Multilingual invariant evaluation | Human-labelled English/French/Spanish/German/Portuguese/Italian candidate examples with operational positives and descriptive/code negatives | Exact fixture match; record TP/FP/FN and precision/recall without presenting the curated sample as a general benchmark |
 | Language profile selection | BCP 47 tag with a supported primary language and region/script subtags | Select primary-language profile; unknown language returns no candidate suggestions rather than guessing |
+| Unsupported source locale | `init-manifest` receives a well-formed language without a built-in cue profile | Write an empty, unreviewed manifest and explain that no profile exists; do not guess |
 | Regional multilingual evaluation | Document-like skill instructions under en-GB, fr-CA, es-MX, de-AT, pt-BR, and it-CH, including descriptive facts and code examples | Assert 24 curated positive candidates, zero fixture false positives/negatives, per-region metrics, and explicit non-claims about general dialect accuracy |
 | Cross-language context fallback | Source English instruction and translated French line with no shared words but preserved line count | Emit an explicitly high-uncertainty positional alignment finding; retain critical human sign-off |
 | Negation-loss negative case | Same positional mapping but target translation omits locale negation markers | Emit heuristic negation uncertainty; positional mapping does not suppress drift warnings |
@@ -43,12 +44,16 @@ The latest verified code/test baseline is [run 41030648870](https://github.com/V
 | Package permission integrity | Script executable bit changes while bytes remain equal | Package fingerprint changes and review-required file-mode finding |
 | Resource exhaustion | Aggregate package bytes or directory count exceeds limit | Inspection fails closed without unbounded reads |
 | Directory enumeration failure | A nested package directory cannot be enumerated | Inspection fails closed; an unreadable subtree cannot silently disappear from the fingerprint or candidate copy |
+| Non-directory package root | A regular file is passed as the package root | Reject with a clear error instead of treating it as an empty package |
+| In-package symlink directory | A package subdirectory points to an outside directory | Report `SYMLINK_NOT_ALLOWED` and never inventory files beneath the link |
+| Package file-count limit | Inventory contains more than the configured number of regular files | Fail closed at the bound rather than returning a partial inventory |
 | Special filesystem entry | Named pipe, socket, device, or symlink is present | Critical structural finding; special files are never read |
 | Output path integrity | Report path inside package or reached through a symlink alias; candidate/approval output is a broken symlink or parent-symlink alias to source | Command refuses before writing; package remains unchanged |
 | Frontmatter | Missing required field, invalid YAML, wrong field type | Explicit validation failure |
 | Frontmatter edge cases | Explicit `compatibility: null` or a non-string top-level YAML key mixed with normal fields | Null compatibility is rejected; non-string keys produce a high-severity finding without crashing; omitted compatibility remains valid |
 | Unicode skill-name grammar | Lowercase Unicode alphanumeric identifiers, an NFKC-equivalent directory spelling, uppercase Unicode, and invalid hyphen sequences | Accept valid Unicode identifiers and normalized directory equivalents without rewriting; reject uppercase and invalid separator forms |
 | Pinned reference differential | Valid 64-character Unicode/ASCII names and 1,024/500-character metadata boundaries; invalid 65-character names and 501-character compatibility; unknown extension field | Accept valid boundaries and reject invalid boundaries in both tools; record unknown-field handling as an intentional policy divergence (SkillTether warning/accept, pinned `skills-ref` reject) |
+| Unknown-field differential | Skill contains an unknown top-level extension | SkillTether emits a low-severity warning and exits successfully; pinned `skills-ref@v0.0.1` rejects the extension; CI asserts this intentional difference |
 | Draft invariant false positive | Rule-like words inside tilde/backtick code fences or a line over 1,200 characters | Example content/long line is not emitted as a candidate; manifest remains unreviewed |
 | Text resource encoding | Invalid UTF-8 in Markdown/script resource versus invalid bytes in `.bin` asset | Expected text/script suffix reports an encoding finding; binary asset is not called malformed text |
 | Manifest output race | Destination exists or appears during generation | Create-only publication refuses the destination and leaves it unchanged |
@@ -64,6 +69,7 @@ The latest verified code/test baseline is [run 41030648870](https://github.com/V
 | Provider line injection | A one-line translation result contains CR/LF | Translation is rejected and candidate output is not published |
 | Parser-visible structure injection | Provider adds a link, emphasis, list, heading, or other Markdown structure while retaining source placeholders | Structural signature differs; translation fails before candidate publication |
 | Custom adapter response budget | Custom local adapter emits an oversized single response or exceeds aggregate output bytes | Translation fails before candidate publication, even when the adapter does not use HTTP |
+| Remote translation consent | HTTP adapter endpoint is supplied without `--allow-remote` | Return a CLI error before network access or candidate/report/history publication |
 | Provider control characters | Adapter emits NUL, unsupported C0/DEL control characters, or line separators | Translation fails before output publication |
 | Protected-token order | Same command flags/identifiers remain present but their order changes | High-severity, high-uncertainty review finding; unchanged order is a negative case |
 | Negation | “Do” changed to “do not”, or negation removed | Critical review warning |
