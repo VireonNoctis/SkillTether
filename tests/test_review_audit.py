@@ -447,6 +447,36 @@ def test_translate_refuses_broken_output_symlink_before_writing_anything(tmp_pat
     assert not history.exists()
 
 
+def test_approve_rejects_symlinked_report_input_without_following_it(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    import os
+
+    source = tmp_path / "source" / "sample-skill"
+    target = tmp_path / "target" / "sample-skill"
+    source.mkdir(parents=True)
+    target.mkdir(parents=True)
+    report = tmp_path / "report.json"
+    report.write_text("{}", encoding="utf-8")
+    report_alias = tmp_path / "report-alias.json"
+    try:
+        report_alias.symlink_to(report)
+    except OSError:
+        pytest.skip("symlink creation is not permitted")
+    output = tmp_path / "approved" / "sample-skill"
+
+    status = main([
+        "approve", str(source), str(target),
+        "--report", str(report_alias), "--output", str(output),
+    ])
+
+    assert status == 2
+    assert "regular file" in capsys.readouterr().err
+    assert report.read_text(encoding="utf-8") == "{}"
+    assert report_alias.is_symlink()
+    assert not output.exists()
+
+
 def test_approve_refuses_broken_output_symlink_before_reading_report(tmp_path: Path) -> None:
     import os
 
