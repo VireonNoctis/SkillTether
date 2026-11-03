@@ -551,6 +551,20 @@ def validate_local_links(
                 severity_rationale="The URL parser deterministically rejected the literal; whether a target client accepts it still needs contextual review.",
             ))
             continue
+        is_windows_absolute = bool(re.match(r"^[A-Za-z]:[\\/]", href)) or href.startswith("\\\\")
+        if parsed_url.scheme.lower() == "file" or is_windows_absolute:
+            findings.append(new_finding(
+                "LOCAL_LINK_EXTERNAL_PATH", "medium", "links",
+                "A Markdown link points to a local filesystem path instead of a package-relative resource.",
+                "File URIs and absolute Windows paths can resolve outside the skill package and are not portable package references.",
+                path=rel_path,
+                proposed_change="Use a package-relative path, or document and review the external dependency separately.",
+                requires_review=True,
+                analysis_method="deterministic",
+                uncertainty="none",
+                severity_rationale="The link syntax identifies a local filesystem target; no filesystem access is performed.",
+            ))
+            continue
         if parsed_url.scheme or href.startswith("//"):
             continue
         try:
