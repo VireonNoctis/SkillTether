@@ -65,30 +65,30 @@ def test_heading_anchor_suffixes_do_not_collide_with_literal_headings() -> None:
 
 def test_bom_frontmatter_is_opaque_to_translation_and_mdx_detection() -> None:
     source = (
-        "\\ufeff---\\n"
-        "name: sample-skill\\n"
-        'description: "{user.name}"\\n'
-        "---\\n\\n"
-        "Keep this notice in the body.\\n"
+        "\ufeff---\n"
+        "name: sample-skill\n"
+        'description: "{user.name}"\n'
+        "---\n\n"
+        "Keep this notice in the body.\n"
     )
 
     translated = translate_markdown(source, ReplaceAdapter(), "en", "fr")
 
-    assert translated.startswith("\\ufeff---\\n")
+    assert translated.startswith("\ufeff---\n")
     assert 'description: "{user.name}"' in translated
     assert "Conservez cet avis dans the body." not in translated
     assert "Conservez cet avis in the body." in translated
 
     mdx = (
-        "\\ufeff---\\n"
-        "name: sample-skill\\n"
-        'description: "{user.name}"\\n'
-        "---\\n"
-        "import RealComponent from './RealComponent.jsx'\\n"
+        "\ufeff---\n"
+        "name: sample-skill\n"
+        'description: "{user.name}"\n'
+        "---\n"
+        "import RealComponent from './RealComponent.jsx'\n"
     )
     locations = mdx_syntax_locations(mdx)
 
-    assert locations == [(6, "MDX module import/export syntax")]
+    assert locations == [(5, "MDX module import/export syntax")]
 
 
 def test_mdx_syntax_is_detected_but_code_examples_are_ignored() -> None:
