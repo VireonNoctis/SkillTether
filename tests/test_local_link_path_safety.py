@@ -27,6 +27,7 @@ def test_percent_decoded_nul_in_local_link_is_reported_not_raised(
     assert invalid_path[0].analysis_method == "deterministic"
     assert invalid_path[0].uncertainty == "none"
 
+
 def test_absolute_local_filesystem_links_are_flagged_but_web_and_mail_links_are_ignored(
     tmp_path: Path, monkeypatch,
 ) -> None:
@@ -34,8 +35,8 @@ def test_absolute_local_filesystem_links_are_flagged_but_web_and_mail_links_are_
     package.mkdir()
     targets = [
         ("link_open", "file:///etc/passwd"),
-        ("link_open", r"C:\\Users\\example\\private.txt"),
-        ("link_open", r"\\\\server\\share\\private.txt"),
+        ("link_open", r"C:\Users\example\private.txt"),
+        ("link_open", r"\\server\share\private.txt"),
         ("link_open", "https://example.test/guide"),
         ("link_open", "mailto:owner@example.test"),
     ]
