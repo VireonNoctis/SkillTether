@@ -23,12 +23,14 @@ def create_signing_key(path: str | Path) -> Path:
     """Create a new 256-bit report-signing key without overwriting any existing path."""
     output = Path(path).expanduser()
     output.parent.mkdir(parents=True, exist_ok=True)
+    # Obtain randomness before creating the destination. If the OS CSPRNG
+    # fails, no empty key file or leaked descriptor is left behind.
+    key = secrets.token_bytes(MIN_KEY_BYTES)
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
         descriptor = os.open(output, flags, 0o600)
     except FileExistsError:
         raise FileExistsError(f"Signing-key path already exists: {output}") from None
-    key = secrets.token_bytes(MIN_KEY_BYTES)
     try:
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(key)
