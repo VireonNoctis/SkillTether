@@ -23,7 +23,8 @@ The following checks are implementation policy or localization-integrity control
 - Files and directories are bounded; symlinks and special files are rejected; scripts are never executed during inspection.
 - Non-text asset hashes and file permission bits participate in integrity comparison.
 - Protected tokens, reviewed invariants, language-specific negation/modality markers, and human approval are localization workflow controls.
-- Non-string top-level YAML frontmatter keys receive an explicit finding and are excluded from extension-name sorting, so malformed key types do not crash validation.\n- Long `SKILL.md` files receive a low-severity notice reflecting the specification's progressive-disclosure recommendation, not a structural rejection.
+- Non-string top-level YAML frontmatter keys receive an explicit finding and are excluded from extension-name sorting, so malformed key types do not crash validation.
+- Long `SKILL.md` files receive a low-severity notice reflecting the specification's progressive-disclosure recommendation, not a structural rejection.
 
 A structural pass is not a semantic-equivalence guarantee. A package can be structurally conformant while its localized instructions have changed important meaning.
 
