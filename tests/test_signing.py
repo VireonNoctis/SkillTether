@@ -58,6 +58,25 @@ def test_signing_key_generation_failure_does_not_leave_a_file(
     assert not destination.exists()
 
 
+def test_existing_signing_key_path_wins_over_random_generation_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skilltether.signing as signing
+
+    destination = tmp_path / "existing.key"
+    destination.write_bytes(b"existing sentinel")
+
+    def fail_token_bytes(_size: int) -> bytes:
+        raise RuntimeError("synthetic CSPRNG failure")
+
+    monkeypatch.setattr(signing.secrets, "token_bytes", fail_token_bytes)
+
+    with pytest.raises(FileExistsError, match="already exists"):
+        create_signing_key(destination)
+
+    assert destination.read_bytes() == b"existing sentinel"
+
+
 def test_signing_key_fdopen_failure_closes_descriptor_and_removes_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
