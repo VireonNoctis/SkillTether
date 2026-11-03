@@ -4,7 +4,7 @@ The normative format reference is the [official Agent Skills specification](http
 
 ## Base-format checks implemented here
 
-SkillTether validates that a package has a readable UTF-8 `SKILL.md` with YAML frontmatter and non-empty `name` and `description` fields. A UTF-8 BOM before the opening frontmatter delimiter is accepted for parsing; the original source bytes are preserved and the BOM is not normalized away. It checks the skill name's Unicode lowercase alphanumeric syntax, 1–64 character limit, no leading/trailing or consecutive hyphens, and trimmed NFKC-equivalent match with the package directory name. Trimming and NFKC are used only for validation/comparison; source frontmatter and directory names are never rewritten. Descriptions are capped at 1,024 characters.
+SkillTether validates that a package has a readable UTF-8 `SKILL.md` with YAML frontmatter and non-empty `name` and `description` fields. A UTF-8 BOM before the opening frontmatter delimiter is accepted for parsing; the original source bytes are preserved and the BOM is not normalized away. CRLF frontmatter is accepted as well, and translation retains the original line endings in opaque header lines. It checks the skill name's Unicode lowercase alphanumeric syntax, 1–64 character limit, no leading/trailing or consecutive hyphens, and trimmed NFKC-equivalent match with the package directory name. Trimming and NFKC are used only for validation/comparison; source frontmatter and directory names are never rewritten. Descriptions are capped at 1,024 characters.
 
 When optional fields are present, SkillTether checks that:
 - `license` is a string.
