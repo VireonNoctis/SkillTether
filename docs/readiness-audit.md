@@ -56,7 +56,8 @@ This is a traceability audit, not a semantic-safety certification. “Implemente
 10. **Windows byte preservation:** raw package/file reads and signing-key reads use binary mode so CRLF and Ctrl-Z bytes do not corrupt hashes, aggregate-budget accounting, or HMAC key length.
 11. **History locale parity:** SQLite history uses the same BCP 47 structural validator as CLI/manifests/reports instead of a looser shape regex.
 12. **Reference-validator check:** CI runs a separately pinned `skills-ref` valid/invalid fixture smoke test without adding it to SkillTether's runtime dependencies.
-13. **Optional-field reference comparison:** CI checks a valid fixture with `license`, `compatibility`, `metadata`, and experimental `allowed-tools` against both SkillTether and the pinned reference CLI.\n14. **Frontmatter key and compatibility edge cases:** explicit `compatibility: null` is rejected while omission remains valid; non-string top-level YAML keys receive a dedicated finding and cannot crash extension-field sorting.
+13. **Optional-field reference comparison:** CI checks a valid fixture with `license`, `compatibility`, `metadata`, and experimental `allowed-tools` against both SkillTether and the pinned reference CLI.
+14. **Frontmatter key and compatibility edge cases:** explicit `compatibility: null` is rejected while omission remains valid; non-string top-level YAML keys receive a dedicated finding and cannot crash extension-field sorting.
 
 Each item has or is receiving a regression fixture in the same pull request. These fixes count as release-verified only when CI passes on the resulting head.
 
