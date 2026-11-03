@@ -69,6 +69,7 @@ This is a traceability audit, not a semantic-safety certification. “Implemente
 23. **Unknown-extension differential:** a dedicated extension fixture asserts SkillTether's low-severity warning/accept policy and the pinned reference validator's rejection.
 24. **Approval report symlink boundary:** `approve` no longer resolves the report input before the bounded reader; a symlink alias is rejected instead of being followed.
 25. **Absolute local Markdown targets:** `file://`, Windows drive-absolute/drive-relative, rooted, and UNC link targets are classified as review-required local filesystem references; regular HTTPS and mailto links retain their external-link behavior.
+26. **CI queue hygiene:** the full matrix now runs on `main` pushes and pull requests, not on both events for every feature-branch commit; a per-PR concurrency group cancels superseded runs when a head advances.
 
 Each item has or is receiving a regression fixture in the same pull request. These fixes count as release-verified only when CI passes on the resulting head.
 
