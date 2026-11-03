@@ -214,7 +214,8 @@ def translate_markdown(
 ) -> str:
     """Translate prose while masking machine-facing literals and preserving Markdown structure."""
     lines = text.splitlines(keepends=True)
-    in_frontmatter = bool(lines and lines[0].strip() == "---")
+    first_line = lines[0].removeprefix("\\ufeff") if lines else ""
+    in_frontmatter = bool(first_line.strip() == "---")
     frontmatter_closed = not in_frontmatter
     fence_marker: str | None = None
     html_comment_open = False
