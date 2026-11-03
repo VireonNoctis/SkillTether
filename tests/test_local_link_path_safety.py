@@ -36,6 +36,8 @@ def test_absolute_local_filesystem_links_are_flagged_but_web_and_mail_links_are_
     targets = [
         ("link_open", "file:///etc/passwd"),
         ("link_open", r"C:\Users\example\private.txt"),
+        ("link_open", r"C:relative-to-drive-current-directory.txt"),
+        ("link_open", r"\rooted-on-current-drive\private.txt"),
         ("link_open", r"\\server\share\private.txt"),
         ("link_open", "https://example.test/guide"),
         ("link_open", "mailto:owner@example.test"),
@@ -47,7 +49,7 @@ def test_absolute_local_filesystem_links_are_flagged_but_web_and_mail_links_are_
     )
 
     local_paths = [finding for finding in findings if finding.code == "LOCAL_LINK_EXTERNAL_PATH"]
-    assert len(local_paths) == 3
+    assert len(local_paths) == 5
     assert all(finding.severity == "medium" for finding in local_paths)
     assert all(finding.requires_review for finding in local_paths)
     assert all(finding.analysis_method == "deterministic" for finding in local_paths)
