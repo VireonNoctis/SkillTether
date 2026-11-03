@@ -23,6 +23,22 @@ def make_skill(tmp_path: Path, extra_frontmatter: str = "") -> Path:
     return package
 
 
+def test_crlf_frontmatter_is_accepted_without_normalizing_source(tmp_path: Path) -> None:
+    package = tmp_path / "crlf-skill"
+    package.mkdir()
+    source = Path("tests/fixtures/crlf-frontmatter/SKILL.md").read_bytes()
+    path = package / "SKILL.md"
+    path.write_bytes(source)
+
+    _inventory, findings, _texts = inspect_package(package)
+
+    assert source.startswith(b"---\\r\\n")
+    assert b"\\r\\n" in source
+    assert b"\\n" not in source.replace(b"\\r\\n", b"")
+    assert path.read_bytes() == source
+    assert not [finding for finding in findings if finding.code == "FRONTMATTER_INVALID"]
+
+
 def test_utf8_bom_before_frontmatter_is_accepted_without_rewriting_source(tmp_path: Path) -> None:
     package = tmp_path / "utf8-bom-skill"
     package.mkdir()
