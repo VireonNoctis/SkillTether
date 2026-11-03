@@ -102,6 +102,64 @@ def test_multilingual_invariant_suggestions_match_curated_corpus(tmp_path: Path)
     assert recall == 1.0
 
 
+def test_regional_document_fixture_preserves_expected_candidates_and_exclusions(
+    tmp_path: Path,
+) -> None:
+    corpus = json.loads(
+        Path("tests/fixtures/invariant-suggestion-regional.json").read_text(encoding="utf-8")
+    )
+    totals = {"tp": 0, "fp": 0, "fn": 0}
+    per_locale: dict[str, dict[str, int]] = {}
+
+    for case in corpus["cases"]:
+        source = tmp_path / case["package"]
+        source.mkdir()
+        (source / "SKILL.md").write_text(
+            f"---\\nname: {case['package']}\\ndescription: Regional evaluation fixture.\\n---\\n\\n"
+            + case["body"],
+            encoding="utf-8",
+        )
+        output = tmp_path / "review" / f"{case['package']}.yaml"
+        status = main([
+            "init-manifest", str(source), "--out", str(output),
+            "--source-locale", case["locale"], "--target-locale", "en",
+        ])
+        assert status == 0
+
+        payload = yaml.safe_load(output.read_text(encoding="utf-8"))
+        observed = [
+            {"source_text": item["source_text"], "category": item["category"]}
+            for item in payload["invariants"]
+        ]
+        assert observed == case["expected_candidates"], case["locale"]
+
+        expected = {
+            (item["source_text"], item["category"])
+            for item in case["expected_candidates"]
+        }
+        actual = {(item["source_text"], item["category"]) for item in observed}
+        metrics = {
+            "tp": len(expected & actual),
+            "fp": len(actual - expected),
+            "fn": len(expected - actual),
+        }
+        per_locale[case["locale"]] = metrics
+        for key in totals:
+            totals[key] += metrics[key]
+
+        observed_text = {item["source_text"] for item in payload["invariants"]}
+        for excluded in case["expected_exclusions"]:
+            assert excluded not in observed_text, f"{case['locale']}: {excluded}"
+        assert payload["manifest_reviewed"] is False
+        assert all(item["reviewed"] is False for item in payload["invariants"])
+
+    assert totals == {"tp": 24, "fp": 0, "fn": 0}
+    assert per_locale == {
+        locale: {"tp": 4, "fp": 0, "fn": 0}
+        for locale in ("en-GB", "fr-CA", "es-MX", "de-AT", "pt-BR", "it-CH")
+    }
+
+
 @pytest.mark.parametrize(
     ("locale", "text", "category"),
     [
