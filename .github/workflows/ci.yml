@@ -53,6 +53,7 @@ jobs:
           skilltether validate tests/fixtures/valid-skill
           skilltether validate tests/fixtures/valid-optional-skill
           skilltether validate tests/fixtures/café-tool
+          skilltether validate tests/fixtures/extension-skill
           skilltether validate tests/fixtures/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           set +e
           skilltether validate tests/fixtures/bad--name
@@ -93,8 +94,14 @@ jobs:
           fi
           skills-ref validate tests/fixtures/bad--name
           invalid_boundary_status=$?
+          skills-ref validate tests/fixtures/extension-skill
+          extension_status=$?
           set -e
           if [[ "$invalid_boundary_status" -ne 1 ]]; then
             echo "Expected skills-ref to reject the invalid boundary fixture with status 1, got $invalid_boundary_status" >&2
+            exit 1
+          fi
+          if [[ "$extension_status" -ne 1 ]]; then
+            echo "Expected pinned skills-ref to reject an unknown extension field (policy divergence), got $extension_status" >&2
             exit 1
           fi
