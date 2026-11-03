@@ -551,7 +551,7 @@ def validate_local_links(
                 severity_rationale="The URL parser deterministically rejected the literal; whether a target client accepts it still needs contextual review.",
             ))
             continue
-        is_windows_absolute = bool(re.match(r"^[A-Za-z]:[\\/]", href)) or href.startswith("\\\\")
+        is_windows_absolute = bool(re.match(r"^[A-Za-z]:", href)) or href.startswith("\\")
         if parsed_url.scheme.lower() == "file" or is_windows_absolute:
             findings.append(new_finding(
                 "LOCAL_LINK_EXTERNAL_PATH", "medium", "links",
