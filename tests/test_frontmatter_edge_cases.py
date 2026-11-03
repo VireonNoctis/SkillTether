@@ -33,7 +33,7 @@ def test_utf8_bom_before_frontmatter_is_accepted_without_rewriting_source(tmp_pa
 
     _inventory, findings, _texts = inspect_package(package)
 
-    assert source.startswith(b"\xef\\xbb\\xbf---")
+    assert source.startswith(b"\xef\xbb\xbf---")
     assert path.read_bytes() == source
     assert not [finding for finding in findings if finding.code == "FRONTMATTER_INVALID"]
 
