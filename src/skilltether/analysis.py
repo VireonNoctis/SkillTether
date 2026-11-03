@@ -392,6 +392,17 @@ def validate_skill_markdown(root: Path, text: str) -> list:
         return findings
 
     assert metadata is not None
+    # YAML permits non-string mapping keys, but frontmatter field names are
+    # identifiers. Report them explicitly before building/sorting extension
+    # names so hostile or malformed keys cannot crash validation.
+    if any(not isinstance(key, str) for key in metadata):
+        findings.append(new_finding(
+            "FRONTMATTER_KEY_INVALID", "high", "frontmatter",
+            "Frontmatter field names must be strings.",
+            "Field names identify machine-readable metadata keys and cannot be interpreted safely when they are non-string YAML values.",
+            path="SKILL.md",
+            proposed_change="Use string field names for all top-level frontmatter entries.",
+        ))
     allowed = {"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
     for key in ("name", "description"):
         value = metadata.get(key)
@@ -441,7 +452,7 @@ def validate_skill_markdown(root: Path, text: str) -> list:
             path="SKILL.md",
         ))
     compatibility = metadata.get("compatibility")
-    if compatibility is not None and (
+    if "compatibility" in metadata and (
         not isinstance(compatibility, str) or not compatibility.strip() or len(compatibility) > 500
     ):
         findings.append(new_finding(
@@ -463,7 +474,10 @@ def validate_skill_markdown(root: Path, text: str) -> list:
                 "metadata must be a mapping with string keys and string values.",
                 "Metadata values are machine-readable and must remain parseable.", path="SKILL.md",
             ))
-    unknown = sorted(set(metadata) - allowed)
+    unknown = sorted(
+        key for key in metadata
+        if isinstance(key, str) and key not in allowed
+    )
     if unknown:
         findings.append(new_finding(
             "FRONTMATTER_UNKNOWN_FIELDS", "low", "frontmatter",
