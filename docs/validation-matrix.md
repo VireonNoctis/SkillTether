@@ -11,6 +11,7 @@ The latest verified code/test baseline is [run 41030648870](https://github.com/V
 |---|---|---|
 | Multilingual invariant evaluation | Human-labelled English/French/Spanish/German/Portuguese/Italian candidate examples with operational positives and descriptive/code negatives | Exact fixture match; record TP/FP/FN and precision/recall without presenting the curated sample as a general benchmark |
 | Language profile selection | BCP 47 tag with a supported primary language and region/script subtags | Select primary-language profile; unknown language returns no candidate suggestions rather than guessing |
+| Regional multilingual evaluation | Document-like skill instructions under en-GB, fr-CA, es-MX, de-AT, pt-BR, and it-CH, including descriptive facts and code examples | Assert 24 curated positive candidates, zero fixture false positives/negatives, per-region metrics, and explicit non-claims about general dialect accuracy |
 | Cross-language context fallback | Source English instruction and translated French line with no shared words but preserved line count | Emit an explicitly high-uncertainty positional alignment finding; retain critical human sign-off |
 | Negation-loss negative case | Same positional mapping but target translation omits locale negation markers | Emit heuristic negation uncertainty; positional mapping does not suppress drift warnings |
 | GFM/Pandoc Markdown | Table, task list, alert, strikethrough, footnote, and definition list | Shared parser recognizes structure; translation masks delimiters and preserves parser-visible signature |
@@ -26,6 +27,7 @@ The latest verified code/test baseline is [run 41030648870](https://github.com/V
 | Malformed local-link URL | Markdown URL contains invalid bracketed host syntax | Explicit `LOCAL_LINK_URL_INVALID` finding; validator does not crash |
 | Invalid decoded link path | Local Markdown link contains a percent-encoded NUL that decodes to an unrepresentable filesystem path | Emit `LOCAL_LINK_PATH_INVALID`; package inspection continues without raising |
 | URL fragment encoding | Local fragment contains percent-encoded characters | Decode fragment before comparing detected anchors/headings |
+| Heading-anchor collision | Duplicate `Setup` headings mixed with literal `Setup-1` headings | Allocate collision-free suffixes so every detected heading has a unique anchor |
 | Fragment target safety | Local anchor target is already in bounded package inventory | Reuse snapshot; fallback read is bounded and does not follow final symlink |
 | BCP 47 extlang cardinality | Language tag contains one to three structural extlang subtags; a fourth appears before following components | One to three are accepted by grammar; excess extlang sequence is rejected |
 | Coverage floor | Aggregate branch-aware coverage falls below 80% | Linux GitHub Actions job fails the coverage-report step |
