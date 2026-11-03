@@ -89,10 +89,11 @@ Each item has or is receiving a regression fixture in the same pull request. The
 ### P3 — Deliberately not a release promise
 - Full semantic-equivalence detection, automatic approval, complete shell/JavaScript/PowerShell parsing, full MDX AST transformation, registry-backed locale canonicalization, online URL reachability, and automatic protected-token rename mappings remain unsupported. The reviewer UI is a minimal offline HTML workbench; a larger component-based application is not part of this milestone.
 
-## Latest verification snapshot
+## Last verified baseline before the current PR #7 extension
 
 - Verified code/test head: `bf2698d72d70e311b95d5fb948b64ed9ddc73464` (docs updated after this code/test head; no implementation changes are included in the documentation refresh).
 - GitHub Actions matrix and reference-conformance run: [41030648870](https://github.com/VireonNoctis/SkillTether/actions/runs/41030648870), completed successfully on 2026-10-30.
+- This baseline predates the current PR #7 changes, including its added regional corpus, Unicode boundaries, local-path checks, approval-report symlink guard, CLI tests, and CI concurrency changes. Those additions require a successful check on the final PR head before merge.
 - Regression/property-based suite: **244 passed** on Ubuntu and macOS for Python 3.13 and 3.14; **239 passed, 5 skipped** on Windows for both Python versions. The five Windows skips are platform-specific filesystem/permission cases unavailable on that host.
 - Measured aggregate coverage: **86% on Linux and Windows**; the matrix reports coverage for all OS/Python jobs.
 - The multilingual fixture asserts **30 true positives, zero false positives, and zero false negatives** across six languages, with exact-match metrics also asserted separately for four rule categories. This describes the curated fixture only.
