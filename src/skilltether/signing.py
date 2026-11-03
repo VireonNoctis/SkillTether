@@ -31,14 +31,22 @@ def create_signing_key(path: str | Path) -> Path:
         descriptor = os.open(output, flags, 0o600)
     except FileExistsError:
         raise FileExistsError(f"Signing-key path already exists: {output}") from None
+    unowned_descriptor: int | None = descriptor
     try:
-        with os.fdopen(descriptor, "wb") as stream:
+        stream = os.fdopen(descriptor, "wb")
+        unowned_descriptor = None  # The stream now owns and closes the descriptor.
+        with stream:
             stream.write(key)
             stream.flush()
             os.fsync(stream.fileno())
         if os.name == "posix":
             output.chmod(0o600)
     except Exception:
+        if unowned_descriptor is not None:
+            try:
+                os.close(unowned_descriptor)
+            except OSError:
+                pass
         try:
             output.unlink()
         except OSError:
