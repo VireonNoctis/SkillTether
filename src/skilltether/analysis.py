@@ -394,7 +394,7 @@ def _frontmatter(text: str) -> tuple[dict[str, Any] | None, str, int, str | None
     lines = text.splitlines()
     # A UTF-8 BOM may precede the opening delimiter. Parse a local copy only:
     # package text/fingerprints and candidate bytes remain unchanged.
-    if lines and lines[0].startswith("\\ufeff"):
+    if lines and lines[0].startswith("\ufeff"):
         lines[0] = lines[0][1:]
     if not lines or not FRONTMATTER_START.fullmatch(lines[0]):
         return None, "", 0, "SKILL.md must begin with a YAML frontmatter block delimited by ---."
