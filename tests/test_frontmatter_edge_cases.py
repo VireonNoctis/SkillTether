@@ -32,9 +32,9 @@ def test_crlf_frontmatter_is_accepted_without_normalizing_source(tmp_path: Path)
 
     _inventory, findings, _texts = inspect_package(package)
 
-    assert source.startswith(b"---\\r\\n")
-    assert b"\\r\\n" in source
-    assert b"\\n" not in source.replace(b"\\r\\n", b"")
+    assert source.startswith(b"---\r\n")
+    assert b"\r\n" in source
+    assert b"\n" not in source.replace(b"\r\n", b"")
     assert path.read_bytes() == source
     assert not [finding for finding in findings if finding.code == "FRONTMATTER_INVALID"]
 
