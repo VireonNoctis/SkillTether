@@ -60,6 +60,7 @@ jobs:
           skilltether validate tests/fixtures/valid-skill
           skilltether validate tests/fixtures/valid-optional-skill
           skilltether validate tests/fixtures/utf8-bom
+          skilltether validate tests/fixtures/crlf-frontmatter
           skilltether validate tests/fixtures/café-tool
           skilltether validate tests/fixtures/skill-tool
           skilltether validate tests/fixtures/éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé
@@ -110,6 +111,7 @@ jobs:
           skills-ref validate tests/fixtures/valid-skill
           skills-ref validate tests/fixtures/valid-optional-skill
           skills-ref validate tests/fixtures/utf8-bom
+          skills-ref validate tests/fixtures/crlf-frontmatter
           skills-ref validate tests/fixtures/café-tool
           skills-ref validate tests/fixtures/skill-tool
           # The pinned ref accepts scalar YAML tags and serializes their values as strings;
