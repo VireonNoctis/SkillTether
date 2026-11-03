@@ -16,7 +16,7 @@ SkillTether is a local-first CLI for validating and localizing [Agent Skills](ht
 
 ## What it does
 
-- **Validate the package:** check frontmatter, metadata types, local links and fragments, referenced resources, path safety, file modes, encodings, and bounded package size. Scripts are inspected statically and **never executed**.
+- **Validate the package:** check frontmatter, metadata types, local links and fragments, referenced resources, path safety, file modes, encodings, and bounded package size. Unreadable directories fail closed rather than disappearing from the package inventory. Scripts are inspected statically and **never executed**.
 - **Protect machine-facing content:** identify commands, code, URLs, paths, environment variables, and configured identifiers; flag token changes and package-resource drift.
 - **Track operational invariants:** create a draft YAML manifest for requirements, negations, numeric limits, prerequisites, and decision rules. Draft suggestions include explicit cue profiles for English, French, Spanish, German, Portuguese, and Italian, with a curated evaluation fixture that reports precision/recall by language and rule family; the cues remain heuristic and unreviewed until a person curates them.
 - **Localize Markdown carefully:** use a shared GFM-like parser with tables, task lists, alerts, strikethrough, footnotes, and definition lists. Protect syntax, enforce provider budgets, and reject detected structure drift; obvious MDX-only constructs are flagged rather than translated. This is not a complete CommonMark/MDX AST transformation.
