@@ -27,7 +27,7 @@ The latest verified code/test baseline is [run 41030648870](https://github.com/V
 | Markdown links in tables | GFM-style table cell contains a local link | Link is parsed and broken target is reported |
 | Malformed local-link URL | Markdown URL contains invalid bracketed host syntax | Explicit `LOCAL_LINK_URL_INVALID` finding; validator does not crash |
 | Invalid decoded link path | Local Markdown link contains a percent-encoded NUL that decodes to an unrepresentable filesystem path | Emit `LOCAL_LINK_PATH_INVALID`; package inspection continues without raising |
-| Absolute local filesystem link | Markdown uses a `file://` URI, Windows drive path, or UNC path | Emit review-required `LOCAL_LINK_EXTERNAL_PATH`; ordinary HTTPS and mailto schemes remain ignored as external links |
+| Absolute local filesystem link | Markdown uses a `file://` URI, Windows drive-absolute/drive-relative path, rooted path, or UNC path | Emit review-required `LOCAL_LINK_EXTERNAL_PATH`; ordinary HTTPS and mailto schemes remain ignored as external links |
 | URL fragment encoding | Local fragment contains percent-encoded characters | Decode fragment before comparing detected anchors/headings |
 | Heading-anchor collision | Duplicate `Setup` headings mixed with literal `Setup-1` headings | Allocate collision-free suffixes so every detected heading has a unique anchor |
 | Fragment target safety | Local anchor target is already in bounded package inventory | Reuse snapshot; fallback read is bounded and does not follow final symlink |
