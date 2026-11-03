@@ -60,6 +60,7 @@ jobs:
           skilltether validate tests/fixtures/valid-skill
           skilltether validate tests/fixtures/valid-optional-skill
           skilltether validate tests/fixtures/café-tool
+          skilltether validate tests/fixtures/skill-tool
           skilltether validate tests/fixtures/éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé
           skilltether validate tests/fixtures/extension-skill
           skilltether validate tests/fixtures/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -100,6 +101,7 @@ jobs:
           skills-ref validate tests/fixtures/valid-skill
           skills-ref validate tests/fixtures/valid-optional-skill
           skills-ref validate tests/fixtures/café-tool
+          skills-ref validate tests/fixtures/skill-tool
           skills-ref validate tests/fixtures/éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé
           skills-ref validate tests/fixtures/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           set +e
