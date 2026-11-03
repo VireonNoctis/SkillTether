@@ -24,6 +24,7 @@ The latest verified code/test baseline is [run 41030648870](https://github.com/V
 | Package structure | Valid package with references and assets | All declared resources resolve |
 | Markdown links in tables | GFM-style table cell contains a local link | Link is parsed and broken target is reported |
 | Malformed local-link URL | Markdown URL contains invalid bracketed host syntax | Explicit `LOCAL_LINK_URL_INVALID` finding; validator does not crash |
+| Invalid decoded link path | Local Markdown link contains a percent-encoded NUL that decodes to an unrepresentable filesystem path | Emit `LOCAL_LINK_PATH_INVALID`; package inspection continues without raising |
 | URL fragment encoding | Local fragment contains percent-encoded characters | Decode fragment before comparing detected anchors/headings |
 | Fragment target safety | Local anchor target is already in bounded package inventory | Reuse snapshot; fallback read is bounded and does not follow final symlink |
 | BCP 47 extlang cardinality | Language tag contains one to three structural extlang subtags; a fourth appears before following components | One to three are accepted by grammar; excess extlang sequence is rejected |
