@@ -360,7 +360,7 @@ def cmd_approve(args: argparse.Namespace) -> int:
     _ensure_outputs_outside_packages(
         [output], [source, target], label="Approved output",
     )
-    report_path = Path(args.report).expanduser().resolve(strict=True)
+    report_path = Path(args.report).expanduser()
     if args.signing_key:
         _ensure_outputs_outside_packages(
             [Path(args.signing_key).expanduser()], [source, target, output],
