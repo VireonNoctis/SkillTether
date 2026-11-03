@@ -103,8 +103,8 @@ def test_invalid_skill_name_separators_and_characters_are_rejected(
     package = tmp_path / skill_name
     package.mkdir()
     (package / "SKILL.md").write_text(
-        f"---\\nname: {skill_name}\\ndescription: Invalid name fixture.\\n---\\n\\n"
-        "# Instructions\\n\\nFollow the documented workflow.\\n",
+        f"---\nname: {skill_name}\ndescription: Invalid name fixture.\n---\n\n"
+        "# Instructions\n\nFollow the documented workflow.\n",
         encoding="utf-8",
     )
 
@@ -118,8 +118,8 @@ def test_skill_name_over_64_characters_is_rejected(tmp_path: Path) -> None:
     package = tmp_path / skill_name
     package.mkdir()
     (package / "SKILL.md").write_text(
-        f"---\\nname: {skill_name}\\ndescription: Long name fixture.\\n---\\n\\n"
-        "# Instructions\\n\\nFollow the documented workflow.\\n",
+        f"---\nname: {skill_name}\ndescription: Long name fixture.\n---\n\n"
+        "# Instructions\n\nFollow the documented workflow.\n",
         encoding="utf-8",
     )
 
@@ -133,11 +133,11 @@ def test_specification_maximum_frontmatter_boundaries_are_accepted() -> None:
 
     skill_name = "a" * 64
     text = (
-        f"---\\nname: {skill_name}\\n"
-        f"description: {'d' * 1024}\\n"
-        f"compatibility: {'c' * 500}\\n"
-        "---\\n\\n"
-        "# Instructions\\n\\nFollow the documented workflow.\\n"
+        f"---\nname: {skill_name}\n"
+        f"description: {'d' * 1024}\n"
+        f"compatibility: {'c' * 500}\n"
+        "---\n\n"
+        "# Instructions\n\nFollow the documented workflow.\n"
     )
 
     findings = validate_skill_markdown(Path(skill_name), text)
@@ -151,10 +151,10 @@ def test_description_over_1024_characters_is_rejected() -> None:
     from skilltether.analysis import validate_skill_markdown
 
     text = (
-        "---\\nname: sample-skill\\n"
-        f"description: {'d' * 1025}\\n"
-        "---\\n\\n"
-        "# Instructions\\n\\nFollow the documented workflow.\\n"
+        "---\nname: sample-skill\n"
+        f"description: {'d' * 1025}\n"
+        "---\n\n"
+        "# Instructions\n\nFollow the documented workflow.\n"
     )
 
     findings = validate_skill_markdown(Path("sample-skill"), text)
