@@ -101,8 +101,8 @@ def test_skill_name_comparison_trims_surrounding_space_without_rewriting_source(
     package = tmp_path / "café-tool"
     package.mkdir()
     source = (
-        '---\\nname: " café-tool "\\ndescription: Whitespace comparison fixture.\\n---\\n\\n'
-        "# Instructions\\n\\nFollow the documented workflow.\\n"
+        '---\nname: " café-tool "\ndescription: Whitespace comparison fixture.\n---\n\n'
+        "# Instructions\n\nFollow the documented workflow.\n"
     )
     path = package / "SKILL.md"
     path.write_text(source, encoding="utf-8")
