@@ -117,7 +117,17 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
     directory_count = 0
     total_bytes = 0
 
-    for current, dirs, names in os.walk(root_path, followlinks=False):
+    def fail_incomplete_walk(error: OSError) -> None:
+        # os.walk otherwise suppresses scandir errors by default. An inaccessible
+        # subtree would then disappear from the package fingerprint and could be
+        # omitted from a staged candidate without a structural finding.
+        raise ValueError(
+            "Unable to enumerate a package directory; refusing an incomplete package inventory"
+        ) from error
+
+    for current, dirs, names in os.walk(
+        root_path, followlinks=False, onerror=fail_incomplete_walk,
+    ):
         current_path = Path(current)
         safe_dirs = []
         for dirname in sorted(dirs):
