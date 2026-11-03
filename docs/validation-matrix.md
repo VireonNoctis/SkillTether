@@ -33,6 +33,7 @@ The latest verified code/test baseline is [run 41030648870](https://github.com/V
 | Fragment target safety | Local anchor target is already in bounded package inventory | Reuse snapshot; fallback read is bounded and does not follow final symlink |
 | BCP 47 extlang cardinality | Language tag contains one to three structural extlang subtags; a fourth appears before following components | One to three are accepted by grammar; excess extlang sequence is rejected |
 | Coverage floor | Aggregate branch-aware coverage falls below 80% | Linux GitHub Actions job fails the coverage-report step |
+| CI trigger/concurrency | Feature branch commit is pushed to an open PR | Run the PR matrix once (not again for a feature-branch push); cancel an obsolete run when the same PR head advances; retain main-branch push validation |
 | Official reference validator | Valid base fixture, valid optional-field fixture, and intentionally invalid fixture | Pinned `skills-ref` CLI accepts both valid fixtures and returns its documented invalid-skill exit code for the invalid fixture; tool stays out of runtime dependencies |
 | Python and OS matrix | Python 3.13/3.14 × Ubuntu/macOS/Windows | Full pytest suite, coverage report, schema/policy checks, and bundled fixtures run on all six combinations; aggregate 80% floor is enforced only on Linux |
 | Invariant manifest output path | Destination is inside source, already exists, is a symlink, or appears during publication | Refuse write; preserve source and destination target |
