@@ -85,8 +85,8 @@ def test_unicode_skill_name_limit_counts_characters_not_utf8_bytes(tmp_path: Pat
         package = tmp_path / f"length-{length}"
         package.mkdir()
         (package / "SKILL.md").write_text(
-            f"---\\nname: {skill_name}\\ndescription: Unicode length fixture.\\n---\\n\\n"
-            "# Instructions\\n\\nFollow the documented workflow.\\n",
+            f"---\nname: {skill_name}\ndescription: Unicode length fixture.\n---\n\n"
+            "# Instructions\n\nFollow the documented workflow.\n",
             encoding="utf-8",
         )
 
