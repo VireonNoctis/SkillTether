@@ -95,6 +95,26 @@ def test_unicode_skill_name_limit_counts_characters_not_utf8_bytes(tmp_path: Pat
         assert invalid is expected_invalid
 
 
+def test_skill_name_comparison_trims_surrounding_space_without_rewriting_source(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "café-tool"
+    package.mkdir()
+    source = (
+        '---\\nname: " café-tool "\\ndescription: Whitespace comparison fixture.\\n---\\n\\n'
+        "# Instructions\\n\\nFollow the documented workflow.\\n"
+    )
+    path = package / "SKILL.md"
+    path.write_text(source, encoding="utf-8")
+
+    _inventory, findings, _texts = inspect_package(package)
+
+    assert not [finding for finding in findings if finding.code in {
+        "SKILL_NAME_INVALID", "SKILL_NAME_DIRECTORY_MISMATCH",
+    }]
+    assert path.read_text(encoding="utf-8") == source
+
+
 def test_uppercase_unicode_skill_name_remains_invalid(tmp_path: Path) -> None:
     package = tmp_path / "Café-tool"
     package.mkdir()
