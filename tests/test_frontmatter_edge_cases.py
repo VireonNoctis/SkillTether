@@ -40,7 +40,7 @@ def test_crlf_frontmatter_is_accepted_without_normalizing_source(tmp_path: Path)
 
 
 def test_utf8_bom_before_frontmatter_is_accepted_without_rewriting_source(tmp_path: Path) -> None:
-    package = tmp_path / "utf8-bom-skill"
+    package = tmp_path / "utf8-bom"
     package.mkdir()
     fixture = Path("tests/fixtures/utf8-bom/SKILL.md")
     source = fixture.read_bytes()
