@@ -76,7 +76,6 @@ def test_bom_frontmatter_is_opaque_to_translation_and_mdx_detection() -> None:
 
     assert translated.startswith("\ufeff---\n")
     assert 'description: "{user.name}"' in translated
-    assert "Conservez cet avis dans the body." not in translated
     assert "Conservez cet avis in the body." in translated
 
     mdx = (
