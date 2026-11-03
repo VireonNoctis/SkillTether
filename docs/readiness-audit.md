@@ -63,6 +63,7 @@ This is a traceability audit, not a semantic-safety certification. “Implemente
 17. **Collision-free Markdown heading anchors:** generated duplicate suffixes are checked against all anchors already allocated, including literal headings whose slug equals a generated suffix.
 18. **Regional multilingual regression corpus:** a second document-like fixture covers six regional BCP 47 tags with separate per-region metrics and explicit negative examples; it is not presented as a dialect benchmark.
 19. **Unicode skill-name conformance:** the ASCII-only pattern is replaced with the current specification's lowercase Unicode alphanumeric grammar; NFKC is used only for comparison, source identifiers are not rewritten, and the fixture is checked against SkillTether and pinned `skills-ref`.
+20. **Reference differential fixtures:** the CI corpus now checks maximum valid metadata boundaries, invalid name/compatibility boundaries, and an unknown-field fixture. Unknown fields are an intentional divergence: SkillTether warns and accepts while pinned `skills-ref@v0.0.1` rejects.
 
 Each item has or is receiving a regression fixture in the same pull request. These fixes count as release-verified only when CI passes on the resulting head.
 
@@ -74,7 +75,7 @@ Each item has or is receiving a regression fixture in the same pull request. The
 - Review approval/export behavior against adversarial source/target/manifest/report path changes; retain the existing symlink-race and fingerprint gates.
 
 ### P2 — Stronger evidence
-- Expand the pinned skills-ref v0.0.1 smoke check into a documented differential corpus covering optional fields, unknown extensions, naming edge cases, and expected differences. Keep the reference tool CI-only and non-mandatory at runtime.
+- Extend the pinned skills-ref v0.0.1 differential corpus as new normative edge cases appear. The current CI covers optional fields, Unicode and maximum-length name cases, description/compatibility limits, and the explicit unknown-extension policy divergence. Keep the reference tool CI-only and non-mandatory at runtime.
 - Continue targeted branch coverage in the CLI (84%) and package analysis (81%) modules; these are now among the lowest-covered high-risk areas in the latest measured snapshot. An aggregate floor does not guarantee that every risky branch is exercised.
 - CI now runs the suite on Ubuntu, macOS, and Windows with Python 3.13 and 3.14. Add future supported Python minor versions and test additional filesystem configurations before claiming broad platform coverage.
 - Improve Markdown reference/link/slug edge cases and specify exactly which Markdown dialects are supported. Full MDX parsing and transformation remain unsupported; the current detector only fails closed on obvious MDX syntax.
