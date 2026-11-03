@@ -44,7 +44,7 @@ This page describes the repository implementation, not the entire long-term Skil
 
 ## Verification and CI
 
-The latest verified implementation run for this branch is [GitHub Actions run 41030648870](https://github.com/VireonNoctis/SkillTether/actions/runs/41030648870), on code/test head `bf2698d72d70e311b95d5fb948b64ed9ddc73464` (2026-10-30). It passed **244 tests on Ubuntu and macOS** and **239 tests with 5 platform-specific skips on Windows**, for Python 3.13 and 3.14; the pinned `skills-ref@v0.0.1` reference-conformance job also passed. Measured aggregate coverage was 86% on Linux and Windows. CI validates schemas, protected-token policy loading, and bundled fixtures. Only the Linux job enforces the 80% aggregate coverage floor; coverage is not proof of correctness.
+The last fully verified implementation baseline before the current PR #7 extension is [GitHub Actions run 41030648870](https://github.com/VireonNoctis/SkillTether/actions/runs/41030648870), on code/test head `bf2698d72d70e311b95d5fb948b64ed9ddc73464` (2026-10-30). This run does not include the additional PR #7 changes described above; verify the live PR checks before merging. It passed **244 tests on Ubuntu and macOS** and **239 tests with 5 platform-specific skips on Windows**, for Python 3.13 and 3.14; the pinned `skills-ref@v0.0.1` reference-conformance job also passed. Measured aggregate coverage was 86% on Linux and Windows. CI validates schemas, protected-token policy loading, and bundled fixtures. Only the Linux job enforces the 80% aggregate coverage floor; coverage is not proof of correctness.
 
 ## Explicit limitations and non-claims
 
