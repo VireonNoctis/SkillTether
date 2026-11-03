@@ -68,6 +68,7 @@ This is a traceability audit, not a semantic-safety certification. “Implemente
 22. **CLI privacy and locale boundaries:** unsupported-but-well-formed locales produce empty unreviewed manifests without guessing; HTTP translation without `--allow-remote` exits before making requests or publishing any candidate/report/history file.
 23. **Unknown-extension differential:** a dedicated extension fixture asserts SkillTether's low-severity warning/accept policy and the pinned reference validator's rejection.
 24. **Approval report symlink boundary:** `approve` no longer resolves the report input before the bounded reader; a symlink alias is rejected instead of being followed.
+25. **Absolute local Markdown targets:** `file://`, Windows drive, and UNC link targets are classified as review-required local filesystem references; regular HTTPS and mailto links retain their external-link behavior.
 
 Each item has or is receiving a regression fixture in the same pull request. These fixes count as release-verified only when CI passes on the resulting head.
 
