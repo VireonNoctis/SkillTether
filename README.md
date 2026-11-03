@@ -167,7 +167,7 @@ Use `skilltether COMMAND --help` for available options. For automation that shou
 
 ## CI and specification compatibility
 
-GitHub Actions tests the suite on **Python 3.13 and 3.14 × Ubuntu, macOS, and Windows**. It reports line and branch coverage on all six combinations and enforces the **80% aggregate coverage floor on Linux**. A separate Ubuntu job checks valid Unicode and maximum-length metadata fixtures, invalid name/compatibility boundaries, and expected unknown-extension divergence with the pinned `skills-ref@v0.0.1` validator. This is a small, version-pinned differential corpus—not exhaustive compatibility proof—and the reference tool is not a runtime dependency.
+GitHub Actions tests the suite on **Python 3.13 and 3.14 × Ubuntu, macOS, and Windows** for pull requests and pushes to `main`. A per-PR concurrency group cancels superseded runs instead of duplicating every feature-branch push. It reports line and branch coverage on all six combinations and enforces the **80% aggregate coverage floor on Linux**. A separate Ubuntu job checks valid Unicode and maximum-length metadata fixtures, invalid name/compatibility boundaries, and expected unknown-extension divergence with the pinned `skills-ref@v0.0.1` validator. This is a small, version-pinned differential corpus—not exhaustive compatibility proof—and the reference tool is not a runtime dependency.
 
 ## Limits
 
