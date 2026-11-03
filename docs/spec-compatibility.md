@@ -12,7 +12,7 @@ When optional fields are present, SkillTether checks that:
 - `metadata` is a mapping with string keys and string values.
 - `allowed-tools` is a space-delimited string. The field is experimental, and client support may vary.
 
-Optional fields are not required just because SkillTether knows how to validate them. Unknown fields receive a low-severity warning rather than an automatic blocking failure because client-specific extensions may be intentional.
+Optional fields are not required just because SkillTether knows how to validate them. Unknown fields receive a low-severity warning rather than an automatic blocking failure because client-specific extensions may be intentional. This is an intentional policy difference from pinned `skills-ref@v0.0.1`, which rejects an unknown top-level field: SkillTether preserves the extension and surfaces a warning so reviewers can check target-client support.
 
 ## Additional SkillTether safeguards
 
