@@ -7,7 +7,7 @@ This page describes the repository implementation, not the entire long-term Skil
 ### Package inspection and structural validation
 
 - Read-only package inventory with SHA-256 fingerprints that include file mode/permission metadata.
-- Bounded traversal, directory depth/count limits, per-file and aggregate byte budgets, non-following regular-file reads, and rejection of package-root symlink aliases, in-package symlinks, and special filesystem entries.
+- Bounded traversal, directory depth/count limits, per-file and aggregate byte budgets, non-following regular-file reads, and rejection of package-root symlink aliases, in-package symlinks, and special filesystem entries. Directory-enumeration errors fail closed instead of allowing `os.walk` to silently omit an unreadable subtree.
 - Source packages are inspected but never intentionally rewritten. Candidate and approval output are staged separately, staged content and metadata are rechecked, and failed translation/approval does not publish a partial package.
 - UTF-8 validation for expected text/script resources; arbitrary binary assets remain byte-oriented rather than being misclassified as malformed text.
 - YAML frontmatter and required `SKILL.md` metadata checks, including required non-empty `name` and `description`, name syntax/length/directory identity, description length, and types for supported optional fields. Present `compatibility` values must be non-empty strings of at most 500 characters; explicit `null` is invalid. Non-string top-level YAML keys receive a dedicated high-severity finding rather than crashing unknown-field handling.
