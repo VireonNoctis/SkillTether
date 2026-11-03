@@ -52,6 +52,7 @@ jobs:
         run: |
           skilltether validate tests/fixtures/valid-skill
           skilltether validate tests/fixtures/valid-optional-skill
+          skilltether validate tests/fixtures/café-tool
 
   reference-conformance:
     # The upstream skills-ref README describes this as a demonstration/reference
@@ -72,6 +73,7 @@ jobs:
           skills-ref --version
           skills-ref validate tests/fixtures/valid-skill
           skills-ref validate tests/fixtures/valid-optional-skill
+          skills-ref validate tests/fixtures/café-tool
           set +e
           skills-ref validate tests/fixtures/invalid-skill
           status=$?
