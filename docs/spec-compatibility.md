@@ -9,7 +9,7 @@ SkillTether validates that a package has a readable UTF-8 `SKILL.md` with YAML f
 When optional fields are present, SkillTether checks that:
 - `license` is a string.
 - `compatibility`, when present, is a non-empty string of at most 500 characters.
-- `metadata` is a mapping with string keys and string values.
+- `metadata` is a mapping with string keys and string values. SkillTether checks the YAML scalar types and rejects numeric/boolean keys or values instead of coercing them to strings. Pinned `skills-ref@v0.0.1` checks only scalar-node shape and converts scalar text into `map[string]string`; CI records this as an intentional strictness difference.
 - `allowed-tools` is a space-delimited string. The field is experimental, and client support may vary.
 
 Optional fields are not required just because SkillTether knows how to validate them. Unknown fields receive a low-severity warning rather than an automatic blocking failure because client-specific extensions may be intentional. This is an intentional policy difference from pinned `skills-ref@v0.0.1`, which rejects an unknown top-level field: SkillTether preserves the extension and surfaces a warning so reviewers can check target-client support.
