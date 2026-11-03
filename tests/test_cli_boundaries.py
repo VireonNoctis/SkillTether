@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 from skilltether.cli import main
@@ -15,6 +16,58 @@ def make_skill(path: Path, body: str = "Use the documented workflow.") -> Path:
         encoding="utf-8",
     )
     return path
+
+
+@pytest.mark.parametrize("bom", ["", "\ufeff"])
+def test_manifest_suggestions_ignore_frontmatter_instruction_like_metadata(
+    tmp_path: Path, bom: str,
+) -> None:
+    package = tmp_path / ("bom-skill" if bom else "plain-skill")
+    package.mkdir()
+    (package / "SKILL.md").write_text(
+        bom
+        + "---\n"
+        + f"name: {package.name}\n"
+        + 'description: "You must never overwrite the source package."\n'
+        + 'compatibility: "Keep at most 3 backup copies."\n'
+        + "---\n\n"
+        + "# Instructions\n\n"
+        + "This paragraph describes the package contents.\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "review" / f"{package.name}.yaml"
+
+    status = main([
+        "init-manifest", str(package), "--out", str(output),
+        "--source-locale", "en", "--target-locale", "fr",
+    ])
+
+    assert status == 0
+    payload = yaml.safe_load(output.read_text(encoding="utf-8"))
+    assert payload["invariants"] == []
+    assert payload["manifest_reviewed"] is False
+
+
+def test_manifest_generation_refuses_malformed_frontmatter(
+    tmp_path: Path, capsys,
+) -> None:
+    package = tmp_path / "broken-skill"
+    package.mkdir()
+    (package / "SKILL.md").write_text(
+        "---\nname: broken-skill\ndescription: A broken package.\n\n"
+        "You must preserve this instruction.\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "review" / "broken.yaml"
+
+    status = main([
+        "init-manifest", str(package), "--out", str(output),
+        "--source-locale", "en",
+    ])
+
+    assert status == 2
+    assert "malformed SKILL.md frontmatter" in capsys.readouterr().err
+    assert not output.exists()
 
 
 def test_unknown_language_writes_empty_unreviewed_manifest(
