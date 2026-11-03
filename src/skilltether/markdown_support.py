@@ -82,7 +82,7 @@ def _heading_slug(value: str) -> str:
 def markdown_heading_anchors(text: str) -> set[str]:
     """Return GitHub-style heading slugs, including duplicate-heading suffixes."""
     tokens = create_markdown_parser().parse(text)
-    seen: dict[str, int] = {}
+    next_suffix: dict[str, int] = {}
     anchors: set[str] = set()
     for index, token in enumerate(tokens[:-1]):
         if getattr(token, "type", "") != "heading_open":
@@ -93,9 +93,16 @@ def markdown_heading_anchors(text: str) -> set[str]:
         slug = _heading_slug(_inline_plain_text(getattr(inline, "children", None)))
         if not slug:
             continue
-        duplicate = seen.get(slug, 0)
-        seen[slug] = duplicate + 1
-        anchors.add(slug if duplicate == 0 else f"{slug}-{duplicate}")
+        candidate = slug
+        if candidate in anchors:
+            suffix = next_suffix.get(slug, 1)
+            while f"{slug}-{suffix}" in anchors:
+                suffix += 1
+            candidate = f"{slug}-{suffix}"
+            next_suffix[slug] = suffix + 1
+        else:
+            next_suffix.setdefault(slug, 1)
+        anchors.add(candidate)
     return anchors
 
 
