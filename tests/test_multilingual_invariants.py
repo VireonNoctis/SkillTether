@@ -115,7 +115,7 @@ def test_regional_document_fixture_preserves_expected_candidates_and_exclusions(
         source = tmp_path / case["package"]
         source.mkdir()
         (source / "SKILL.md").write_text(
-            f"---\\nname: {case['package']}\\ndescription: Regional evaluation fixture.\\n---\\n\\n"
+            f"---\nname: {case['package']}\ndescription: Regional evaluation fixture.\n---\n\n"
             + case["body"],
             encoding="utf-8",
         )
