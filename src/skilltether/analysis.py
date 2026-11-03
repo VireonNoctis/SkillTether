@@ -40,7 +40,24 @@ READABLE_SUFFIXES = TEXT_SUFFIXES | {
     ".py", ".sh", ".bash", ".js", ".ts", ".json", ".yaml", ".yml",
     ".toml", ".xml", ".html", ".css", ".sql", ".ps1", ".bat", ".env",
 }
-NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+def _normalized_skill_name(value: str) -> str:
+    """Return the NFKC comparison form without rewriting package metadata."""
+    return unicodedata.normalize("NFKC", value)
+
+
+def _valid_skill_name(value: str) -> bool:
+    """Validate the spec's Unicode lowercase alphanumeric/hyphen name grammar."""
+    normalized = _normalized_skill_name(value)
+    if (
+        not normalized
+        or len(normalized) > 64
+        or normalized != normalized.lower()
+        or normalized.startswith("-")
+        or normalized.endswith("-")
+        or "--" in normalized
+    ):
+        return False
+    return all(character == "-" or character.isalnum() for character in normalized)
 FRONTMATTER_START = re.compile(r"^---\s*$")
 FENCE_START = re.compile(r"^\s{0,3}(\x60{3,}|~{3,})")
 
@@ -425,14 +442,15 @@ def validate_skill_markdown(root: Path, text: str) -> list:
             ))
     name = metadata.get("name")
     if isinstance(name, str):
-        if len(name) > 64 or not NAME_PATTERN.fullmatch(name):
+        normalized_name = _normalized_skill_name(name)
+        if len(normalized_name) > 64 or not _valid_skill_name(name):
             findings.append(new_finding(
                 "SKILL_NAME_INVALID", "high", "frontmatter",
-                "Skill name must be 1–64 lowercase letters, digits, and single hyphen-separated groups.",
+                "Skill name must be 1–64 Unicode lowercase alphanumeric groups separated by single hyphens.",
                 "The name is a machine-facing identifier and must not be localized as prose.",
-                path="SKILL.md", proposed_change="Restore a valid kebab-case name.",
+                path="SKILL.md", proposed_change="Restore a valid lowercase Unicode alphanumeric name with single hyphen separators.",
             ))
-        if name != root.name:
+        if normalized_name != _normalized_skill_name(root.name):
             findings.append(new_finding(
                 "SKILL_NAME_DIRECTORY_MISMATCH", "high", "frontmatter",
                 "Frontmatter name does not match the skill directory basename.",
