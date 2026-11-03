@@ -40,6 +40,7 @@ The latest verified code/test baseline is [run 41030648870](https://github.com/V
 | Package resource integrity | Same-path binary asset differs by byte hash | Review-required resource-change finding |
 | Package permission integrity | Script executable bit changes while bytes remain equal | Package fingerprint changes and review-required file-mode finding |
 | Resource exhaustion | Aggregate package bytes or directory count exceeds limit | Inspection fails closed without unbounded reads |
+| Directory enumeration failure | A nested package directory cannot be enumerated | Inspection fails closed; an unreadable subtree cannot silently disappear from the fingerprint or candidate copy |
 | Special filesystem entry | Named pipe, socket, device, or symlink is present | Critical structural finding; special files are never read |
 | Output path integrity | Report path inside package or reached through a symlink alias; candidate/approval output is a broken symlink or parent-symlink alias to source | Command refuses before writing; package remains unchanged |
 | Frontmatter | Missing required field, invalid YAML, wrong field type | Explicit validation failure |
