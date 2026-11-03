@@ -1,5 +1,5 @@
 ---
-name: crlf-skill
+name: crlf-frontmatter
 description: A valid skill with CRLF frontmatter and instructions.
 ---
 
