@@ -42,7 +42,7 @@ READABLE_SUFFIXES = TEXT_SUFFIXES | {
 }
 def _normalized_skill_name(value: str) -> str:
     """Return the NFKC comparison form without rewriting package metadata."""
-    return unicodedata.normalize("NFKC", value)
+    return unicodedata.normalize("NFKC", value.strip())
 
 
 def _valid_skill_name(value: str) -> bool:
