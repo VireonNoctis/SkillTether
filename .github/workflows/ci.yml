@@ -63,6 +63,14 @@ jobs:
           skilltether validate tests/fixtures/skill-tool
           skilltether validate tests/fixtures/éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé
           skilltether validate tests/fixtures/extension-skill
+          set +e
+          skilltether validate tests/fixtures/numeric-metadata-scalar
+          numeric_metadata_status=$?
+          set -e
+          if [[ "$numeric_metadata_status" -ne 1 ]]; then
+            echo "Expected SkillTether to reject non-string metadata keys/values with status 1, got $numeric_metadata_status" >&2
+            exit 1
+          fi
           skilltether validate tests/fixtures/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           set +e
           skilltether validate tests/fixtures/bad--name
@@ -102,6 +110,9 @@ jobs:
           skills-ref validate tests/fixtures/valid-optional-skill
           skills-ref validate tests/fixtures/café-tool
           skills-ref validate tests/fixtures/skill-tool
+          # The pinned ref accepts scalar YAML tags and serializes their values as strings;
+          # SkillTether intentionally rejects this non-string metadata shape per the spec.
+          skills-ref validate tests/fixtures/numeric-metadata-scalar
           skills-ref validate tests/fixtures/éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé
           skills-ref validate tests/fixtures/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           set +e
