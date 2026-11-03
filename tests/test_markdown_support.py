@@ -65,19 +65,19 @@ def test_heading_anchor_suffixes_do_not_collide_with_literal_headings() -> None:
 
 def test_crlf_frontmatter_is_opaque_to_translation_and_preserves_line_endings() -> None:
     source = (
-        "---\\r\\n"
-        "name: sample-skill\\r\\n"
-        'description: "Keep this notice in metadata."\\r\\n'
-        "---\\r\\n"
-        "Keep this notice in the body.\\r\\n"
+        "---\r\n"
+        "name: sample-skill\r\n"
+        'description: "Keep this notice in metadata."\r\n'
+        "---\r\n"
+        "Keep this notice in the body.\r\n"
     )
 
     translated = translate_markdown(source, ReplaceAdapter(), "en", "fr")
 
     assert 'description: "Keep this notice in metadata."' in translated
     assert "Conservez cet avis in the body." in translated
-    assert translated.count("\\r\\n") == source.count("\\r\\n")
-    assert translated.replace("\\r\\n", "").find("\\n") == -1
+    assert translated.count("\r\n") == source.count("\r\n")
+    assert translated.replace("\r\n", "").find("\n") == -1
 
 
 def test_bom_frontmatter_is_opaque_to_translation_and_mdx_detection() -> None:
