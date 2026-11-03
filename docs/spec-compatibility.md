@@ -20,6 +20,7 @@ The following checks are implementation policy or localization-integrity control
 
 - An empty instruction body is treated as a high-severity operational problem because metadata alone does not describe a workflow.
 - Local Markdown links, fragments, and conventional resource references are checked for integrity.
+- Invalid local link paths after URL decoding are reported as findings rather than allowed to abort package inspection.
 - Files and directories are bounded; symlinks and special files are rejected; scripts are never executed during inspection.
 - Non-text asset hashes and file permission bits participate in integrity comparison.
 - Protected tokens, reviewed invariants, language-specific negation/modality markers, and human approval are localization workflow controls.
