@@ -67,6 +67,7 @@ This is a traceability audit, not a semantic-safety certification. “Implemente
 21. **Filesystem boundary regressions:** regular-file roots are rejected, in-package symlink directories are reported and not traversed, and package file-count limits fail closed.
 22. **CLI privacy and locale boundaries:** unsupported-but-well-formed locales produce empty unreviewed manifests without guessing; HTTP translation without `--allow-remote` exits before making requests or publishing any candidate/report/history file.
 23. **Unknown-extension differential:** a dedicated extension fixture asserts SkillTether's low-severity warning/accept policy and the pinned reference validator's rejection.
+24. **Approval report symlink boundary:** `approve` no longer resolves the report input before the bounded reader; a symlink alias is rejected instead of being followed.
 
 Each item has or is receiving a regression fixture in the same pull request. These fixes count as release-verified only when CI passes on the resulting head.
 
