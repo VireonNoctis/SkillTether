@@ -62,6 +62,7 @@ This is a traceability audit, not a semantic-safety certification. “Implemente
 16. **Incomplete directory walk:** package inventory now supplies an `os.walk` error handler and aborts when a directory cannot be enumerated, preventing silent omission of unreadable subtrees from fingerprints and candidate staging.
 17. **Collision-free Markdown heading anchors:** generated duplicate suffixes are checked against all anchors already allocated, including literal headings whose slug equals a generated suffix.
 18. **Regional multilingual regression corpus:** a second document-like fixture covers six regional BCP 47 tags with separate per-region metrics and explicit negative examples; it is not presented as a dialect benchmark.
+19. **Unicode skill-name conformance:** the ASCII-only pattern is replaced with the current specification's lowercase Unicode alphanumeric grammar; NFKC is used only for comparison, source identifiers are not rewritten, and the fixture is checked against SkillTether and pinned `skills-ref`.
 
 Each item has or is receiving a regression fixture in the same pull request. These fixes count as release-verified only when CI passes on the resulting head.
 
