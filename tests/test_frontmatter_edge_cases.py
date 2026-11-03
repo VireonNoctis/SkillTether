@@ -247,6 +247,24 @@ def test_unknown_extension_fixture_is_warning_not_blocking() -> None:
     assert main(["validate", str(package)]) == 0
 
 
+def test_numeric_metadata_keys_and_values_are_rejected_without_coercion(
+    tmp_path: Path,
+) -> None:
+    package = tmp_path / "numeric-metadata-scalar"
+    package.mkdir()
+    fixture = Path("tests/fixtures/numeric-metadata-scalar/SKILL.md")
+    original = fixture.read_text(encoding="utf-8")
+    path = package / "SKILL.md"
+    path.write_text(original, encoding="utf-8")
+
+    _inventory, findings, _texts = inspect_package(package)
+
+    metadata = [finding for finding in findings if finding.code == "METADATA_INVALID"]
+    assert len(metadata) == 1
+    assert metadata[0].severity == "high"
+    assert path.read_text(encoding="utf-8") == original
+
+
 def test_non_string_frontmatter_key_is_reported_without_crashing(tmp_path: Path) -> None:
     package = make_skill(tmp_path, "7: unexpected\n")
 
