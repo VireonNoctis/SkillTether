@@ -123,7 +123,8 @@ def mdx_syntax_locations(text: str) -> list[tuple[int, str]]:
     This is a conservative unsupported-syntax detector, not a complete MDX parser.
     """
     lines = text.splitlines()
-    frontmatter_open = bool(lines and lines[0].strip() == "---")
+    first_line = lines[0].removeprefix("\\ufeff") if lines else ""
+    frontmatter_open = bool(first_line.strip() == "---")
     frontmatter_closed = not frontmatter_open
     fence_marker: str | None = None
     fence_length = 0
