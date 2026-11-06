@@ -206,6 +206,21 @@ def test_additional_target_locales_provide_only_explicit_draft_markers(
     assert expected_marker in selected
 
 
+def test_hindi_only_when_conditional_is_not_misclassified_as_generic_action() -> None:
+    from skilltether.invariant_language import classify_candidate, language_profile
+
+    profile = language_profile("hi-Deva")
+    assert profile is not None
+    assert classify_candidate(
+        "यह चरण केवल तभी चलाएँ जब कॉन्फ़िगरेशन फ़ाइल मौजूद हो।",
+        profile,
+    ) == "precondition"
+    assert classify_candidate(
+        "केवल इस दस्तावेज़ में तीन अध्याय हैं।",
+        profile,
+    ) is None
+
+
 def test_unknown_language_profile_does_not_guess_invariant_candidates() -> None:
     from skilltether.invariant_language import classify_candidate, language_profile
 
