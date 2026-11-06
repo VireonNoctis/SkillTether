@@ -10,7 +10,7 @@ The manifest is not itself a proof. The reviewer should inspect complete context
 
 1. Run init-manifest to produce draft candidates, or author a YAML manifest directly.
 2. Confirm or remove each suggested rule. Add constraints missed by the heuristic.
-3. Assign a stable ID and the source path/line range.
+3. Assign a stable ID and the source path/line range. After a candidate translation exists, optionally add the exact target line range and excerpt as `target_lines` and `target_text`.
 4. Choose category and severity: safety_constraint, mandatory_condition, negation, numeric_limit, precondition, decision_rule, or other.
 5. Populate required_tokens, forbidden_tokens, and expected_numbers only for exact target expectations that are valid in the target locale.
 6. For negation_required and mandatory_required, configure locale-specific negation_markers and mandatory_markers deliberately. Marker absence is a review warning—not a semantic verdict.
@@ -44,6 +44,19 @@ invariants:
 ~~~
 
 The example's language markers are illustrative. Confirm natural target-language grammar and morphology with a qualified reviewer rather than copying markers blindly.
+
+## Human-verified target context anchors
+
+When word overlap cannot locate a translated passage (for example, when the target uses a different script or substantially different vocabulary), a reviewer can anchor the invariant directly to the candidate:
+
+~~~yaml
+target_lines: [61, 61]
+target_text: "Exact target-language text copied from line 61"
+~~~
+
+`target_lines` is a one-based inclusive line range in the same relative resource named by `source_path`; `target_text` must contain the exact trimmed text across that range. Supply both fields or neither. The CLI verifies the excerpt against the current target package on every comparison. A missing range, a line moved beyond the resource, or an excerpt mismatch produces a deterministic critical finding that cannot be approved away; update the manifest and rerun comparison.
+
+A valid anchor replaces word-overlap/positional location guessing for that invariant and gives the reviewer an exact target excerpt. It does not establish that the source and target passages are semantically equivalent. Critical invariants still require explicit human sign-off. If the candidate changes, refresh the target anchor before approval.
 
 ## Findings and disposition
 
