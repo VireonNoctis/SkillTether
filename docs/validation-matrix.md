@@ -52,6 +52,7 @@ The last fully verified baseline before the current PR #7 extension is [run 4103
 | Package resource integrity | Same-path binary asset differs by byte hash | Review-required resource-change finding |
 | Package permission integrity | Script executable bit changes while bytes remain equal | Package fingerprint changes and review-required file-mode finding |
 | Resource exhaustion | Aggregate package bytes or directory count exceeds limit | Inspection fails closed without unbounded reads |
+| Package entry identity race | A package entry is replaced between metadata inspection and descriptor open | Emit `FILE_IDENTITY_CHANGED`; comparison reports structural failure and approval cannot publish the unstable package |
 | Directory enumeration failure | A nested package directory cannot be enumerated | Inspection fails closed; an unreadable subtree cannot silently disappear from the fingerprint or candidate copy |
 | Non-directory package root | A regular file is passed as the package root | Reject with a clear error instead of treating it as an empty package |
 | In-package symlink directory | A package subdirectory points to an outside directory | Report `SYMLINK_NOT_ALLOWED` and never inventory files beneath the link |
