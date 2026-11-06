@@ -9,7 +9,7 @@ The last fully verified baseline before the current PR #7 extension is [run 4103
 
 | Test class | Example | Expected result |
 |---|---|---|
-| Multilingual invariant evaluation | Human-labelled English/French/Spanish/German/Portuguese/Italian candidate examples with operational positives and descriptive/code negatives | Exact fixture match; record TP/FP/FN and precision/recall without presenting the curated sample as a general benchmark |
+| Multilingual invariant evaluation | Human-labelled English/French/Spanish/German/Portuguese/Italian/Arabic/Hindi/Russian candidate examples with operational positives and descriptive-number/date/code negatives | Exact fixture match; assert 45 curated TP, zero FP/FN, per-language and per-family metrics without presenting the sample as a general benchmark |
 | Language profile selection | BCP 47 tag with a supported primary language and region/script subtags | Select primary-language profile; unknown language returns no candidate suggestions rather than guessing |
 | Frontmatter invariant isolation | Metadata contains mandatory/negation/numeric cue words that resemble instructions, with and without a BOM | Draft suggestions ignore all header lines; malformed or unclosed frontmatter blocks manifest generation |
 | Unsupported source locale | `init-manifest` receives a well-formed language without a built-in cue profile | Write an empty, unreviewed manifest and explain that no profile exists; do not guess |
