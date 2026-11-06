@@ -46,7 +46,7 @@ def test_static_script_parsers_receive_only_stdin_and_parse_only_flags(
     assert result.parser == {
         "bash": "bash",
         "node": "node",
-        "pwsh": "powershell",
+        "pwsh": "pwsh",
     }[executable]
     assert len(calls) == 1
     command, kwargs = calls[0]
