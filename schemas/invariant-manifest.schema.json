@@ -25,6 +25,8 @@
           "source_path": { "type": "string", "default": "SKILL.md" },
           "source_lines": { "type": ["array", "null"], "items": { "type": "integer", "minimum": 1 }, "minItems": 2, "maxItems": 2 },
           "source_text": { "type": ["string", "null"] },
+          "target_lines": { "type": ["array", "null"], "items": { "type": "integer", "minimum": 1 }, "minItems": 2, "maxItems": 2, "description": "Optional human-verified inclusive line range in the target-language resource at source_path." },
+          "target_text": { "type": ["string", "null"], "minLength": 1, "pattern": "\\S", "description": "Exact trimmed target excerpt covering target_lines; both target fields must be supplied together." },
           "required_tokens": { "type": "array", "items": { "type": "string" }, "default": [] },
           "forbidden_tokens": { "type": "array", "items": { "type": "string" }, "default": [] },
           "expected_numbers": { "type": "array", "items": { "type": "string" }, "default": [] },
@@ -34,7 +36,17 @@
           "mandatory_markers": { "type": "array", "items": { "type": "string" }, "default": [] },
           "reviewed": { "type": "boolean", "default": false },
           "reviewer": { "type": ["string", "null"] }
-        }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "target_lines": { "type": "array" } }, "required": ["target_lines"] },
+            "then": { "required": ["target_text", "reviewed", "reviewer"], "properties": { "target_text": { "type": "string", "minLength": 1, "pattern": "\\S" }, "reviewed": { "const": true }, "reviewer": { "type": "string", "minLength": 1 } } }
+          },
+          {
+            "if": { "properties": { "target_text": { "type": "string" } }, "required": ["target_text"] },
+            "then": { "required": ["target_lines"], "properties": { "target_lines": { "type": "array", "minItems": 2, "maxItems": 2 } } }
+          }
+        ]
       }
     }
   }

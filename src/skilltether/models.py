@@ -47,6 +47,9 @@ class Invariant(StrictModel):
     source_path: str = "SKILL.md"
     source_lines: tuple[int, int] | None = None
     source_text: str | None = None
+    # Optional human-verified target anchor for multilingual context alignment.
+    target_lines: tuple[int, int] | None = None
+    target_text: str | None = None
     required_tokens: list[str] = Field(default_factory=list)
     forbidden_tokens: list[str] = Field(default_factory=list)
     expected_numbers: list[str] = Field(default_factory=list)
@@ -63,6 +66,14 @@ class Invariant(StrictModel):
             raise ValueError("reviewed=true requires a non-empty reviewer")
         if self.source_lines and (self.source_lines[0] < 1 or self.source_lines[1] < self.source_lines[0]):
             raise ValueError("source_lines must be a valid inclusive line range")
+        if self.target_lines and (self.target_lines[0] < 1 or self.target_lines[1] < self.target_lines[0]):
+            raise ValueError("target_lines must be a valid inclusive line range")
+        if (self.target_lines is None) != (self.target_text is None):
+            raise ValueError("target_lines and target_text must be supplied together")
+        if self.target_text is not None and not self.target_text.strip():
+            raise ValueError("target_text must not be blank")
+        if self.target_lines is not None and not self.reviewed:
+            raise ValueError("target context anchors require reviewed=true")
         return self
 
 class InvariantManifest(StrictModel):

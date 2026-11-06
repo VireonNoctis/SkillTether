@@ -20,6 +20,7 @@ from .markdown_support import markdown_heading_anchors, markdown_link_targets, m
 from .yamlio import safe_load_unique
 from .safeio import read_bounded_regular_file
 from .regex_safety import validate_policy_regex
+from .static_analysis import check_script_syntax
 
 from .models import FileFingerprint, ProtectedToken, new_finding
 
@@ -34,13 +35,36 @@ MAX_EXPLICIT_TOKENS = 2048
 MAX_POLICY_REGEX_CHARS = 1000
 MAX_EXPLICIT_TOKEN_CHARS = 2048
 TEXT_SUFFIXES = {".md", ".mdx", ".txt", ".rst"}
-SCRIPT_SUFFIXES = {".py", ".sh", ".bash", ".js", ".ts", ".ps1", ".bat"}
+SCRIPT_SUFFIXES = {
+    ".py", ".sh", ".bash", ".js", ".cjs", ".mjs", ".ts",
+    ".ps1", ".psm1", ".psd1", ".bat",
+}
+PARSE_ONLY_SCRIPT_SUFFIXES = {".sh", ".bash", ".js", ".cjs", ".mjs", ".ps1", ".psm1", ".psd1"}
+MAX_STATIC_SCRIPT_CHECKS = 16
 RESOURCE_REFERENCE = re.compile(r"(?<![A-Za-z0-9/:])(?P<path>(?:\.\.?/)*(?:scripts|references|assets|resources)/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*)")
 READABLE_SUFFIXES = TEXT_SUFFIXES | {
-    ".py", ".sh", ".bash", ".js", ".ts", ".json", ".yaml", ".yml",
-    ".toml", ".xml", ".html", ".css", ".sql", ".ps1", ".bat", ".env",
+    ".py", ".sh", ".bash", ".js", ".cjs", ".mjs", ".ts",
+    ".json", ".yaml", ".yml", ".toml", ".xml", ".html", ".css", ".sql",
+    ".ps1", ".psm1", ".psd1", ".bat", ".env",
 }
-NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+def _normalized_skill_name(value: str) -> str:
+    """Return the NFKC comparison form without rewriting package metadata."""
+    return unicodedata.normalize("NFKC", value.strip())
+
+
+def _valid_skill_name(value: str) -> bool:
+    """Validate the spec's Unicode lowercase alphanumeric/hyphen name grammar."""
+    normalized = _normalized_skill_name(value)
+    if (
+        not normalized
+        or len(normalized) > 64
+        or normalized != normalized.lower()
+        or normalized.startswith("-")
+        or normalized.endswith("-")
+        or "--" in normalized
+    ):
+        return False
+    return all(character == "-" or character.isalnum() for character in normalized)
 FRONTMATTER_START = re.compile(r"^---\s*$")
 FENCE_START = re.compile(r"^\s{0,3}(\x60{3,}|~{3,})")
 
@@ -117,7 +141,17 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
     directory_count = 0
     total_bytes = 0
 
-    for current, dirs, names in os.walk(root_path, followlinks=False):
+    def fail_incomplete_walk(error: OSError) -> None:
+        # os.walk otherwise suppresses scandir errors by default. An inaccessible
+        # subtree would then disappear from the package fingerprint and could be
+        # omitted from a staged candidate without a structural finding.
+        raise ValueError(
+            "Unable to enumerate a package directory; refusing an incomplete package inventory"
+        ) from error
+
+    for current, dirs, names in os.walk(
+        root_path, followlinks=False, onerror=fail_incomplete_walk,
+    ):
         current_path = Path(current)
         safe_dirs = []
         for dirname in sorted(dirs):
@@ -339,7 +373,26 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
             "Frontmatter and Markdown cannot be parsed from this encoding.", path="SKILL.md",
         ))
 
+    script_syntax_checks = 0
+    script_syntax_budget_reported = False
     for rel, text in sorted(texts.items()):
+        if Path(rel).suffix.lower() in PARSE_ONLY_SCRIPT_SUFFIXES:
+            if script_syntax_checks < MAX_STATIC_SCRIPT_CHECKS:
+                script_syntax_checks += 1
+                findings.extend(validate_script_syntax(rel, text))
+            elif not script_syntax_budget_reported:
+                findings.append(new_finding(
+                    "SCRIPT_SYNTAX_CHECK_BUDGET_EXCEEDED", "medium", "resource_validation",
+                    f"Parse-only script validation is limited to {MAX_STATIC_SCRIPT_CHECKS} files per package; remaining scripts were not checked.",
+                    "Launching an external parser for every script in a large untrusted package could consume excessive time. The package remains inspectable, but syntax validity is unknown for scripts beyond the local budget.",
+                    path=rel,
+                    proposed_change="Run trusted local syntax checks for the remaining scripts or reduce the package's script count, then review this finding.",
+                    requires_review=True,
+                    analysis_method="deterministic",
+                    uncertainty="high",
+                    severity_rationale="The bounded checker deliberately skipped additional scripts to protect package-inspection resources; their syntax remains unverified.",
+                ))
+                script_syntax_budget_reported = True
         if Path(rel).suffix.lower() == ".mdx":
             lines = text.splitlines()
             for line_no, reason in mdx_syntax_locations(text):
@@ -365,6 +418,10 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
 
 def _frontmatter(text: str) -> tuple[dict[str, Any] | None, str, int, str | None]:
     lines = text.splitlines()
+    # A UTF-8 BOM may precede the opening delimiter. Parse a local copy only:
+    # package text/fingerprints and candidate bytes remain unchanged.
+    if lines and lines[0].startswith("\ufeff"):
+        lines[0] = lines[0][1:]
     if not lines or not FRONTMATTER_START.fullmatch(lines[0]):
         return None, "", 0, "SKILL.md must begin with a YAML frontmatter block delimited by ---."
     close = next((i for i in range(1, len(lines)) if FRONTMATTER_START.fullmatch(lines[i])), None)
@@ -392,6 +449,17 @@ def validate_skill_markdown(root: Path, text: str) -> list:
         return findings
 
     assert metadata is not None
+    # YAML permits non-string mapping keys, but frontmatter field names are
+    # identifiers. Report them explicitly before building/sorting extension
+    # names so hostile or malformed keys cannot crash validation.
+    if any(not isinstance(key, str) for key in metadata):
+        findings.append(new_finding(
+            "FRONTMATTER_KEY_INVALID", "high", "frontmatter",
+            "Frontmatter field names must be strings.",
+            "Field names identify machine-readable metadata keys and cannot be interpreted safely when they are non-string YAML values.",
+            path="SKILL.md",
+            proposed_change="Use string field names for all top-level frontmatter entries.",
+        ))
     allowed = {"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
     for key in ("name", "description"):
         value = metadata.get(key)
@@ -404,14 +472,15 @@ def validate_skill_markdown(root: Path, text: str) -> list:
             ))
     name = metadata.get("name")
     if isinstance(name, str):
-        if len(name) > 64 or not NAME_PATTERN.fullmatch(name):
+        normalized_name = _normalized_skill_name(name)
+        if len(normalized_name) > 64 or not _valid_skill_name(name):
             findings.append(new_finding(
                 "SKILL_NAME_INVALID", "high", "frontmatter",
-                "Skill name must be 1–64 lowercase letters, digits, and single hyphen-separated groups.",
+                "Skill name must be 1–64 Unicode lowercase alphanumeric groups separated by single hyphens.",
                 "The name is a machine-facing identifier and must not be localized as prose.",
-                path="SKILL.md", proposed_change="Restore a valid kebab-case name.",
+                path="SKILL.md", proposed_change="Restore a valid lowercase Unicode alphanumeric name with single hyphen separators.",
             ))
-        if name != root.name:
+        if normalized_name != _normalized_skill_name(root.name):
             findings.append(new_finding(
                 "SKILL_NAME_DIRECTORY_MISMATCH", "high", "frontmatter",
                 "Frontmatter name does not match the skill directory basename.",
@@ -441,7 +510,7 @@ def validate_skill_markdown(root: Path, text: str) -> list:
             path="SKILL.md",
         ))
     compatibility = metadata.get("compatibility")
-    if compatibility is not None and (
+    if "compatibility" in metadata and (
         not isinstance(compatibility, str) or not compatibility.strip() or len(compatibility) > 500
     ):
         findings.append(new_finding(
@@ -463,7 +532,10 @@ def validate_skill_markdown(root: Path, text: str) -> list:
                 "metadata must be a mapping with string keys and string values.",
                 "Metadata values are machine-readable and must remain parseable.", path="SKILL.md",
             ))
-    unknown = sorted(set(metadata) - allowed)
+    unknown = sorted(
+        key for key in metadata
+        if isinstance(key, str) and key not in allowed
+    )
     if unknown:
         findings.append(new_finding(
             "FRONTMATTER_UNKNOWN_FIELDS", "low", "frontmatter",
@@ -509,13 +581,46 @@ def validate_local_links(
                 severity_rationale="The URL parser deterministically rejected the literal; whether a target client accepts it still needs contextual review.",
             ))
             continue
+        is_windows_absolute = bool(re.match(r"^[A-Za-z]:", href)) or href.startswith("\\")
+        if parsed_url.scheme.lower() == "file" or is_windows_absolute:
+            findings.append(new_finding(
+                "LOCAL_LINK_EXTERNAL_PATH", "medium", "links",
+                "A Markdown link points to a local filesystem path instead of a package-relative resource.",
+                "File URIs and absolute Windows paths can resolve outside the skill package and are not portable package references.",
+                path=rel_path,
+                proposed_change="Use a package-relative path, or document and review the external dependency separately.",
+                requires_review=True,
+                analysis_method="deterministic",
+                uncertainty="none",
+                severity_rationale="The link syntax identifies a local filesystem target; no filesystem access is performed.",
+            ))
+            continue
         if parsed_url.scheme or href.startswith("//"):
             continue
-        decoded = unquote(parsed_url.path)
-        if not decoded and parsed_url.fragment:
-            decoded = Path(rel_path).name
-        destination = (root / Path(rel_path).parent / decoded).resolve()
-        if not destination.is_relative_to(root.resolve()):
+        try:
+            decoded = unquote(parsed_url.path)
+            if "\x00" in decoded:
+                raise ValueError("Decoded local link path contains a NUL character")
+            if not decoded and parsed_url.fragment:
+                decoded = Path(rel_path).name
+            destination = (root / Path(rel_path).parent / decoded).resolve()
+            package_root = root.resolve()
+            is_within_package = destination.is_relative_to(package_root)
+            target_exists = destination.exists()
+        except (OSError, ValueError, RuntimeError):
+            findings.append(new_finding(
+                "LOCAL_LINK_PATH_INVALID", "medium", "links",
+                "A local Markdown link contains a path that cannot be resolved safely.",
+                "Invalid filesystem path values, including decoded NUL characters, must be reported rather than aborting package inspection.",
+                path=rel_path,
+                proposed_change="Correct the link to use a valid package-relative resource path.",
+                requires_review=True,
+                analysis_method="deterministic",
+                uncertainty="none",
+                severity_rationale="The platform path API rejected the decoded target; the intended resource remains unresolved.",
+            ))
+            continue
+        if not is_within_package:
             findings.append(new_finding(
                 "PATH_TRAVERSAL_LINK", "high", "links",
                 "Local link resolves outside the package root.",
@@ -523,7 +628,7 @@ def validate_local_links(
                 path=rel_path, proposed_change="Use a relative link that resolves within the package.",
             ))
             continue
-        if not destination.exists():
+        if not target_exists:
             findings.append(new_finding(
                 "BROKEN_LOCAL_LINK", "high", "links",
                 f"Local link target does not exist: {href}",
@@ -555,6 +660,48 @@ def validate_local_links(
                     path=rel_path, proposed_change="Update the fragment or restore the referenced heading/anchor.",
                 ))
     return findings
+
+
+def validate_script_syntax(rel_path: str, text: str) -> list:
+    """Apply available parse-only checks without executing package scripts."""
+    result = check_script_syntax(rel_path, text)
+    if result is None:
+        return []
+    if result.status == "valid":
+        return []
+    if result.status == "unavailable":
+        return [new_finding(
+            "SCRIPT_SYNTAX_CHECK_UNAVAILABLE", "info", "resource_validation",
+            f"No local {result.parser} parser is installed; {rel_path!r} was not syntax-checked.",
+            "No parser was launched and no syntax-validity claim is made for this script. Install the relevant local parser to enable this check; SkillTether never downloads parsers.",
+            path=rel_path,
+            proposed_change="Run a trusted parser for this script language in your local toolchain and review its result.",
+            requires_review=False,
+            analysis_method="deterministic",
+            uncertainty="high",
+        )]
+    if result.status == "invalid":
+        return [new_finding(
+            "SCRIPT_SYNTAX_INVALID", "high", "resource_validation",
+            f"The local {result.parser} parser rejected {rel_path!r} in parse-only mode.",
+            "The parser reported syntax errors. Parser dialect/version differences can cause false positives, so the result is a reviewable static finding rather than a claim about runtime behavior.",
+            path=rel_path,
+            proposed_change="Review the parser diagnostics locally and correct the script or document the required language dialect before approval.",
+            requires_review=True,
+            analysis_method="deterministic",
+            uncertainty="low",
+            severity_rationale="A local syntax-only parser rejected the source; the check did not execute the script, and dialect-specific differences remain possible.",
+        )]
+    return [new_finding(
+        "SCRIPT_SYNTAX_CHECK_INCOMPLETE", "medium", "resource_validation",
+        f"The local {result.parser} parser could not complete the syntax check for {rel_path!r} ({result.status}).",
+        "A timeout or parser-launch error means syntax validity remains unknown; the script was not executed.",
+        path=rel_path,
+        proposed_change="Check the script with a trusted local parser and review the result before approval.",
+        requires_review=True,
+        analysis_method="deterministic",
+        uncertainty="high",
+    )]
 
 
 def validate_resource_syntax(rel_path: str, text: str) -> list:

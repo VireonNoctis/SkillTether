@@ -5,6 +5,7 @@ from pathlib import Path
 from skilltether.markdown_support import (
     create_markdown_parser,
     markdown_heading_anchors,
+    markdown_inline_line_numbers,
     markdown_link_targets,
     mdx_syntax_locations,
     walk_tokens,
@@ -55,6 +56,58 @@ def test_heading_anchor_slugs_include_unicode_and_duplicate_suffixes() -> None:
     assert {"setup", "setup-1", "über-café", "nested-title"} <= anchors
 
 
+def test_heading_anchor_suffixes_do_not_collide_with_literal_headings() -> None:
+    anchors = markdown_heading_anchors(
+        "# Setup\n\n# Setup\n\n# Setup-1\n\n# Setup\n\n# Setup-1\n"
+    )
+
+    assert anchors == {"setup", "setup-1", "setup-1-1", "setup-2", "setup-1-2"}
+
+
+def test_crlf_frontmatter_is_opaque_to_translation_and_preserves_line_endings() -> None:
+    source = (
+        "---\r\n"
+        "name: sample-skill\r\n"
+        'description: "Keep this notice in metadata."\r\n'
+        "---\r\n"
+        "Keep this notice in the body.\r\n"
+    )
+
+    translated = translate_markdown(source, ReplaceAdapter(), "en", "fr")
+
+    assert 'description: "Keep this notice in metadata."' in translated
+    assert "Conservez cet avis in the body." in translated
+    assert translated.count("\r\n") == source.count("\r\n")
+    assert translated.replace("\r\n", "").find("\n") == -1
+
+
+def test_bom_frontmatter_is_opaque_to_translation_and_mdx_detection() -> None:
+    source = (
+        "\ufeff---\n"
+        "name: sample-skill\n"
+        'description: "{user.name}"\n'
+        "---\n\n"
+        "Keep this notice in the body.\n"
+    )
+
+    translated = translate_markdown(source, ReplaceAdapter(), "en", "fr")
+
+    assert translated.startswith("\ufeff---\n")
+    assert 'description: "{user.name}"' in translated
+    assert "Conservez cet avis in the body." in translated
+
+    mdx = (
+        "\ufeff---\n"
+        "name: sample-skill\n"
+        'description: "{user.name}"\n'
+        "---\n"
+        "import RealComponent from './RealComponent.jsx'\n"
+    )
+    locations = mdx_syntax_locations(mdx)
+
+    assert locations == [(5, "MDX module import/export syntax")]
+
+
 def test_mdx_syntax_is_detected_but_code_examples_are_ignored() -> None:
     text = """---
 name: sample-skill
@@ -81,6 +134,76 @@ import Alert from './Alert.jsx'
         "embedded JavaScript expression syntax",
     ]
     assert all(line >= 10 for line, _reason in locations)
+
+
+def test_markdown_ast_maps_nested_container_prose_but_not_code_or_frontmatter() -> None:
+    source = (
+        "\ufeff---\n"
+        "name: sample-skill\n"
+        'description: "Do not translate this metadata."\n'
+        "---\n"
+        "> - Keep the quoted item safe.\n"
+        ">   - Keep the nested item safe.\n"
+        "- Keep the parent item safe.\n"
+        "  - Keep the child item safe.\n"
+        "\n"
+        "~~~text\n"
+        "Keep this code unchanged.\n"
+        "~~~\n"
+    )
+
+    mapped = markdown_inline_line_numbers(source)
+
+    assert {5, 6, 7, 8} <= mapped
+    assert 1 not in mapped
+    assert 3 not in mapped
+    assert 11 not in mapped
+
+
+def test_nested_blockquote_and_list_prose_is_translated_without_changing_containers() -> None:
+    class NestedAdapter:
+        name = "nested-adapter"
+        remote = False
+
+        def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+            return (
+                text.replace("Keep the quoted item safe.", "Gardez l'élément cité en sécurité.")
+                .replace("Keep the nested item safe.", "Gardez l'élément imbriqué en sécurité.")
+                .replace("Keep the parent item safe.", "Gardez l'élément parent en sécurité.")
+                .replace("Keep the child item safe.", "Gardez l'élément enfant en sécurité.")
+            )
+
+    source = (
+        "> - Keep the quoted item safe.\n"
+        ">   - Keep the nested item safe.\n"
+        "- Keep the parent item safe.\n"
+        "  - Keep the child item safe.\n"
+    )
+
+    translated = translate_markdown(source, NestedAdapter(), "en", "fr")
+
+    assert translated.startswith(
+        "> - Gardez l'élément cité en sécurité.\n"
+        ">   - Gardez l'élément imbriqué en sécurité.\n"
+    )
+    assert "- Gardez l'élément parent en sécurité." in translated
+    assert "  - Gardez l'élément enfant en sécurité." in translated
+
+
+def test_mdx_syntax_fails_closed_in_direct_markdown_translation() -> None:
+    import pytest
+
+    source = "import Panel from './Panel.jsx'\n\n<Panel />\n"
+    with pytest.raises(RuntimeError, match="MDX-only syntax is not supported"):
+        translate_markdown(source, ReplaceAdapter(), "en", "fr")
+
+
+def test_mdx_detection_can_be_disabled_for_plain_text_or_restructured_text() -> None:
+    source = "import Panel from './Panel.jsx'\\n"
+    translated = translate_markdown(
+        source, ReplaceAdapter(), "en", "fr", detect_mdx=False,
+    )
+    assert translated == source
 
 
 def test_translation_preserves_footnotes_alerts_and_definition_lists() -> None:

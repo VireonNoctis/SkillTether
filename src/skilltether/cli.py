@@ -17,7 +17,7 @@ from .analysis import inspect_package, load_policy, normalize_package_root, pack
 from .compare import compare_packages, fingerprint_manifest, fingerprint_policy, load_invariant_manifest
 from .history import default_history_path, record_event
 from .models import Invariant, InvariantManifest
-from .report import read_json_report, verify_report_signature, write_json_report, write_markdown_report
+from .report import _redact_report, read_json_report, verify_report_signature, write_json_report, write_markdown_report
 from .signing import create_signing_key
 from .translation import HttpJsonAdapter, IdentityAdapter, translate_package
 from .locale_tags import validate_bcp47_tag
@@ -29,6 +29,68 @@ NUMBER_PATTERN = re.compile(
     re.I,
 )
 
+
+
+# Reviewer disposition fields are intentionally excluded from fresh-evidence comparison.
+# Their integrity is an optional HMAC concern; all machine-produced evidence is recomputed.
+_REVIEW_MUTABLE_FINDING_FIELDS = {"disposition", "reviewer", "review_note", "review_history"}
+
+
+def _approval_evidence_payload(report) -> dict:
+    """Return the immutable, machine-produced evidence used by the approval gate."""
+    # File-map keys are redacted on disk when they resemble credentials. Apply the
+    # same report sanitizer to a fresh comparison before comparing those maps.
+    normalized = _redact_report(report)
+    payload = {
+        "report_version": report.report_version,
+        "tool_version": report.tool_version,
+        "source_locale": report.source_locale,
+        "target_locale": report.target_locale,
+        "invariant_manifest_fingerprint": report.invariant_manifest_fingerprint,
+        "protected_policy_fingerprint": report.protected_policy_fingerprint,
+        "source_fingerprint": report.source_fingerprint,
+        "target_fingerprint": report.target_fingerprint,
+        "source_files": normalized.source_files,
+        "target_files": normalized.target_files,
+        "structural_status": report.structural_status,
+        "semantic_status": report.semantic_status,
+        "limitations": report.limitations,
+    }
+    findings = [
+        finding.model_dump(
+            mode="json",
+            exclude=_REVIEW_MUTABLE_FINDING_FIELDS,
+        )
+        for finding in report.findings
+    ]
+    payload["findings"] = sorted(
+        findings,
+        key=lambda item: (
+            item["id"],
+            json.dumps(item, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+        ),
+    )
+    return payload
+
+
+def _require_fresh_approval_evidence(
+    report, source: Path, target: Path, manifest: InvariantManifest | None,
+    policy_path: str | None,
+) -> None:
+    """Reject reports whose machine-generated evidence differs from a fresh comparison."""
+    current = compare_packages(
+        source,
+        target,
+        manifest,
+        target_locale=report.target_locale,
+        policy_path=policy_path,
+    )
+    if _approval_evidence_payload(report) != _approval_evidence_payload(current):
+        raise ValueError(
+            "Comparison report evidence does not match a fresh comparison of the current "
+            "packages, invariant manifest, and protected-token policy; rerun compare and "
+            "record review decisions against the regenerated report."
+        )
 
 
 def _manifest_arg(path_value: str | None, source: Path) -> InvariantManifest | None:
@@ -99,15 +161,28 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 
 def _suggest_invariants(source_root: Path, source_locale: str, target_locale: str | None) -> InvariantManifest:
-    _inventory, _findings, texts = inspect_package(source_root)
+    _inventory, package_findings, texts = inspect_package(source_root)
     if "SKILL.md" not in texts:
         raise ValueError("Cannot suggest invariants without a readable SKILL.md")
+    if any(
+        finding.path == "SKILL.md" and finding.code == "FRONTMATTER_INVALID"
+        for finding in package_findings
+    ):
+        raise ValueError("Cannot suggest invariants from malformed SKILL.md frontmatter")
     source_profile = language_profile(source_locale)
     suggestions: list[Invariant] = []
     fence_character: str | None = None
     fence_length = 0
     html_code_tag: str | None = None
-    for line_no, line in enumerate(texts["SKILL.md"].splitlines(), start=1):
+    skill_lines = texts["SKILL.md"].splitlines()
+    first_line = skill_lines[0].removeprefix("\ufeff") if skill_lines else ""
+    frontmatter_open = bool(first_line.strip() == "---")
+    frontmatter_closed = not frontmatter_open
+    for line_no, line in enumerate(skill_lines, start=1):
+        if not frontmatter_closed:
+            if line_no > 1 and line.strip() == "---":
+                frontmatter_closed = True
+            continue
         fence_match = re.match(r"^\s{0,3}(\x60{3,}|~{3,})", line)
         if fence_character is not None:
             if (
@@ -360,7 +435,7 @@ def cmd_approve(args: argparse.Namespace) -> int:
     _ensure_outputs_outside_packages(
         [output], [source, target], label="Approved output",
     )
-    report_path = Path(args.report).expanduser().resolve(strict=True)
+    report_path = Path(args.report).expanduser()
     if args.signing_key:
         _ensure_outputs_outside_packages(
             [Path(args.signing_key).expanduser()], [source, target, output],
@@ -388,15 +463,18 @@ def cmd_approve(args: argparse.Namespace) -> int:
         raise ValueError("Source package changed after comparison; rerun compare before approval")
     if _fingerprint_path(target) != report.target_fingerprint:
         raise ValueError("Candidate package changed after comparison; rerun compare before approval")
+    _require_fresh_approval_evidence(
+        report, source, target, current_manifest, args.policy,
+    )
     if report.structural_status != "pass":
         raise ValueError("Structural validation failed. Fix the package and rerun comparison before approval.")
     permanently_blocked = {
         "INVARIANT_MANIFEST_MISSING", "INVARIANT_MANIFEST_UNREVIEWED", "INVARIANT_NOT_HUMAN_REVIEWED",
-        "INVARIANT_SOURCE_REFERENCE_INVALID",
+        "INVARIANT_SOURCE_REFERENCE_INVALID", "INVARIANT_TARGET_REFERENCE_INVALID",
     }
     blocked = [finding for finding in report.findings if finding.code in permanently_blocked]
     if blocked:
-        raise ValueError("The invariant manifest is missing, unreviewed, or contains invalid source references; correct it and rerun comparison before approval.")
+        raise ValueError("The invariant manifest is missing, unreviewed, or contains invalid source/target references; correct it and rerun comparison before approval.")
     unresolved = [
         finding for finding in report.findings
         if (finding.requires_review or finding.severity == "critical")

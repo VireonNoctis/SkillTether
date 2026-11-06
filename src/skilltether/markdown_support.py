@@ -35,6 +35,43 @@ def walk_tokens(tokens: Iterable[Any]) -> Iterator[Any]:
             yield from walk_tokens(children)
 
 
+def markdown_inline_line_numbers(text: str) -> frozenset[int]:
+    """Return one-based source lines owned by Markdown inline AST nodes.
+
+    Frontmatter is kept opaque. Block-token source maps are inherited by nested
+    inline children where a Markdown extension omits a child map. Lines outside
+    inline nodes (fences, indented code, raw HTML blocks, reference definitions)
+    are not returned and therefore cannot accidentally become translation input.
+    """
+    lines = text.splitlines(keepends=True)
+    body_start = 0
+    first = lines[0].removeprefix("\ufeff").strip() if lines else ""
+    if first == "---":
+        closing = next(
+            (index for index in range(1, len(lines)) if lines[index].strip() == "---"),
+            None,
+        )
+        if closing is None:
+            return frozenset()
+        body_start = closing + 1
+    body = "".join(lines[body_start:])
+    selected: set[int] = set()
+
+    def visit(tokens: Iterable[Any], inherited_map: Any = None) -> None:
+        for token in tokens:
+            token_map = getattr(token, "map", None) or inherited_map
+            if getattr(token, "type", "") == "inline" and token_map:
+                start, end = token_map
+                for zero_based in range(max(0, start), min(end, len(lines) - body_start)):
+                    selected.add(body_start + zero_based + 1)
+            children = getattr(token, "children", None)
+            if children:
+                visit(children, token_map)
+
+    visit(create_markdown_parser().parse(body))
+    return frozenset(selected)
+
+
 def markdown_link_targets(text: str) -> list[tuple[str, str]]:
     """Return parsed link/image destinations, including nested/list/table content."""
     result: list[tuple[str, str]] = []
@@ -82,7 +119,7 @@ def _heading_slug(value: str) -> str:
 def markdown_heading_anchors(text: str) -> set[str]:
     """Return GitHub-style heading slugs, including duplicate-heading suffixes."""
     tokens = create_markdown_parser().parse(text)
-    seen: dict[str, int] = {}
+    next_suffix: dict[str, int] = {}
     anchors: set[str] = set()
     for index, token in enumerate(tokens[:-1]):
         if getattr(token, "type", "") != "heading_open":
@@ -93,9 +130,16 @@ def markdown_heading_anchors(text: str) -> set[str]:
         slug = _heading_slug(_inline_plain_text(getattr(inline, "children", None)))
         if not slug:
             continue
-        duplicate = seen.get(slug, 0)
-        seen[slug] = duplicate + 1
-        anchors.add(slug if duplicate == 0 else f"{slug}-{duplicate}")
+        candidate = slug
+        if candidate in anchors:
+            suffix = next_suffix.get(slug, 1)
+            while f"{slug}-{suffix}" in anchors:
+                suffix += 1
+            candidate = f"{slug}-{suffix}"
+            next_suffix[slug] = suffix + 1
+        else:
+            next_suffix.setdefault(slug, 1)
+        anchors.add(candidate)
     return anchors
 
 
@@ -116,7 +160,8 @@ def mdx_syntax_locations(text: str) -> list[tuple[int, str]]:
     This is a conservative unsupported-syntax detector, not a complete MDX parser.
     """
     lines = text.splitlines()
-    frontmatter_open = bool(lines and lines[0].strip() == "---")
+    first_line = lines[0].removeprefix("\ufeff") if lines else ""
+    frontmatter_open = bool(first_line.strip() == "---")
     frontmatter_closed = not frontmatter_open
     fence_marker: str | None = None
     fence_length = 0
