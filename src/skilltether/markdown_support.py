@@ -45,7 +45,7 @@ def markdown_inline_line_numbers(text: str) -> frozenset[int]:
     """
     lines = text.splitlines(keepends=True)
     body_start = 0
-    first = lines[0].removeprefix("\\ufeff").strip() if lines else ""
+    first = lines[0].removeprefix("\ufeff").strip() if lines else ""
     if first == "---":
         closing = next(
             (index for index in range(1, len(lines)) if lines[index].strip() == "---"),
