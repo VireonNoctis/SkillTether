@@ -54,7 +54,15 @@ def fingerprint_manifest(manifest: InvariantManifest | None) -> str | None:
     """Stable fingerprint of normalized manifest contracts and reviewer decisions."""
     if manifest is None:
         return None
-    payload = json.dumps(manifest.model_dump(mode="json"), ensure_ascii=False, sort_keys=True)
+    model_payload = manifest.model_dump(mode="json")
+    # Preserve historical fingerprints for v1 manifests that do not use the
+    # additive target-anchor fields. Explicit anchors remain fingerprinted.
+    for invariant in model_payload.get("invariants", []):
+        if invariant.get("target_lines") is None:
+            invariant.pop("target_lines", None)
+        if invariant.get("target_text") is None:
+            invariant.pop("target_text", None)
+    payload = json.dumps(model_payload, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
