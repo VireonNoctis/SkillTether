@@ -44,7 +44,7 @@ The Markdown transformer uses parser inline source maps to select prose lines, t
 
 ## Parse-only script syntax checks
 
-Selected Bash/sh, JavaScript, and PowerShell suffixes are checked only when a corresponding local executable is available. Source is passed through stdin to fixed syntax/parser-only arguments, with `shell=False`, a minimal environment, a three-second timeout, and a 16-file package budget. No script is executed and no parser is downloaded. This check is not a sandbox and does not model imports, runtime behavior, language dialects, or dependencies. Missing/timeout/budget findings are surfaced for reviewer action rather than counted as successful syntax validation.
+Selected Bash/sh, JavaScript, and PowerShell suffixes are checked only when a corresponding local executable is available. Source is passed through stdin to fixed syntax/parser-only arguments, with `shell=False`, a minimal environment, an eight-second timeout, and a 16-file package budget. No script is executed and no parser is downloaded. This check is not a sandbox and does not model imports, runtime behavior, language dialects, or dependencies. Missing/timeout/budget findings are surfaced for reviewer action rather than counted as successful syntax validation.
 
 ## Trust boundaries
 
