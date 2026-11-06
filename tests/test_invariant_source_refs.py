@@ -299,12 +299,20 @@ def test_optional_target_anchors_preserve_legacy_manifest_fingerprints() -> None
     assert fingerprint_manifest(anchored) != fingerprint_manifest(plain)
 
 
-def test_target_anchor_fields_must_be_paired() -> None:
+def test_target_anchor_fields_must_be_paired_and_human_reviewed() -> None:
     with pytest.raises(ValueError, match="target_lines and target_text must be supplied together"):
         Invariant(
             id="INV-TARGET-PAIR",
             statement="The target passage is reviewed.",
             target_lines=(8, 8),
+        )
+    with pytest.raises(ValueError, match="target context anchors require reviewed=true"):
+        Invariant(
+            id="INV-TARGET-UNREVIEWED",
+            statement="The target passage is not yet reviewed.",
+            target_lines=(8, 8),
+            target_text="A target excerpt.",
+            reviewer="qa-reviewer",
         )
 
 
@@ -327,9 +335,15 @@ def test_target_anchor_manifest_matches_json_schema_and_rejects_incomplete_pair(
     payload = manifest.model_dump(mode="json", exclude_none=True)
 
     validator.validate(payload)
-    payload["invariants"][0].pop("target_text")
+    incomplete = json.loads(json.dumps(payload))
+    incomplete["invariants"][0].pop("target_text")
     with pytest.raises(jsonschema.ValidationError):
-        validator.validate(payload)
+        validator.validate(incomplete)
+
+    unreviewed = json.loads(json.dumps(payload))
+    unreviewed["invariants"][0]["reviewed"] = False
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate(unreviewed)
 
 
 def test_approval_cannot_override_stale_target_reference(
