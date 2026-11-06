@@ -124,7 +124,7 @@ These checks require the current PR-head matrix to pass before being treated as 
 - This baseline predates the current PR #7 changes, including its added regional corpus, Unicode boundaries, local-path checks, approval-report symlink guard, CLI tests, and CI concurrency changes. Those additions require a successful check on the final PR head before merge.
 - Regression/property-based suite: **244 passed** on Ubuntu and macOS for Python 3.13 and 3.14; **239 passed, 5 skipped** on Windows for both Python versions. The five Windows skips are platform-specific filesystem/permission cases unavailable on that host.
 - Measured aggregate coverage: **86% on Linux and Windows**; the matrix reports coverage for all OS/Python jobs.
-- The multilingual fixture asserts **55 true positives, zero false positives, and zero false negatives** across eleven languages, with exact-match metrics also asserted separately for four rule categories. This describes the curated fixture only.
+- The pre-PR multilingual fixture asserted **30 true positives, zero false positives, and zero false negatives** across six languages, with exact-match metrics also asserted separately for four rule categories. This historical baseline describes the curated fixture available at that time only.
 - JSON Schema syntax checks, protected-token policy loading, bundled valid-skill fixtures, and the pinned `skills-ref@v0.0.1` valid/optional/invalid reference-conformance smoke job all passed.
 - CI enforces an 80% aggregate coverage floor on Linux only. Other jobs report coverage without a per-OS threshold; no per-module floors are enforced. Coverage is evidence of exercised code, not proof of correctness.
 
