@@ -123,6 +123,18 @@ The last fully verified baseline before the current PR #7 extension is [run 4103
 | Reviewed report compatibility | A valid review decision changes disposition/reviewer/note/history without changing machine evidence | Fresh-evidence check allows the reviewed decision and approval continues through structural and fingerprint gates |
 | Structural status classification | Non-string frontmatter key, invalid optional license type, malformed decoded local-link path, or invalid UTF-8 Markdown resource | `compare` reports structural failure; human disposition cannot waive it and `approve` refuses export |
 
+| Markdown inline AST eligibility | Prose appears in nested blockquote/list items alongside frontmatter and fenced code | Parser source maps identify prose lines for translation; nested container prefixes remain stable; frontmatter and code are not sent to adapters |
+| MDX direct translation | Markdown resource contains an MDX module import, JSX component, or embedded JavaScript expression outside a code example | Direct translation fails closed before adapter use; MDX source is not interpreted or executed |
+| Non-Markdown text containing import-like prose | A .txt or .rst resource contains a line beginning with an ordinary programming-language import form | MDX detection is disabled for non-Markdown resources; plain text is not rejected as MDX |
+| Local script parser | Bash/sh, JavaScript, or PowerShell script with a locally installed matching parser | Fixed syntax-only invocation receives source on stdin, uses shell=False, minimal environment, discarded stdout/stderr, and does not execute package source |
+| Missing local script parser | Script exists but no supported local parser executable is installed | Emit SCRIPT_SYNTAX_CHECK_UNAVAILABLE; no download, network request, or script execution |
+| Script parser error/timeout | Local syntax parser reports invalid syntax or exceeds its three-second timeout | Emit explicit invalid/incomplete finding with parser identity and uncertainty; do not persist parser diagnostics |
+| Script parser work budget | Package contains more than 16 parse-supported script resources | Launch at most 16 parser processes; emit one review-required budget finding for unchecked scripts |
+| Extended script suffixes | .cjs, .mjs, .psm1, and .psd1 files occur in a package | Include files in bounded text inventory and run the corresponding parser-only check when available |
+| Unicode decimal numeric invariant | Expected numeric limit 3 appears as Arabic-Indic, Extended Arabic-Indic, Devanagari, or fullwidth decimal digit | Normalize Unicode decimal digits and match the exact numeric literal; retain critical human sign-off |
+| Numeric boundary negative cases | Target has 13, 3.5, 3,5, 3rd, or -3 where the manifest expects 3 | Do not accept a partial numeric match; emit the required-token finding with deterministic evidence |
+| Cross-script target anchor | Human-reviewed target excerpt contains Arabic, Hindi, Japanese, Chinese, or Russian text and a localized decimal digit | Exact anchor identifies the corresponding target context without word-overlap or positional guessing; critical sign-off remains required |
+
 ## Evaluation protocol
 Create labelled source/target pairs with human-reviewed invariants. Measure precision and recall separately for each finding category. Include difficult negatives: synonyms that preserve meaning, quoted commands, example-only instructions, language-specific grammatical changes, and ambiguous sentences. Do not use a model's own confidence score as the sole ground truth.
 
