@@ -379,6 +379,44 @@ def test_numeric_invariant_matches_unicode_decimal_digit_scripts(
     assert critical.target_context == target_sentence
 
 
+@pytest.mark.parametrize("target_number", ["13", "3.5", "3,5", "3rd", "-3"])
+def test_numeric_invariant_does_not_accept_partial_or_changed_literals(
+    tmp_path: Path, target_number: str,
+) -> None:
+    source_sentence = "Do not exceed 3 retries."
+    target_sentence = f"Ne dépassez pas {target_number} tentatives."
+    source = make_package(tmp_path / "source" / "sample-skill", source_sentence)
+    target = make_package(tmp_path / "target" / "sample-skill", target_sentence)
+    target_lines = (target / "SKILL.md").read_text(encoding="utf-8").splitlines()
+    target_line = target_lines.index(target_sentence) + 1
+    invariant = Invariant(
+        id="INV-NUMERIC-BOUNDARY",
+        statement=source_sentence,
+        category="numeric_limit",
+        severity="critical",
+        source_path="SKILL.md",
+        source_lines=(8, 8),
+        source_text=source_sentence,
+        target_lines=(target_line, target_line),
+        target_text=target_sentence,
+        expected_numbers=["3"],
+        reviewed=True,
+        reviewer="qa-reviewer",
+    )
+
+    report = compare_packages(
+        source, target, reviewed_manifest(invariant), target_locale="fr",
+    )
+
+    missing = next(
+        finding for finding in report.findings
+        if finding.code == "INVARIANT_REQUIRED_TOKEN_MISSING"
+    )
+    assert missing.severity == "critical"
+    assert missing.analysis_method == "deterministic"
+    assert missing.uncertainty == "none"
+
+
 def test_target_anchor_fields_must_be_paired_and_human_reviewed() -> None:
     with pytest.raises(ValueError, match="target_lines and target_text must be supplied together"):
         Invariant(
