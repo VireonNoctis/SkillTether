@@ -131,12 +131,14 @@ These checks require the current PR-head matrix to pass before being treated as 
 This snapshot records the passing code/test head; documentation-only commits after it require their own CI run before merge.
 ## Current PR #7 verification (2026-11-06)
 
-- **Verified code/test head:** `1229600816ae3432c32029d6649d30a0f3e34c14`.
-- **CI:** [run 42179075834](https://github.com/VireonNoctis/SkillTether/actions/runs/42179075834) passed all seven jobs: Ubuntu/macOS/Windows with Python 3.13 and 3.14, plus pinned `skills-ref@v0.0.1` reference conformance.
-- **Tests:** 369 passed on each Ubuntu combination; 368 passed and one filesystem-dependent skip on each macOS combination; 364 passed and five platform-specific skips on each Windows combination.
+- **Verified code/test head:** `c3881bd9e27315e0fb5c8951714dac1414cc2ef4`.
+- **CI:** [run 42180192914](https://github.com/VireonNoctis/SkillTether/actions/runs/42180192914) passed all seven jobs: Ubuntu/macOS/Windows with Python 3.13 and 3.14, plus pinned `skills-ref@v0.0.1` reference conformance.
+- **Tests:** 375 passed on each Ubuntu combination; 374 passed and one filesystem-dependent skip on each macOS combination; 370 passed and five platform-specific skips on each Windows combination.
 - **Coverage:** 89% on Ubuntu; 88% on macOS and Windows. Linux's aggregate 80% floor passed. No per-module minimum is claimed.
-- **Repository health:** [run 42179075747](https://github.com/VireonNoctis/SkillTether/actions/runs/42179075747) passed.
-- These results validate the current PR head only; PR #7 remains open and must still be reviewed/merged before the default branch includes the changes.
+- **Repository health:** [run 42180192854](https://github.com/VireonNoctis/SkillTether/actions/runs/42180192854) passed.
+- The curated multilingual source-cue corpus now has 55 positive examples across eleven primary-language profiles; its perfect fixture metrics are not production accuracy estimates.
+- These results validate this PR head only; PR #7 remains open and must still be reviewed/merged before the default branch includes the changes.
+
 
 ## Acceptance gate
 
