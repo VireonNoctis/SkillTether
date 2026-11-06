@@ -703,6 +703,24 @@ def _normalize_decimal_digits(value: str) -> str:
     return "".join(normalized)
 
 
+_CJK_NUMERIC_COUNTERS = frozenset("回次個个本枚件人台つ度番分秒日月年歳才")
+
+
+def _is_cjk_letter(character: str) -> bool:
+    if not character:
+        return False
+    codepoint = ord(character)
+    return (
+        0x3400 <= codepoint <= 0x4DBF
+        or 0x4E00 <= codepoint <= 0x9FFF
+        or 0xF900 <= codepoint <= 0xFAFF
+        or 0x3040 <= codepoint <= 0x30FF
+        or 0x31F0 <= codepoint <= 0x31FF
+        or 0xAC00 <= codepoint <= 0xD7AF
+        or 0x20000 <= codepoint <= 0x2FA1F
+    )
+
+
 def _contains_decimal_literal(text: str, expected: str) -> bool:
     """Match an expected numeric literal across Unicode decimal-digit scripts.
 
@@ -722,7 +740,7 @@ def _contains_decimal_literal(text: str, expected: str) -> bool:
         left = normalized_text[found - 1] if found > 0 else ""
         right = normalized_text[end] if end < len(normalized_text) else ""
         left_continues_number = bool(left) and (
-            left.isalnum()
+            (left.isalnum() and not _is_cjk_letter(left))
             or left in "+-−"
             or (
                 left in ".,_٬٫"
@@ -731,8 +749,15 @@ def _contains_decimal_literal(text: str, expected: str) -> bool:
             )
         )
         right_continues_number = bool(right) and (
-            right.isalnum()
-            or right in "+-−"
+            (
+                right.isalnum()
+                and not (right in _CJK_NUMERIC_COUNTERS and _is_cjk_letter(right))
+            )
+            or (
+                right in "+-−"
+                and end + 1 < len(normalized_text)
+                and normalized_text[end + 1].isdecimal()
+            )
             or (
                 right in ".,_٬٫"
                 and end + 1 < len(normalized_text)
