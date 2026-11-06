@@ -63,7 +63,7 @@ BCP 47 tag structure is validated consistently across CLI/model/history surfaces
 ## Open research and engineering gaps
 
 1. Expand the multilingual labelled corpus beyond the six current profiles. Current exact-match metrics are reported by language and rule family on 30 curated positive examples, but dialect, regional, script, and real-world package coverage remain limited.
-2. Replace word-overlap and positional context heuristics with stronger evidence-linked multilingual alignment while preserving explicit uncertainty and reviewer control.
+2. Evaluate evidence-linked multilingual alignment beyond word overlap and positional fallback. Human-reviewed target excerpt anchors currently improve location evidence across scripts, but they require manual curation and do not prove meaning; expanding independently human-labelled examples and difficult negatives remains necessary.
 3. Evaluate fuller MDX support only with a parser that can safely model JSX/JavaScript syntax without executing it; current behavior flags obvious constructs and refuses to localize those files.
 4. Expand portability testing to additional normalization variants, network/removable filesystems, and platform-specific path semantics; the current path check covers common Windows name hazards and casefold/NFC collisions.
 5. Consider a typed component-based reviewer UI if the offline HTML workbench grows beyond its intentionally small scope.
