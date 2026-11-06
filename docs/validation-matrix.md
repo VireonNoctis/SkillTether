@@ -116,6 +116,10 @@ The last fully verified baseline before the current PR #7 extension is [run 4103
 | Terminal output | Finding contains ANSI/control characters and newlines | CLI output collapses control characters |
 | Schema conformance | Serialized report and negative enum payload are checked against Draft 2020-12 schema | Valid report passes, unsupported severity fails |
 
+| Fresh approval evidence | Unsigned report has a machine-generated finding removed or altered after comparison | Approval recomputes comparison and rejects the report before publishing any package |
+| Reviewed report compatibility | A valid review decision changes disposition/reviewer/note/history without changing machine evidence | Fresh-evidence check allows the reviewed decision and approval continues through structural and fingerprint gates |
+| Structural status classification | Non-string frontmatter key, invalid optional license type, malformed decoded local-link path, or invalid UTF-8 Markdown resource | `compare` reports structural failure; human disposition cannot waive it and `approve` refuses export |
+
 ## Evaluation protocol
 Create labelled source/target pairs with human-reviewed invariants. Measure precision and recall separately for each finding category. Include difficult negatives: synonyms that preserve meaning, quoted commands, example-only instructions, language-specific grammatical changes, and ambiguous sentences. Do not use a model's own confidence score as the sole ground truth.
 
