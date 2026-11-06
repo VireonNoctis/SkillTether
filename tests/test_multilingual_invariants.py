@@ -185,8 +185,30 @@ def test_language_profiles_are_selected_by_primary_bcp47_subtag(
     assert classify_candidate(text, profile) == category
 
 
+@pytest.mark.parametrize(
+    ("locale", "category", "expected_marker"),
+    [
+        ("ar", "negation", "لا"),
+        ("hi", "negation", "नहीं"),
+        ("ru", "negation", "не"),
+        ("ar", "mandatory_condition", "يجب"),
+        ("hi", "mandatory_condition", "अनिवार्य"),
+        ("ru", "mandatory_condition", "должен"),
+    ],
+)
+def test_additional_target_locales_provide_only_explicit_draft_markers(
+    locale: str, category: str, expected_marker: str,
+) -> None:
+    from skilltether.invariant_language import suggested_target_markers
+
+    negation, mandatory = suggested_target_markers(locale, category)
+    selected = negation if category == "negation" else mandatory
+    assert expected_marker in selected
+
+
 def test_unknown_language_profile_does_not_guess_invariant_candidates() -> None:
     from skilltether.invariant_language import classify_candidate, language_profile
 
     assert language_profile("ja") is None
+    assert language_profile("zh") is None
     assert classify_candidate("Never delete the source.", language_profile("en")) == "negation"
