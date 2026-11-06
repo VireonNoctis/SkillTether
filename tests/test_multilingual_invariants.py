@@ -82,16 +82,16 @@ def test_multilingual_invariant_suggestions_match_curated_corpus(tmp_path: Path)
         if negation is not None:
             assert negation["negation_markers"] == ["not", "never", "without", "cannot", "can't", "mustn't", "don't"]
 
-    assert aggregate == {"tp": 30, "fp": 0, "fn": 0}
+    assert aggregate == {"tp": 45, "fp": 0, "fn": 0}
     assert per_locale == {
         locale: {"tp": 5, "fp": 0, "fn": 0}
-        for locale in ("en", "fr", "es", "de", "pt", "it")
+        for locale in ("en", "fr", "es", "de", "pt", "it", "ar", "hi", "ru")
     }
     assert per_category == {
-        "negation": {"tp": 6, "fp": 0, "fn": 0},
-        "numeric_limit": {"tp": 12, "fp": 0, "fn": 0},
-        "precondition": {"tp": 6, "fp": 0, "fn": 0},
-        "mandatory_condition": {"tp": 6, "fp": 0, "fn": 0},
+        "negation": {"tp": 9, "fp": 0, "fn": 0},
+        "numeric_limit": {"tp": 18, "fp": 0, "fn": 0},
+        "precondition": {"tp": 9, "fp": 0, "fn": 0},
+        "mandatory_condition": {"tp": 9, "fp": 0, "fn": 0},
     }
     for metrics in per_category.values():
         assert metrics["tp"] / (metrics["tp"] + metrics["fp"]) == 1.0
@@ -169,6 +169,9 @@ def test_regional_document_fixture_preserves_expected_candidates_and_exclusions(
         ("de", "Du musst die Datei erhalten.", "mandatory_condition"),
         ("pt", "Não exclua o arquivo.", "negation"),
         ("it", "Devi conservare il file.", "mandatory_condition"),
+        ("ar-Arab", "يجب الحفاظ على الملف الأصلي.", "mandatory_condition"),
+        ("hi-Deva", "मूल फ़ाइल रखना अनिवार्य है।", "mandatory_condition"),
+        ("ru-Cyrl", "Вы должны сохранить исходный файл.", "mandatory_condition"),
     ],
 )
 def test_language_profiles_are_selected_by_primary_bcp47_subtag(
