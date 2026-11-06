@@ -11,16 +11,16 @@ def make_package(
     root: Path,
     *,
     frontmatter_extra: str = "",
-    body: str = "Follow the documented workflow.\\n",
+    body: str = "Follow the documented workflow.\n",
     extra_resources: dict[str, bytes] | None = None,
 ) -> Path:
     root.mkdir(parents=True)
     (root / "SKILL.md").write_text(
-        "---\\n"
-        f"name: {root.name}\\n"
-        "description: A structural validation fixture.\\n"
+        "---\n"
+        f"name: {root.name}\n"
+        "description: A structural validation fixture.\n"
         f"{frontmatter_extra}"
-        "---\\n\\n"
+        "---\n\n"
         f"{body}",
         encoding="utf-8",
     )
@@ -34,10 +34,10 @@ def make_package(
 @pytest.mark.parametrize(
     ("frontmatter_extra", "body", "extra_resources", "expected_code"),
     [
-        ("7: invalid-extension-key\\n", "Instructions.\\n", None, "FRONTMATTER_KEY_INVALID"),
-        ("license: [MIT]\\n", "Instructions.\\n", None, "LICENSE_INVALID"),
-        ("", "Instructions.\\n", {"references/bad.md": b"invalid UTF-8: \\xff"}, "TEXT_RESOURCE_NOT_UTF8"),
-        ("", "See [invalid](%00).\\n", None, "LOCAL_LINK_PATH_INVALID"),
+        ("7: invalid-extension-key\n", "Instructions.\n", None, "FRONTMATTER_KEY_INVALID"),
+        ("license: [MIT]\n", "Instructions.\n", None, "LICENSE_INVALID"),
+        ("", "Instructions.\n", {"references/bad.md": b"invalid UTF-8: \xff"}, "TEXT_RESOURCE_NOT_UTF8"),
+        ("", "See [invalid](%00).\n", None, "LOCAL_LINK_PATH_INVALID"),
     ],
 )
 def test_structural_validation_errors_cannot_become_review_only_findings(
