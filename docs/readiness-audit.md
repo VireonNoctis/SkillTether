@@ -1,6 +1,6 @@
 # Requirements-to-code readiness audit
 
-**Audit date:** 2026-10-30  
+**Original audit date:** 2026-10-30  
 **Scope:** implementation and regression fixtures on `feat/multilingual-reviewer-and-markdown-hardening` at code/test head `bf2698d72d70e311b95d5fb948b64ed9ddc73464` (2026-10-30), including the CLI, shared Markdown parser, Pydantic models, schemas, comparison and translation paths, offline reviewer workbench, path portability checks, test fixtures, and CI.  
 **Normative reference:** [official Agent Skills specification](https://agentskills.io/specification), checked on the audit date; [RFC 5646 / BCP 47](https://www.rfc-editor.org/rfc/rfc5646).
 
@@ -88,6 +88,17 @@ These additions are implemented on PR #7 and require a successful current-head C
 
 - **Human-curated target anchors:** invariant manifests can now pair `target_lines` with `target_text` to identify the exact localized excerpt. The comparator checks the excerpt against the candidate, reports stale anchors as deterministic critical findings, and approval blocks them even after a disposition is recorded. This improves reviewer evidence in cross-script translations; it does not perform semantic alignment or replace human review.
 
+## Current PR #7 continuation (2026-11-06)
+
+The following incremental capabilities now have implementation and focused regression coverage on the active hardening branch. They remain deliberately bounded and do not establish semantic equivalence.
+
+- **AST-informed Markdown translation eligibility:** markdown_support.py:markdown_inline_line_numbers uses the shared Markdown parser's inline token source maps to identify body lines eligible for translation. The translator preserves frontmatter, non-inline blocks, code, and nested list/blockquote prefixes. Detected MDX-only syntax fails closed for Markdown resources. This is line-level AST gating plus lexical placeholder restoration, not a complete source-preserving CommonMark/MDX AST transform.
+- **Optional parse-only script syntax checks:** static_analysis.py:check_script_syntax uses only already-installed Bash/sh, Node.js, or PowerShell parsers. Source is passed on stdin to fixed parser-only options; shell=False, a minimal environment, discarded parser output, a three-second timeout, and a maximum of 16 files per package bound the work. Missing parsers, syntax errors, timeouts, and exceeded budgets produce explicit findings. No package script is executed and no parser is downloaded. TypeScript, batch files, runtime semantics, imports/dependencies, and shell portability are not validated.
+- **Unicode decimal limits:** expected numeric literals normalize Unicode decimal digits (Nd) to ASCII before exact boundary matching. This recognizes decimal digits across several scripts while rejecting partial values such as 13, 3.5, 3,5, 3rd, and -3 when the expected token is the positive literal 3. Number words, unit conversions, and locale-specific punctuation equivalence are not inferred.
+- **Cross-script anchored examples:** parameterized human-reviewed target excerpts cover Arabic, Hindi, Japanese, Chinese, and Russian text/digits. These fixtures validate evidence location and numeric literal matching; they do not rate translation fluency or semantic equivalence.
+
+These checks require the current PR-head matrix to pass before being treated as verified release evidence.
+
 ## Highest-priority remaining work
 
 ### P1 — Release correctness
@@ -99,10 +110,10 @@ These additions are implemented on PR #7 and require a successful current-head C
 - Extend the pinned skills-ref v0.0.1 differential corpus as new normative edge cases appear. The current CI covers optional fields, Unicode and maximum-length name cases, description/compatibility limits, and the explicit unknown-extension policy divergence. Keep the reference tool CI-only and non-mandatory at runtime.
 - Continue targeted branch coverage in the CLI and package analysis modules using the new root, symlink-directory, file-count, unknown-locale, and provider-consent cases. Re-check per-module branch coverage from the latest CI logs; an aggregate floor does not guarantee that every risky branch is exercised.
 - CI now runs the suite on Ubuntu, macOS, and Windows with Python 3.13 and 3.14. Add future supported Python minor versions and test additional filesystem configurations before claiming broad platform coverage.
-- Improve Markdown reference/link/slug edge cases and specify exactly which Markdown dialects are supported. Full MDX parsing and transformation remain unsupported; the current detector only fails closed on obvious MDX syntax.
+- Continue Markdown reference/link/slug edge cases and document supported dialects. The translator uses AST source maps to gate prose lines and refuses detected MDX-only syntax, but a complete source-preserving CommonMark/MDX AST transform remains unsupported.
 
 ### P3 — Deliberately not a release promise
-- Full semantic-equivalence detection, automatic approval, complete shell/JavaScript/PowerShell parsing, full MDX AST transformation, registry-backed locale canonicalization, online URL reachability, and automatic protected-token rename mappings remain unsupported. The reviewer UI is a minimal offline HTML workbench; a larger component-based application is not part of this milestone.
+- Full semantic-equivalence detection, automatic approval, complete shell/JavaScript/PowerShell semantic/runtime analysis, TypeScript/batch parsing, full MDX AST transformation, registry-backed locale canonicalization, online URL reachability, and automatic protected-token rename mappings remain unsupported. The new script adapters are parse-only and never execute package scripts. The reviewer UI is a minimal offline HTML workbench; a larger component-based application is not part of this milestone.
 
 ## Last verified baseline before the current PR #7 extension
 
