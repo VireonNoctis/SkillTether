@@ -468,9 +468,18 @@ def compare_packages(
                     uncertainty="high",
                 ))
 
+            numeric_expectations = set(invariant.expected_numbers)
             for expected in dict.fromkeys(invariant.required_tokens + invariant.expected_numbers):
-                missing_from_document = expected not in target_doc
-                missing_from_context = not target_context or expected not in target_context
+                if expected in numeric_expectations:
+                    present_in_document = _contains_decimal_literal(target_doc, expected)
+                    present_in_context = bool(
+                        target_context and _contains_decimal_literal(target_context, expected)
+                    )
+                else:
+                    present_in_document = expected in target_doc
+                    present_in_context = bool(target_context and expected in target_context)
+                missing_from_document = not present_in_document
+                missing_from_context = not present_in_context
                 if expected and (missing_from_document or missing_from_context):
                     findings.append(new_finding(
                         "INVARIANT_REQUIRED_TOKEN_MISSING", invariant.severity, "semantic_invariant",
@@ -678,6 +687,43 @@ def compare_packages(
 
 def _normalized_marker_text(value: str) -> str:
     return re.sub(r"\s+", " ", unicodedata.normalize("NFC", value).casefold()).strip()
+
+
+def _normalize_decimal_digits(value: str) -> str:
+    """Map Unicode decimal digits (category Nd) to ASCII without changing separators."""
+    normalized: list[str] = []
+    for character in value:
+        if unicodedata.category(character) == "Nd":
+            try:
+                normalized.append(str(unicodedata.digit(character)))
+                continue
+            except (TypeError, ValueError):
+                pass
+        normalized.append(character)
+    return "".join(normalized)
+
+
+def _contains_decimal_literal(text: str, expected: str) -> bool:
+    """Match an expected numeric literal across Unicode decimal-digit scripts.
+
+    Grouping/decimal punctuation and units remain exact. This intentionally does
+    not infer number words, convert units, or equate locale-specific separators.
+    """
+    normalized_text = _normalize_decimal_digits(text)
+    normalized_expected = _normalize_decimal_digits(expected)
+    if not normalized_expected:
+        return False
+    cursor = 0
+    while True:
+        found = normalized_text.find(normalized_expected, cursor)
+        if found < 0:
+            return False
+        end = found + len(normalized_expected)
+        left_is_digit = found > 0 and normalized_text[found - 1].isdecimal()
+        right_is_digit = end < len(normalized_text) and normalized_text[end].isdecimal()
+        if not left_is_digit and not right_is_digit:
+            return True
+        cursor = found + 1
 
 
 def _contains_any_marker(text: str, markers: list[str]) -> bool:
