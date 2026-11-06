@@ -20,6 +20,7 @@ from .markdown_support import markdown_heading_anchors, markdown_link_targets, m
 from .yamlio import safe_load_unique
 from .safeio import read_bounded_regular_file
 from .regex_safety import validate_policy_regex
+from .static_analysis import check_script_syntax
 
 from .models import FileFingerprint, ProtectedToken, new_finding
 
@@ -384,6 +385,7 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
                     uncertainty="low",
                 ))
         findings.extend(validate_resource_syntax(rel, text))
+        findings.extend(validate_script_syntax(rel, text))
         if Path(rel).suffix.lower() in TEXT_SUFFIXES:
             findings.extend(validate_local_links(root_path, rel, text, text_snapshot=texts))
         findings.extend(validate_referenced_resources(root_path, rel, text, findings))
@@ -634,6 +636,48 @@ def validate_local_links(
                     path=rel_path, proposed_change="Update the fragment or restore the referenced heading/anchor.",
                 ))
     return findings
+
+
+def validate_script_syntax(rel_path: str, text: str) -> list:
+    """Apply available parse-only checks without executing package scripts."""
+    result = check_script_syntax(rel_path, text)
+    if result is None:
+        return []
+    if result.status == "valid":
+        return []
+    if result.status == "unavailable":
+        return [new_finding(
+            "SCRIPT_SYNTAX_CHECK_UNAVAILABLE", "info", "resource_validation",
+            f"No local {result.parser} parser is installed; {rel_path!r} was not syntax-checked.",
+            "No parser was launched and no syntax-validity claim is made for this script. Install the relevant local parser to enable this check; SkillTether never downloads parsers.",
+            path=rel_path,
+            proposed_change="Run a trusted parser for this script language in your local toolchain and review its result.",
+            requires_review=False,
+            analysis_method="deterministic",
+            uncertainty="high",
+        )]
+    if result.status == "invalid":
+        return [new_finding(
+            "SCRIPT_SYNTAX_INVALID", "high", "resource_validation",
+            f"The local {result.parser} parser rejected {rel_path!r} in parse-only mode.",
+            "The parser reported syntax errors. Parser dialect/version differences can cause false positives, so the result is a reviewable static finding rather than a claim about runtime behavior.",
+            path=rel_path,
+            proposed_change="Review the parser diagnostics locally and correct the script or document the required language dialect before approval.",
+            requires_review=True,
+            analysis_method="deterministic",
+            uncertainty="low",
+            severity_rationale="A local syntax-only parser rejected the source; the check did not execute the script, and dialect-specific differences remain possible.",
+        )]
+    return [new_finding(
+        "SCRIPT_SYNTAX_CHECK_INCOMPLETE", "medium", "resource_validation",
+        f"The local {result.parser} parser could not complete the syntax check for {rel_path!r} ({result.status}).",
+        "A timeout or parser-launch error means syntax validity remains unknown; the script was not executed.",
+        path=rel_path,
+        proposed_change="Check the script with a trusted local parser and review the result before approval.",
+        requires_review=True,
+        analysis_method="deterministic",
+        uncertainty="high",
+    )]
 
 
 def validate_resource_syntax(rel_path: str, text: str) -> list:
