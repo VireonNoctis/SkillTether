@@ -186,6 +186,99 @@
         "Il servizio ha 3 porte.",
         "La versione 4 è disponibile."
       ]
+    },
+    {
+      "locale": "ar",
+      "body": "لا تحذف الملف المصدر.\nبحد أقصى ٣ محاولات مسموح بها.\nاستخدم ٣ محاولات عند فشل الطلب.\nنفّذ هذه الخطوة فقط إذا كان ملف الإعداد موجودًا.\nيجب الحفاظ على ترتيب الملفات الأصلي.\nيحتوي الملف على ٣ صفحات.\nتم إصدار النسخة في ٤ مارس.\n~~~sh\nلا تحذف الملف المصدر في هذا المثال.\n~~~\n",
+      "expected_candidates": [
+        {
+          "source_text": "لا تحذف الملف المصدر.",
+          "category": "negation"
+        },
+        {
+          "source_text": "بحد أقصى ٣ محاولات مسموح بها.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "استخدم ٣ محاولات عند فشل الطلب.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "نفّذ هذه الخطوة فقط إذا كان ملف الإعداد موجودًا.",
+          "category": "precondition"
+        },
+        {
+          "source_text": "يجب الحفاظ على ترتيب الملفات الأصلي.",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "يحتوي الملف على ٣ صفحات.",
+        "تم إصدار النسخة في ٤ مارس.",
+        "لا تحذف الملف المصدر في هذا المثال."
+      ]
+    },
+    {
+      "locale": "hi",
+      "body": "मूल फ़ाइल को कभी नहीं हटाएँ।\nअधिकतम ३ प्रयास अनुमत हैं।\nअनुरोध विफल होने पर ३ बार पुनः प्रयास करें।\nयह चरण केवल तभी चलाएँ जब कॉन्फ़िगरेशन फ़ाइल मौजूद हो।\nआपको मूल क्रम बनाए रखना अनिवार्य है।\nसेवा में ३ पोर्ट हैं।\nसंस्करण ४ उपलब्ध है।\n~~~sh\nमूल फ़ाइल को कभी नहीं हटाएँ।\n~~~\n",
+      "expected_candidates": [
+        {
+          "source_text": "मूल फ़ाइल को कभी नहीं हटाएँ।",
+          "category": "negation"
+        },
+        {
+          "source_text": "अधिकतम ३ प्रयास अनुमत हैं।",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "अनुरोध विफल होने पर ३ बार पुनः प्रयास करें।",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "यह चरण केवल तभी चलाएँ जब कॉन्फ़िगरेशन फ़ाइल मौजूद हो।",
+          "category": "precondition"
+        },
+        {
+          "source_text": "आपको मूल क्रम बनाए रखना अनिवार्य है।",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "सेवा में ३ पोर्ट हैं.",
+        "संस्करण ४ उपलब्ध है।",
+        "मूल फ़ाइल को कभी नहीं हटाएँ।"
+      ]
+    },
+    {
+      "locale": "ru",
+      "body": "Никогда не удаляйте исходный файл.\nНе более 3 попыток разрешено.\nИспользуйте 3 повтора при ошибке запроса.\nВыполняйте этот шаг только если файл конфигурации существует.\nВы должны сохранить исходный порядок.\nСервис имеет 3 порта.\nВерсия 4 доступна.\n~~~sh\nНикогда не удаляйте исходный файл в этом примере.\n~~~\n",
+      "expected_candidates": [
+        {
+          "source_text": "Никогда не удаляйте исходный файл.",
+          "category": "negation"
+        },
+        {
+          "source_text": "Не более 3 попыток разрешено.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Используйте 3 повтора при ошибке запроса.",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "Выполняйте этот шаг только если файл конфигурации существует.",
+          "category": "precondition"
+        },
+        {
+          "source_text": "Вы должны сохранить исходный порядок.",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "Сервис имеет 3 порта.",
+        "Версия 4 доступна.",
+        "Никогда не удаляйте исходный файл в этом примере."
+      ]
     }
   ],
   "limitations": "Exact matches and exclusions on this small curated corpus are regression metrics only. They do not imply multilingual precision or recall outside these examples, dialects, or constructions."
