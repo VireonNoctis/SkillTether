@@ -17,7 +17,7 @@ from .analysis import inspect_package, load_policy, normalize_package_root, pack
 from .compare import compare_packages, fingerprint_manifest, fingerprint_policy, load_invariant_manifest
 from .history import default_history_path, record_event
 from .models import Invariant, InvariantManifest
-from .report import read_json_report, verify_report_signature, write_json_report, write_markdown_report
+from .report import _redact_report, read_json_report, verify_report_signature, write_json_report, write_markdown_report
 from .signing import create_signing_key
 from .translation import HttpJsonAdapter, IdentityAdapter, translate_package
 from .locale_tags import validate_bcp47_tag
@@ -38,6 +38,9 @@ _REVIEW_MUTABLE_FINDING_FIELDS = {"disposition", "reviewer", "review_note", "rev
 
 def _approval_evidence_payload(report) -> dict:
     """Return the immutable, machine-produced evidence used by the approval gate."""
+    # File-map keys are redacted on disk when they resemble credentials. Apply the
+    # same report sanitizer to a fresh comparison before comparing those maps.
+    normalized = _redact_report(report)
     payload = {
         "report_version": report.report_version,
         "tool_version": report.tool_version,
@@ -47,6 +50,8 @@ def _approval_evidence_payload(report) -> dict:
         "protected_policy_fingerprint": report.protected_policy_fingerprint,
         "source_fingerprint": report.source_fingerprint,
         "target_fingerprint": report.target_fingerprint,
+        "source_files": normalized.source_files,
+        "target_files": normalized.target_files,
         "structural_status": report.structural_status,
         "semantic_status": report.semantic_status,
         "limitations": report.limitations,
