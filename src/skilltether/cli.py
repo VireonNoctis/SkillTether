@@ -31,6 +31,63 @@ NUMBER_PATTERN = re.compile(
 
 
 
+# Reviewer disposition fields are intentionally excluded from fresh-evidence comparison.
+# Their integrity is an optional HMAC concern; all machine-produced evidence is recomputed.
+_REVIEW_MUTABLE_FINDING_FIELDS = {"disposition", "reviewer", "review_note", "review_history"}
+
+
+def _approval_evidence_payload(report) -> dict:
+    """Return the immutable, machine-produced evidence used by the approval gate."""
+    payload = {
+        "report_version": report.report_version,
+        "tool_version": report.tool_version,
+        "source_locale": report.source_locale,
+        "target_locale": report.target_locale,
+        "invariant_manifest_fingerprint": report.invariant_manifest_fingerprint,
+        "protected_policy_fingerprint": report.protected_policy_fingerprint,
+        "source_fingerprint": report.source_fingerprint,
+        "target_fingerprint": report.target_fingerprint,
+        "structural_status": report.structural_status,
+        "semantic_status": report.semantic_status,
+        "limitations": report.limitations,
+    }
+    findings = [
+        finding.model_dump(
+            mode="json",
+            exclude=_REVIEW_MUTABLE_FINDING_FIELDS,
+        )
+        for finding in report.findings
+    ]
+    payload["findings"] = sorted(
+        findings,
+        key=lambda item: (
+            item["id"],
+            json.dumps(item, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+        ),
+    )
+    return payload
+
+
+def _require_fresh_approval_evidence(
+    report, source: Path, target: Path, manifest: InvariantManifest | None,
+    policy_path: str | None,
+) -> None:
+    """Reject reports whose machine-generated evidence differs from a fresh comparison."""
+    current = compare_packages(
+        source,
+        target,
+        manifest,
+        target_locale=report.target_locale,
+        policy_path=policy_path,
+    )
+    if _approval_evidence_payload(report) != _approval_evidence_payload(current):
+        raise ValueError(
+            "Comparison report evidence does not match a fresh comparison of the current "
+            "packages, invariant manifest, and protected-token policy; rerun compare and "
+            "record review decisions against the regenerated report."
+        )
+
+
 def _manifest_arg(path_value: str | None, source: Path) -> InvariantManifest | None:
     if path_value:
         return load_invariant_manifest(path_value)
@@ -401,6 +458,9 @@ def cmd_approve(args: argparse.Namespace) -> int:
         raise ValueError("Source package changed after comparison; rerun compare before approval")
     if _fingerprint_path(target) != report.target_fingerprint:
         raise ValueError("Candidate package changed after comparison; rerun compare before approval")
+    _require_fresh_approval_evidence(
+        report, source, target, current_manifest, args.policy,
+    )
     if report.structural_status != "pass":
         raise ValueError("Structural validation failed. Fix the package and rerun comparison before approval.")
     permanently_blocked = {
