@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from skilltether.compare import compare_packages
 from skilltether.models import Invariant, InvariantManifest
 
