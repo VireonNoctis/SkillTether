@@ -266,6 +266,39 @@ def test_stale_target_anchor_is_a_deterministic_critical_blocker(
     assert finding.requires_review is True
 
 
+def test_optional_target_anchors_preserve_legacy_manifest_fingerprints() -> None:
+    import hashlib
+    import json
+
+    from skilltether.compare import fingerprint_manifest
+
+    plain = reviewed_manifest(Invariant(
+        id="INV-FINGERPRINT",
+        statement="Preserve existing manifest fingerprints.",
+        reviewed=True,
+        reviewer="qa-reviewer",
+    ))
+    anchored = reviewed_manifest(Invariant(
+        id="INV-FINGERPRINT",
+        statement="Preserve existing manifest fingerprints.",
+        target_lines=(8, 8),
+        target_text="Localized excerpt.",
+        reviewed=True,
+        reviewer="qa-reviewer",
+    ))
+
+    legacy_shape = plain.model_dump(mode="json")
+    for invariant in legacy_shape["invariants"]:
+        invariant.pop("target_lines", None)
+        invariant.pop("target_text", None)
+    expected_legacy = hashlib.sha256(
+        json.dumps(legacy_shape, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+    assert fingerprint_manifest(plain) == expected_legacy
+    assert fingerprint_manifest(anchored) != fingerprint_manifest(plain)
+
+
 def test_target_anchor_fields_must_be_paired() -> None:
     with pytest.raises(ValueError, match="target_lines and target_text must be supplied together"):
         Invariant(
