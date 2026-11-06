@@ -81,7 +81,7 @@ def test_unknown_language_writes_empty_unreviewed_manifest(
 
     status = main([
         "init-manifest", str(source), "--out", str(output),
-        "--source-locale", "ja",
+        "--source-locale", "zz-Latn",
     ])
 
     assert status == 0
