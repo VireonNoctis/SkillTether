@@ -198,6 +198,14 @@ def test_mdx_syntax_fails_closed_in_direct_markdown_translation() -> None:
         translate_markdown(source, ReplaceAdapter(), "en", "fr")
 
 
+def test_mdx_detection_can_be_disabled_for_plain_text_or_restructured_text() -> None:
+    source = "import Panel from './Panel.jsx'\\n"
+    translated = translate_markdown(
+        source, ReplaceAdapter(), "en", "fr", detect_mdx=False,
+    )
+    assert translated == source
+
+
 def test_translation_preserves_footnotes_alerts_and_definition_lists() -> None:
     text = """# Guide
 
