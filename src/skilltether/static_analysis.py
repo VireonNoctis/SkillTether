@@ -60,7 +60,7 @@ def check_script_syntax(
     path: str | Path,
     source: str,
     *,
-    timeout_seconds: float = 3.0,
+    timeout_seconds: float = 8.0,
 ) -> ScriptSyntaxResult | None:
     """Return static syntax status for supported script suffixes, or None otherwise."""
     suffix = Path(path).suffix.lower()
