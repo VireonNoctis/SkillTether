@@ -279,6 +279,68 @@
         "Версия 4 доступна.",
         "Никогда не удаляйте исходный файл в этом примере."
       ]
+    },
+    {
+      "locale": "ja",
+      "body": "ソースファイルを決して削除しないでください。\n最大３回まで再試行できます。\n要求が失敗した場合は３回再試行してください。\n設定ファイルが存在する場合に限り、この手順を実行してください。\n元のファイル順序を必ず保持してください。\nサービスには３つのポートがあります。\nリリースは４月に公開されました。\n~~~text\nソースファイルを決して削除しないでください。これはコード例です。\n~~~\n",
+      "expected_candidates": [
+        {
+          "source_text": "ソースファイルを決して削除しないでください。",
+          "category": "negation"
+        },
+        {
+          "source_text": "最大３回まで再試行できます。",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "要求が失敗した場合は３回再試行してください。",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "設定ファイルが存在する場合に限り、この手順を実行してください。",
+          "category": "precondition"
+        },
+        {
+          "source_text": "元のファイル順序を必ず保持してください。",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "サービスには３つのポートがあります。",
+        "リリースは４月に公開されました。",
+        "ソースファイルを決して削除しないでください。これはコード例です。"
+      ]
+    },
+    {
+      "locale": "zh",
+      "body": "请勿删除源文件。\n最多允许３次重试。\n请求失败时请重试３次。\n仅当配置文件存在时才执行此步骤。\n必须保留原始文件顺序。\n服务有３个端口。\n版本４已发布。\n~~~text\n请勿删除源文件，以下仅为示例。\n~~~\n",
+      "expected_candidates": [
+        {
+          "source_text": "请勿删除源文件。",
+          "category": "negation"
+        },
+        {
+          "source_text": "最多允许３次重试。",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "请求失败时请重试３次。",
+          "category": "numeric_limit"
+        },
+        {
+          "source_text": "仅当配置文件存在时才执行此步骤。",
+          "category": "precondition"
+        },
+        {
+          "source_text": "必须保留原始文件顺序。",
+          "category": "mandatory_condition"
+        }
+      ],
+      "expected_exclusions": [
+        "服务有３个端口。",
+        "版本４已发布。",
+        "请勿删除源文件，以下仅为示例。"
+      ]
     }
   ],
   "limitations": "Exact matches and exclusions on this small curated corpus are regression metrics only. They do not imply multilingual precision or recall outside these examples, dialects, or constructions."
