@@ -124,7 +124,7 @@ PROFILES: dict[str, InvariantLanguageProfile] = {
     ),
     "hi": _profile(
         "hi",
-        negation=r"(?:कभी\s+नहीं|नहीं|बिना|मत)",
+        negation=r"(?:कभी\s+नहीं|नहीं|बिना|(?<!\S)मत(?!\S))",
         mandatory=r"(?:अवश्य|अनिवार्य|ज़रूरी|जरूरी|चाहिए)",
         conditional=r"(?:केवल\s+तभी\s+जब|सिर्फ\s+तभी\s+जब|जब\s+तक|पहले|बाद|यदि|अगर)",
         numeric_limit=r"(?:कम\s+से\s+कम|अधिकतम|न्यूनतम|से\s+अधिक\s+नहीं|ज्यादा\s+से\s+ज्यादा)",
