@@ -10,7 +10,7 @@ Inventory package → validate metadata/resources → identify protected spans �
 
 - **Implemented:** Python 3.13+ CLI; PyYAML and markdown-it-py parsing; Pydantic models and JSON Schema contracts; provider-neutral translation adapters; dependency-free BCP 47 structural checks; pytest/Hypothesis regression tests; GitHub Actions CI.
 - **Implemented, optional:** SQLite run history stores metadata and package fingerprints without document-text columns.
-- **Implemented, deliberately bounded:** local package inventory, safe I/O/output guards, Windows/case/Unicode path-portability findings, protected-token policy, GFM-like/Pandoc Markdown parsing, MDX unsupported-syntax detection, Markdown syntax masking, structural comparison, six-language heuristic invariant suggestions, positional context fallback, audit reports, optional HMAC-SHA256 sealing, and an offline HTML review workbench.
+- **Implemented, deliberately bounded:** local package inventory, safe I/O/output guards, Windows/case/Unicode path-portability findings, protected-token policy, GFM-like/Pandoc Markdown parsing with AST source-map line gating, fail-closed MDX unsupported-syntax detection, Markdown syntax masking, bounded parse-only Bash/sh/JavaScript/PowerShell checks where local tools exist, Unicode decimal-digit numeric matching, human-curated target anchors, structural comparison, six-language heuristic invariant suggestions, positional context fallback, audit reports, optional HMAC-SHA256 sealing, and an offline HTML review workbench.
 - **Deferred:** Svelte + TypeScript review UI, vendor-specific SDK integrations, automatic protected-token rename mappings, and full semantic-equivalence analysis.
 - **Not claimed:** canonicalization or IANA registry membership for language tags, online link reachability, complete shell/JavaScript/PowerShell parsing, or full CommonMark/MDX AST transformation.
 
@@ -40,7 +40,11 @@ The parser profile covers CommonMark plus GFM-like tables, strikethrough, task l
 
 The core uses a narrow `TranslationAdapter` interface. The identity adapter is local and does not translate. The generic JSON HTTP adapter requires an explicit endpoint and `--allow-remote`; the CLI performs a whole-package preflight before the first request and enforces request/response budgets. Provider failures, malformed results, control characters, placeholder violations, and detected Markdown structure changes must not publish a partial candidate.
 
-The Markdown transformer uses lexical masks and placeholders for supported syntax and keeps selected opaque regions unchanged. A parser-visible structure signature detects many inserted or removed links, emphasis, lists, headings, code blocks, and tables. It intentionally ignores ordinary prose text. This is a structural guard, not a full CommonMark/MDX AST transformer and not a semantic-equivalence score.
+The Markdown transformer uses parser inline source maps to select prose lines, then lexical masks and placeholders to preserve supported syntax and selected opaque regions. Nested list/blockquote prefixes remain in the untranslated source wrapper. A parser-visible structure signature detects many inserted or removed links, emphasis, lists, headings, code blocks, and tables. It intentionally ignores ordinary prose text. This is AST-informed eligibility gating, not a complete source-preserving CommonMark/MDX AST transformation and not a semantic-equivalence score. Obvious MDX-only constructs are rejected by the direct translator rather than translated as Markdown.
+
+## Parse-only script syntax checks
+
+Selected Bash/sh, JavaScript, and PowerShell suffixes are checked only when a corresponding local executable is available. Source is passed through stdin to fixed syntax/parser-only arguments, with `shell=False`, a minimal environment, a three-second timeout, and a 16-file package budget. No script is executed and no parser is downloaded. This check is not a sandbox and does not model imports, runtime behavior, language dialects, or dependencies. Missing/timeout/budget findings are surfaced for reviewer action rather than counted as successful syntax validation.
 
 ## Trust boundaries
 
