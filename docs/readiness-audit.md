@@ -117,7 +117,7 @@ These checks require the current PR-head matrix to pass before being treated as 
 ### P3 — Deliberately not a release promise
 - Full semantic-equivalence detection, automatic approval, complete shell/JavaScript/PowerShell semantic/runtime analysis, TypeScript/batch parsing, full MDX AST transformation, registry-backed locale canonicalization, online URL reachability, and automatic protected-token rename mappings remain unsupported. The new script adapters are parse-only and never execute package scripts. The reviewer UI is a minimal offline HTML workbench; a larger component-based application is not part of this milestone.
 
-## Last verified baseline before the current PR #7 extension
+## Historical baseline before the current PR #7 extension
 
 - Verified code/test head: `bf2698d72d70e311b95d5fb948b64ed9ddc73464` (docs updated after this code/test head; no implementation changes are included in the documentation refresh).
 - GitHub Actions matrix and reference-conformance run: [41030648870](https://github.com/VireonNoctis/SkillTether/actions/runs/41030648870), completed successfully on 2026-10-30.
@@ -129,6 +129,15 @@ These checks require the current PR-head matrix to pass before being treated as 
 - CI enforces an 80% aggregate coverage floor on Linux only. Other jobs report coverage without a per-OS threshold; no per-module floors are enforced. Coverage is evidence of exercised code, not proof of correctness.
 
 This snapshot records the passing code/test head; documentation-only commits after it require their own CI run before merge.
+## Current PR #7 verification (2026-11-06)
+
+- **Verified code/test head:** `1229600816ae3432c32029d6649d30a0f3e34c14`.
+- **CI:** [run 42179075834](https://github.com/VireonNoctis/SkillTether/actions/runs/42179075834) passed all seven jobs: Ubuntu/macOS/Windows with Python 3.13 and 3.14, plus pinned `skills-ref@v0.0.1` reference conformance.
+- **Tests:** 369 passed on each Ubuntu combination; 368 passed and one filesystem-dependent skip on each macOS combination; 364 passed and five platform-specific skips on each Windows combination.
+- **Coverage:** 89% on Ubuntu; 88% on macOS and Windows. Linux's aggregate 80% floor passed. No per-module minimum is claimed.
+- **Repository health:** [run 42179075747](https://github.com/VireonNoctis/SkillTether/actions/runs/42179075747) passed.
+- These results validate the current PR head only; PR #7 remains open and must still be reviewed/merged before the default branch includes the changes.
+
 ## Acceptance gate
 
 A release candidate should pass the current CI suite; include traceable tests for each newly implemented rule plus a hard negative; preserve source-package fingerprints; validate schemas and bundled fixtures; document coverage and cross-platform limits; and leave critical or ambiguous semantic changes for explicit human review. No single score should be presented as a “safe translation” certificate.
