@@ -435,5 +435,5 @@ def test_approval_cannot_override_stale_source_reference(
     ])
 
     assert result == 2
-    assert "invalid source references" in capsys.readouterr().err
+    assert "invalid source/target references" in capsys.readouterr().err
     assert not output.exists()
