@@ -72,6 +72,8 @@ class Invariant(StrictModel):
             raise ValueError("target_lines and target_text must be supplied together")
         if self.target_text is not None and not self.target_text.strip():
             raise ValueError("target_text must not be blank")
+        if self.target_lines is not None and not self.reviewed:
+            raise ValueError("target context anchors require reviewed=true")
         return self
 
 class InvariantManifest(StrictModel):
