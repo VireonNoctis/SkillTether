@@ -82,6 +82,12 @@ def test_package_entry_identity_race_is_a_structural_failure(
 
     real_open = analysis.os.open
     raced_path = target / "references" / "guide.md"
+    original_stat = raced_path.stat()
+    replacement_stat = replacement.stat()
+    if not original_stat.st_ino or not replacement_stat.st_ino:
+        pytest.skip("filesystem does not expose stable file identity")
+    if (original_stat.st_dev, original_stat.st_ino) == (replacement_stat.st_dev, replacement_stat.st_ino):
+        pytest.skip("test files do not have distinct filesystem identities")
 
     def replace_identity(path, flags, *args, **kwargs):
         if Path(path) == raced_path:
