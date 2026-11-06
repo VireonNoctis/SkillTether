@@ -64,3 +64,33 @@ def test_structural_validation_errors_cannot_become_review_only_findings(
 
     assert any(finding.code == expected_code for finding in report.findings)
     assert report.structural_status == "fail"
+
+
+def test_package_entry_identity_race_is_a_structural_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skilltether.analysis as analysis
+
+    source = make_package(tmp_path / "source" / "sample-skill")
+    target = make_package(tmp_path / "target" / "sample-skill")
+    for package in (source, target):
+        references = package / "references"
+        references.mkdir()
+        (references / "guide.md").write_text("Stable reference.\n", encoding="utf-8")
+    replacement = tmp_path / "replacement.md"
+    replacement.write_text("Different file identity.\n", encoding="utf-8")
+
+    real_open = analysis.os.open
+    raced_path = target / "references" / "guide.md"
+
+    def replace_identity(path, flags, *args, **kwargs):
+        if Path(path) == raced_path:
+            return real_open(replacement, flags, *args, **kwargs)
+        return real_open(path, flags, *args, **kwargs)
+
+    monkeypatch.setattr(analysis.os, "open", replace_identity)
+
+    report = compare_packages(source, target)
+
+    assert any(finding.code == "FILE_IDENTITY_CHANGED" for finding in report.findings)
+    assert report.structural_status == "fail"
