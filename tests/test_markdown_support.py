@@ -138,18 +138,18 @@ import Alert from './Alert.jsx'
 
 def test_markdown_ast_maps_nested_container_prose_but_not_code_or_frontmatter() -> None:
     source = (
-        "\\ufeff---\\n"
-        "name: sample-skill\\n"
-        'description: "Do not translate this metadata."\\n'
-        "---\\n"
-        "> - Keep the quoted item safe.\\n"
-        ">   - Keep the nested item safe.\\n"
-        "- Keep the parent item safe.\\n"
-        "  - Keep the child item safe.\\n"
-        "\\n"
-        "~~~text\\n"
-        "Keep this code unchanged.\\n"
-        "~~~\\n"
+        "\ufeff---\n"
+        "name: sample-skill\n"
+        'description: "Do not translate this metadata."\n'
+        "---\n"
+        "> - Keep the quoted item safe.\n"
+        ">   - Keep the nested item safe.\n"
+        "- Keep the parent item safe.\n"
+        "  - Keep the child item safe.\n"
+        "\n"
+        "~~~text\n"
+        "Keep this code unchanged.\n"
+        "~~~\n"
     )
 
     mapped = markdown_inline_line_numbers(source)
@@ -174,17 +174,17 @@ def test_nested_blockquote_and_list_prose_is_translated_without_changing_contain
             )
 
     source = (
-        "> - Keep the quoted item safe.\\n"
-        ">   - Keep the nested item safe.\\n"
-        "- Keep the parent item safe.\\n"
-        "  - Keep the child item safe.\\n"
+        "> - Keep the quoted item safe.\n"
+        ">   - Keep the nested item safe.\n"
+        "- Keep the parent item safe.\n"
+        "  - Keep the child item safe.\n"
     )
 
     translated = translate_markdown(source, NestedAdapter(), "en", "fr")
 
     assert translated.startswith(
-        "> - Gardez l'élément cité en sécurité.\\n"
-        ">   - Gardez l'élément imbriqué en sécurité.\\n"
+        "> - Gardez l'élément cité en sécurité.\n"
+        ">   - Gardez l'élément imbriqué en sécurité.\n"
     )
     assert "- Gardez l'élément parent en sécurité." in translated
     assert "  - Gardez l'élément enfant en sécurité." in translated
@@ -193,7 +193,7 @@ def test_nested_blockquote_and_list_prose_is_translated_without_changing_contain
 def test_mdx_syntax_fails_closed_in_direct_markdown_translation() -> None:
     import pytest
 
-    source = "import Panel from './Panel.jsx'\\n\\n<Panel />\\n"
+    source = "import Panel from './Panel.jsx'\n\n<Panel />\n"
     with pytest.raises(RuntimeError, match="MDX-only syntax is not supported"):
         translate_markdown(source, ReplaceAdapter(), "en", "fr")
 
