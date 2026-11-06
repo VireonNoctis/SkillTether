@@ -159,6 +159,70 @@ def test_inspection_maps_script_parser_status_to_review_evidence(
         assert finding.uncertainty == "high"
 
 
+def test_new_script_extensions_are_read_and_checked_by_package_inspection(
+    tmp_path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from skilltether.static_analysis import ScriptSyntaxResult
+
+    package = tmp_path / "sample-skill"
+    package.mkdir()
+    (package / "SKILL.md").write_text(
+        "---\nname: sample-skill\ndescription: A script validation fixture.\n---\n\nInstructions.\n",
+        encoding="utf-8",
+    )
+    scripts = package / "scripts"
+    scripts.mkdir()
+    extensions = [".cjs", ".mjs", ".psm1", ".psd1"]
+    for suffix in extensions:
+        (scripts / f"tool{suffix}").write_text("syntactically checked source\n", encoding="utf-8")
+
+    checked: list[str] = []
+    def valid(path: str, _source: str) -> ScriptSyntaxResult:
+        checked.append(path)
+        return ScriptSyntaxResult(parser="test-parser", status="valid")
+
+    monkeypatch.setattr(analysis, "check_script_syntax", valid)
+    inventory, findings, _texts = analysis.inspect_package(package)
+
+    assert {f"scripts/tool{suffix}" for suffix in extensions} <= set(inventory)
+    assert set(checked) == {f"scripts/tool{suffix}" for suffix in extensions}
+    assert not any(
+        finding.code in {"SCRIPT_NOT_UTF8", "TEXT_RESOURCE_NOT_UTF8", "SCRIPT_SYNTAX_INVALID"}
+        for finding in findings
+    )
+
+
+def test_script_parser_budget_caps_process_invocations_and_reports_unchecked_scripts(
+    tmp_path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from skilltether.static_analysis import ScriptSyntaxResult
+
+    package = tmp_path / "sample-skill"
+    package.mkdir()
+    (package / "SKILL.md").write_text(
+        "---\nname: sample-skill\ndescription: A bounded script validation fixture.\n---\n\nInstructions.\n",
+        encoding="utf-8",
+    )
+    scripts = package / "scripts"
+    scripts.mkdir()
+    for index in range(analysis.MAX_STATIC_SCRIPT_CHECKS + 3):
+        (scripts / f"script-{index:02d}.js").write_text("const ready = true;\n", encoding="utf-8")
+
+    checked: list[str] = []
+    def valid(path: str, _source: str) -> ScriptSyntaxResult:
+        checked.append(path)
+        return ScriptSyntaxResult(parser="node", status="valid")
+
+    monkeypatch.setattr(analysis, "check_script_syntax", valid)
+    _inventory, findings, _texts = analysis.inspect_package(package)
+
+    assert len(checked) == analysis.MAX_STATIC_SCRIPT_CHECKS
+    budget = [item for item in findings if item.code == "SCRIPT_SYNTAX_CHECK_BUDGET_EXCEEDED"]
+    assert len(budget) == 1
+    assert budget[0].requires_review is True
+    assert budget[0].uncertainty == "high"
+
+
 def test_non_script_resources_do_not_request_a_parser() -> None:
     assert static_analysis.check_script_syntax("references/guide.md", "A paragraph.") is None
 
