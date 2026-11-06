@@ -35,11 +35,17 @@ MAX_EXPLICIT_TOKENS = 2048
 MAX_POLICY_REGEX_CHARS = 1000
 MAX_EXPLICIT_TOKEN_CHARS = 2048
 TEXT_SUFFIXES = {".md", ".mdx", ".txt", ".rst"}
-SCRIPT_SUFFIXES = {".py", ".sh", ".bash", ".js", ".ts", ".ps1", ".bat"}
+SCRIPT_SUFFIXES = {
+    ".py", ".sh", ".bash", ".js", ".cjs", ".mjs", ".ts",
+    ".ps1", ".psm1", ".psd1", ".bat",
+}
+PARSE_ONLY_SCRIPT_SUFFIXES = {".sh", ".bash", ".js", ".cjs", ".mjs", ".ps1", ".psm1", ".psd1"}
+MAX_STATIC_SCRIPT_CHECKS = 16
 RESOURCE_REFERENCE = re.compile(r"(?<![A-Za-z0-9/:])(?P<path>(?:\.\.?/)*(?:scripts|references|assets|resources)/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*)")
 READABLE_SUFFIXES = TEXT_SUFFIXES | {
-    ".py", ".sh", ".bash", ".js", ".ts", ".json", ".yaml", ".yml",
-    ".toml", ".xml", ".html", ".css", ".sql", ".ps1", ".bat", ".env",
+    ".py", ".sh", ".bash", ".js", ".cjs", ".mjs", ".ts",
+    ".json", ".yaml", ".yml", ".toml", ".xml", ".html", ".css", ".sql",
+    ".ps1", ".psm1", ".psd1", ".bat", ".env",
 }
 def _normalized_skill_name(value: str) -> str:
     """Return the NFKC comparison form without rewriting package metadata."""
@@ -367,7 +373,26 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
             "Frontmatter and Markdown cannot be parsed from this encoding.", path="SKILL.md",
         ))
 
+    script_syntax_checks = 0
+    script_syntax_budget_reported = False
     for rel, text in sorted(texts.items()):
+        if Path(rel).suffix.lower() in PARSE_ONLY_SCRIPT_SUFFIXES:
+            if script_syntax_checks < MAX_STATIC_SCRIPT_CHECKS:
+                script_syntax_checks += 1
+                findings.extend(validate_script_syntax(rel, text))
+            elif not script_syntax_budget_reported:
+                findings.append(new_finding(
+                    "SCRIPT_SYNTAX_CHECK_BUDGET_EXCEEDED", "medium", "resource_validation",
+                    f"Parse-only script validation is limited to {MAX_STATIC_SCRIPT_CHECKS} files per package; remaining scripts were not checked.",
+                    "Launching an external parser for every script in a large untrusted package could consume excessive time. The package remains inspectable, but syntax validity is unknown for scripts beyond the local budget.",
+                    path=rel,
+                    proposed_change="Run trusted local syntax checks for the remaining scripts or reduce the package's script count, then review this finding.",
+                    requires_review=True,
+                    analysis_method="deterministic",
+                    uncertainty="high",
+                    severity_rationale="The bounded checker deliberately skipped additional scripts to protect package-inspection resources; their syntax remains unverified.",
+                ))
+                script_syntax_budget_reported = True
         if Path(rel).suffix.lower() == ".mdx":
             lines = text.splitlines()
             for line_no, reason in mdx_syntax_locations(text):
@@ -385,7 +410,6 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
                     uncertainty="low",
                 ))
         findings.extend(validate_resource_syntax(rel, text))
-        findings.extend(validate_script_syntax(rel, text))
         if Path(rel).suffix.lower() in TEXT_SUFFIXES:
             findings.extend(validate_local_links(root_path, rel, text, text_snapshot=texts))
         findings.extend(validate_referenced_resources(root_path, rel, text, findings))
