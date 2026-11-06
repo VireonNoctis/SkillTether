@@ -470,11 +470,11 @@ def cmd_approve(args: argparse.Namespace) -> int:
         raise ValueError("Structural validation failed. Fix the package and rerun comparison before approval.")
     permanently_blocked = {
         "INVARIANT_MANIFEST_MISSING", "INVARIANT_MANIFEST_UNREVIEWED", "INVARIANT_NOT_HUMAN_REVIEWED",
-        "INVARIANT_SOURCE_REFERENCE_INVALID",
+        "INVARIANT_SOURCE_REFERENCE_INVALID", "INVARIANT_TARGET_REFERENCE_INVALID",
     }
     blocked = [finding for finding in report.findings if finding.code in permanently_blocked]
     if blocked:
-        raise ValueError("The invariant manifest is missing, unreviewed, or contains invalid source references; correct it and rerun comparison before approval.")
+        raise ValueError("The invariant manifest is missing, unreviewed, or contains invalid source/target references; correct it and rerun comparison before approval.")
     unresolved = [
         finding for finding in report.findings
         if (finding.requires_review or finding.severity == "critical")
