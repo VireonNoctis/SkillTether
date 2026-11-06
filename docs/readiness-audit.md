@@ -80,6 +80,7 @@ Each item has or is receiving a regression fixture in the same pull request. The
 ## Additional approval-integrity fixes (2026-11-06)
 
 - **Fresh evidence on export:** `cli.py:_require_fresh_approval_evidence` reruns `compare_packages` using the current source, target, manifest, and policy. It requires machine-generated report fields and findings to match the fresh comparison while retaining legitimate reviewer disposition/history changes. Regression cases cover an unsigned report with a deleted finding and a correctly reviewed addition.
+- **Filesystem identity race:** `analysis.py:inspect_package` reports `FILE_IDENTITY_CHANGED` if a package entry is replaced between enumeration and opening; `compare.py` treats the finding as structural failure. The regression swaps the opened descriptor to a distinct file identity and skips only on filesystems without stable distinct identifiers.
 - **Structural status completeness:** `compare.py:FATAL_STRUCTURE_CODES` now treats non-string frontmatter keys, invalid optional license types, empty descriptions, invalid decoded local-link paths, and expected UTF-8 text-resource failures as structural blockers. A focused parameterized fixture verifies these cases produce `structural_status=fail`.
 - **Trust boundary retained:** fresh comparison does not authenticate reviewers or make unsigned history tamper-evident. HMAC remains optional integrity protection; the workbench remains non-authoritative and CLI approval remains the final gate.
 
