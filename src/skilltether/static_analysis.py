@@ -71,7 +71,11 @@ def check_script_syntax(
     else:
         return None
 
-    executable = next((shutil.which(name) for name in candidates if shutil.which(name)), None)
+    executable = None
+    for candidate in candidates:
+        executable = shutil.which(candidate)
+        if executable:
+            break
     preferred = candidates[0]
     if executable is None:
         return ScriptSyntaxResult(parser=preferred, status="unavailable")
