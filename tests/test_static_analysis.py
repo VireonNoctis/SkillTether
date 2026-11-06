@@ -54,12 +54,37 @@ def test_static_script_parsers_receive_only_stdin_and_parse_only_flags(
     assert source not in " ".join(command)
     assert kwargs["input"] == source.encode("utf-8")
     assert kwargs["shell"] is False
-    assert kwargs["timeout"] == 8.0
+    assert kwargs["timeout"] == 3.0
     assert kwargs["close_fds"] is True
     environment = kwargs["env"]
     assert isinstance(environment, dict)
     assert "API_TOKEN" not in environment
     assert "GITHUB_TOKEN" not in environment
+
+
+def test_shell_fallback_reports_the_actual_parser_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(
+        static_analysis.shutil,
+        "which",
+        lambda name: "/bin/sh" if name == "sh" else None,
+    )
+    monkeypatch.setattr(
+        static_analysis.subprocess,
+        "run",
+        lambda command, **kwargs: (
+            calls.append(command),
+            SimpleNamespace(returncode=0, stdout=b"", stderr=b""),
+        )[1],
+    )
+
+    result = static_analysis.check_script_syntax("scripts/tool.sh", "echo safe")
+
+    assert result is not None
+    assert result.parser == "sh"
+    assert calls == [["/bin/sh", "-n"]]
 
 
 def test_missing_local_parser_is_reported_without_network_or_process_launch(
