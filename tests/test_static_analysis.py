@@ -54,7 +54,7 @@ def test_static_script_parsers_receive_only_stdin_and_parse_only_flags(
     assert source not in " ".join(command)
     assert kwargs["input"] == source.encode("utf-8")
     assert kwargs["shell"] is False
-    assert kwargs["timeout"] == 3.0
+    assert kwargs["timeout"] == 8.0
     assert kwargs["stdout"] is subprocess.DEVNULL
     assert kwargs["stderr"] is subprocess.DEVNULL
     assert kwargs["close_fds"] is True
