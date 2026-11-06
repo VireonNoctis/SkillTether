@@ -230,6 +230,8 @@ def test_hindi_only_when_conditional_is_not_misclassified_as_generic_action() ->
 def test_unknown_language_profile_does_not_guess_invariant_candidates() -> None:
     from skilltether.invariant_language import classify_candidate, language_profile
 
-    assert language_profile("ja") is None
+    assert language_profile("ja") is not None
+    assert language_profile("ja-Jpan") is not None
     assert language_profile("zh-Hans") is not None
+    assert language_profile("xx-Latn") is None
     assert classify_candidate("Never delete the source.", language_profile("en")) == "negation"
