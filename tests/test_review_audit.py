@@ -871,6 +871,35 @@ def test_approve_recomputes_unsigned_report_evidence_before_export(
     assert not output.exists()
 
 
+def test_approve_rejects_modified_per_file_hash_evidence(tmp_path: Path) -> None:
+    import json
+
+    source = _write_identical_skill_package(tmp_path / "source" / "sample-skill")
+    target = _write_identical_skill_package(tmp_path / "target" / "sample-skill")
+    manifest = tmp_path / "invariants.yaml"
+    _write_minimal_reviewed_manifest(manifest)
+    report = tmp_path / "review.json"
+
+    assert main([
+        "compare", str(source), str(target),
+        "--invariants", str(manifest), "--out", str(report),
+    ]) == 0
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert payload["target_files"]
+    payload["target_files"] = {}
+    report.write_text(json.dumps(payload), encoding="utf-8")
+
+    output = tmp_path / "approved" / "sample-skill"
+    result = main([
+        "approve", str(source), str(target),
+        "--report", str(report), "--output", str(output),
+        "--invariants", str(manifest),
+    ])
+
+    assert result == 2
+    assert not output.exists()
+
+
 def test_approve_allows_review_fields_after_recomputing_immutable_evidence(
     tmp_path: Path,
 ) -> None:
