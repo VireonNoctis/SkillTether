@@ -215,9 +215,11 @@ def translate_markdown(
     text: str, adapter: TranslationAdapter, source_locale: str, target_locale: str,
     extra_patterns: list[dict[str, str]] | None = None,
     explicit_tokens: list[str] | None = None,
+    *,
+    detect_mdx: bool = True,
 ) -> str:
     """Translate AST-owned Markdown prose while preserving syntax and structure."""
-    mdx_locations = mdx_syntax_locations(text)
+    mdx_locations = mdx_syntax_locations(text) if detect_mdx else []
     if mdx_locations:
         first_line, reason = mdx_locations[0]
         raise RuntimeError(
@@ -572,6 +574,7 @@ def translate_package(
         translate_markdown(
             original_text, budget_probe, source_locale, target_locale,
             extra_patterns=protected_patterns, explicit_tokens=explicit_tokens,
+            detect_mdx=Path(rel).suffix.lower() in {".md", ".mdx"},
         )
 
     output_root.parent.mkdir(parents=True, exist_ok=True)
@@ -598,6 +601,7 @@ def translate_package(
             translated = translate_markdown(
                 original_text, output_budget_adapter, source_locale, target_locale,
                 extra_patterns=protected_patterns, explicit_tokens=explicit_tokens,
+                detect_mdx=Path(rel).suffix.lower() in {".md", ".mdx"},
             )
             if translated != original_text:
                 (temp_package / rel).write_text(translated, encoding="utf-8", newline="")
