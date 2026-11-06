@@ -46,7 +46,7 @@ def _parser_invocation(
         return [
             executable, "-NoLogo", "-NoProfile", "-NonInteractive",
             "-Command", _POWERSHELL_PARSE_COMMAND,
-        ], "powershell"
+        ], parser_name
     return None
 
 
