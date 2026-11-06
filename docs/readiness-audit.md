@@ -85,6 +85,8 @@ Each item has or is receiving a regression fixture in the same pull request. The
 
 These additions are implemented on PR #7 and require a successful current-head CI run before being considered release-verified.
 
+- **Human-curated target anchors:** invariant manifests can now pair `target_lines` with `target_text` to identify the exact localized excerpt. The comparator checks the excerpt against the candidate, reports stale anchors as deterministic critical findings, and approval blocks them even after a disposition is recorded. This improves reviewer evidence in cross-script translations; it does not perform semantic alignment or replace human review.
+
 ## Highest-priority remaining work
 
 ### P1 — Release correctness
