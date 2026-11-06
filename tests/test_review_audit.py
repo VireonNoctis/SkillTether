@@ -842,7 +842,7 @@ def test_approve_recomputes_unsigned_report_evidence_before_export(
     source = _write_identical_skill_package(tmp_path / "source" / "sample-skill")
     target = _write_identical_skill_package(tmp_path / "target" / "sample-skill")
     (target / "references").mkdir()
-    (target / "references" / "extra.md").write_text("Unexpected extra resource.\\n", encoding="utf-8")
+    (target / "references" / "extra.md").write_text("Unexpected extra resource.\n", encoding="utf-8")
     manifest = tmp_path / "invariants.yaml"
     _write_minimal_reviewed_manifest(manifest)
     report = tmp_path / "review.json"
@@ -877,7 +877,7 @@ def test_approve_allows_review_fields_after_recomputing_immutable_evidence(
     source = _write_identical_skill_package(tmp_path / "source" / "sample-skill")
     target = _write_identical_skill_package(tmp_path / "target" / "sample-skill")
     (target / "references").mkdir()
-    (target / "references" / "extra.md").write_text("Reviewed extra resource.\\n", encoding="utf-8")
+    (target / "references" / "extra.md").write_text("Reviewed extra resource.\n", encoding="utf-8")
     manifest = tmp_path / "invariants.yaml"
     _write_minimal_reviewed_manifest(manifest)
     report = tmp_path / "review.json"
@@ -905,7 +905,7 @@ def test_approve_allows_review_fields_after_recomputing_immutable_evidence(
     ])
 
     assert result == 0
-    assert (output / "references" / "extra.md").read_text(encoding="utf-8") == "Reviewed extra resource.\\n"
+    assert (output / "references" / "extra.md").read_text(encoding="utf-8") == "Reviewed extra resource.\n"
 
 
 def test_review_resigns_existing_signed_report_and_retains_history(tmp_path: Path) -> None:
