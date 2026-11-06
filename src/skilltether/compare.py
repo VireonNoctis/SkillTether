@@ -362,25 +362,72 @@ def compare_packages(
                     )
                     if source_close is not None:
                         source_context_offset = source_close + 2
-            preferred_target_line = None
-            if (
-                invariant.source_lines
-                and len(source_doc.splitlines()) == len(target_doc.splitlines())
-            ):
-                candidate_line = invariant.source_lines[0] - source_context_offset + 1
-                if candidate_line > 0:
-                    preferred_target_line = candidate_line
-            alignment = _find_invariant_context(
-                context_doc,
-                invariant.source_text or invariant.statement,
-                preferred_line=preferred_target_line,
-            )
-            if alignment is None:
-                target_line, target_context = None, None
-                alignment_method = None
+            if invariant.target_lines is not None:
+                target_start, target_end = invariant.target_lines
+                target_reference_problem: str | None = None
+                target_lines_full = target_doc.splitlines()
+                target_excerpt: str | None = None
+                if target_end > len(target_lines_full):
+                    target_reference_problem = (
+                        f"target line range {target_start}-{target_end} exceeds the current "
+                        f"{len(target_lines_full)}-line resource"
+                    )
+                elif invariant.source_path == "SKILL.md" and target_start < context_offset:
+                    target_reference_problem = "target line range points into SKILL.md frontmatter rather than the instruction body"
+                else:
+                    target_excerpt = "\n".join(
+                        line.strip() for line in target_lines_full[target_start - 1:target_end]
+                    )
+                    declared_target_excerpt = "\n".join(
+                        line.strip() for line in (invariant.target_text or "").splitlines()
+                    )
+                    if target_excerpt != declared_target_excerpt:
+                        target_reference_problem = (
+                            "target_text no longer matches the declared target_lines range"
+                        )
+
+                if target_reference_problem:
+                    findings.append(new_finding(
+                        "INVARIANT_TARGET_REFERENCE_INVALID", "critical", "semantic_invariant",
+                        f"Invariant {invariant.id!r} has stale or invalid target evidence: {target_reference_problem}.",
+                        "A human-verified target anchor must still identify the exact localized passage; a stale line range or excerpt can direct reviewers to the wrong instruction.",
+                        path=invariant.source_path,
+                        source_line=invariant.source_lines[0] if invariant.source_lines else None,
+                        target_line=target_start,
+                        original_context=invariant.source_text or invariant.statement,
+                        target_context=target_excerpt,
+                        proposed_change="Correct target_lines and target_text to match the current localized instruction, then rerun comparison and review the updated evidence.",
+                        requires_review=True,
+                        analysis_method="deterministic",
+                        uncertainty="none",
+                        severity_rationale="The declared target excerpt can be checked deterministically and no longer matches the candidate package; approval must be blocked until corrected.",
+                    ))
+                    continue
+
+                # This establishes a human-curated location, not semantic equivalence.
+                target_line = target_start
+                target_context = (target_excerpt or "")[:1000]
+                alignment_method = "reviewed-target-reference"
             else:
-                relative_line, target_context, alignment_method = alignment
-                target_line = context_offset + relative_line - 1
+                preferred_target_line = None
+                if (
+                    invariant.source_lines
+                    and len(source_doc.splitlines()) == len(target_doc.splitlines())
+                ):
+                    candidate_line = invariant.source_lines[0] - source_context_offset + 1
+                    if candidate_line > 0:
+                        preferred_target_line = candidate_line
+                alignment = _find_invariant_context(
+                    context_doc,
+                    invariant.source_text or invariant.statement,
+                    preferred_line=preferred_target_line,
+                )
+                if alignment is None:
+                    target_line, target_context = None, None
+                    alignment_method = None
+                else:
+                    relative_line, target_context, alignment_method = alignment
+                    target_line = context_offset + relative_line - 1
             if alignment_method == "positional":
                 findings.append(new_finding(
                     "INVARIANT_TARGET_CONTEXT_POSITIONAL", "info", "semantic_invariant",
@@ -428,8 +475,16 @@ def compare_packages(
                         target_context=target_context,
                         proposed_change=f"Restore {expected!r} in the corresponding target instruction if required, or revise the manifest after human review.",
                         requires_review=True,
-                        analysis_method="deterministic" if missing_from_document else "heuristic",
-                        uncertainty="none" if missing_from_document else "high",
+                        analysis_method=(
+                            "deterministic"
+                            if missing_from_document or alignment_method == "reviewed-target-reference"
+                            else "heuristic"
+                        ),
+                        uncertainty=(
+                            "none"
+                            if missing_from_document or alignment_method == "reviewed-target-reference"
+                            else "high"
+                        ),
                     ))
 
             for forbidden in invariant.forbidden_tokens:
@@ -447,8 +502,16 @@ def compare_packages(
                         target_context=target_context,
                         proposed_change="Review the aligned instruction and remove the forbidden value if the invariant applies in this context.",
                         requires_review=True,
-                        analysis_method="heuristic",
-                        uncertainty="high",
+                        analysis_method=(
+                            "deterministic"
+                            if alignment_method == "reviewed-target-reference"
+                            else "heuristic"
+                        ),
+                        uncertainty=(
+                            "none"
+                            if alignment_method == "reviewed-target-reference"
+                            else "high"
+                        ),
                     ))
                 else:
                     findings.append(new_finding(
