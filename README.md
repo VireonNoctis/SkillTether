@@ -120,7 +120,7 @@ skilltether approve ./skills/my-skill ./candidate/my-skill \
   --policy config/protected-tokens.yaml
 ~~~
 
-Approval checks the current fingerprints and review evidence, rejects structural failures and unresolved blockers, and refuses existing or unsafe output paths. It never overwrites an existing approved package.
+Approval checks the current fingerprints and review evidence, then regenerates the comparison from the current source, candidate, invariant manifest, and protected-token policy. Machine-produced findings, statuses, and evidence must match that fresh result; only reviewer disposition/history fields may differ. Structural failures and unresolved blockers cannot be approved away, and existing or unsafe output paths are refused. It never overwrites an existing approved package. Unsigned review history remains editable by anyone who can edit the report; use HMAC signing when report tamper detection is required.
 
 ### Optional: seal review reports
 
