@@ -2,6 +2,8 @@
 
 ## Current CI baseline
 
+Current PR #7 head `1229600816ae3432c32029d6649d30a0f3e34c14` passed [CI run 42179075834](https://github.com/VireonNoctis/SkillTether/actions/runs/42179075834) on 2026-11-06: all six Python 3.13/3.14 × Ubuntu/macOS/Windows jobs and pinned `skills-ref@v0.0.1` reference conformance passed. Test counts: 369 passed on each Ubuntu job; 368 passed plus one filesystem-dependent skip on each macOS job; 364 passed plus five platform-specific skips on each Windows job. Coverage was 89% on Ubuntu and 88% on macOS/Windows; the Linux 80% aggregate floor passed. Repository health passed in [run 42179075747](https://github.com/VireonNoctis/SkillTether/actions/runs/42179075747). These results are for the open PR branch, not yet the default branch.
+
 The last fully verified baseline before the current PR #7 extension is [run 41030648870](https://github.com/VireonNoctis/SkillTether/actions/runs/41030648870), head `bf2698d72d70e311b95d5fb948b64ed9ddc73464` (2026-10-30). It does not cover the added PR #7 fixtures and changes; the current PR head needs its own passing matrix and reference-conformance result. It passed 244 tests on Ubuntu/macOS and 239 with five platform-specific skips on Windows, across Python 3.13/3.14; the separate pinned `skills-ref@v0.0.1` reference-conformance job passed. Aggregate coverage was 86% on Linux and Windows; only Linux enforces the 80% floor. Documentation updates after this baseline run need their own CI verification.
 
 
