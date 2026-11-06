@@ -92,8 +92,8 @@ def check_script_syntax(
         completed = subprocess.run(
             command,
             input=encoded,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             check=False,
             shell=False,
             cwd=tempfile.gettempdir(),
