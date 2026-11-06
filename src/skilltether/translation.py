@@ -233,16 +233,17 @@ def translate_markdown(
     html_opaque_tag: str | None = None
     output: list[str] = []
     for line_number, line in enumerate(lines, start=1):
-        # AST source maps decide which lines are eligible prose. This excludes
-        # code/raw blocks while retaining nested blockquote/list paragraph text.
-        if line_number not in inline_lines:
-            output.append(line)
-            continue
         stripped = line.strip()
         if not frontmatter_closed:
+            # Frontmatter is outside the Markdown AST and always stays byte-opaque.
             output.append(line)
             if stripped == "---" and len(output) > 1:
                 frontmatter_closed = True
+            continue
+        # AST source maps decide which body lines are eligible prose. This excludes
+        # code/raw blocks while retaining nested blockquote/list paragraph text.
+        if line_number not in inline_lines:
+            output.append(line)
             continue
         fence_match = FENCE.match(line)
         if fence_marker is not None:
