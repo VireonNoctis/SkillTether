@@ -834,6 +834,80 @@ def test_approve_rejects_tampered_signed_report_before_export(tmp_path: Path) ->
     assert not output.exists()
 
 
+def test_approve_recomputes_unsigned_report_evidence_before_export(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    import json
+
+    source = _write_identical_skill_package(tmp_path / "source" / "sample-skill")
+    target = _write_identical_skill_package(tmp_path / "target" / "sample-skill")
+    (target / "references").mkdir()
+    (target / "references" / "extra.md").write_text("Unexpected extra resource.\\n", encoding="utf-8")
+    manifest = tmp_path / "invariants.yaml"
+    _write_minimal_reviewed_manifest(manifest)
+    report = tmp_path / "review.json"
+
+    assert main([
+        "compare", str(source), str(target),
+        "--invariants", str(manifest), "--out", str(report),
+    ]) == 1
+    payload = json.loads(report.read_text(encoding="utf-8"))
+    assert any(item["code"] == "PACKAGE_FILE_ADDED" for item in payload["findings"])
+
+    # Simulate an unsigned report edit that hides the machine-generated finding.
+    payload["findings"] = []
+    payload["semantic_status"] = "no_issue_detected"
+    report.write_text(json.dumps(payload), encoding="utf-8")
+    output = tmp_path / "approved" / "sample-skill"
+
+    result = main([
+        "approve", str(source), str(target),
+        "--report", str(report), "--output", str(output),
+        "--invariants", str(manifest),
+    ])
+
+    assert result == 2
+    assert "fresh comparison" in capsys.readouterr().err
+    assert not output.exists()
+
+
+def test_approve_allows_review_fields_after_recomputing_immutable_evidence(
+    tmp_path: Path,
+) -> None:
+    source = _write_identical_skill_package(tmp_path / "source" / "sample-skill")
+    target = _write_identical_skill_package(tmp_path / "target" / "sample-skill")
+    (target / "references").mkdir()
+    (target / "references" / "extra.md").write_text("Reviewed extra resource.\\n", encoding="utf-8")
+    manifest = tmp_path / "invariants.yaml"
+    _write_minimal_reviewed_manifest(manifest)
+    report = tmp_path / "review.json"
+
+    assert main([
+        "compare", str(source), str(target),
+        "--invariants", str(manifest), "--out", str(report),
+    ]) == 1
+
+    from skilltether.report import read_json_report
+
+    pending = read_json_report(report)
+    added = next(item for item in pending.findings if item.code == "PACKAGE_FILE_ADDED")
+    assert main([
+        "review", str(report), added.id,
+        "--disposition", "approved", "--reviewer", "qa-reviewer",
+        "--note", "Reviewed the added resource and confirmed it is intentional.",
+    ]) == 0
+
+    output = tmp_path / "approved" / "sample-skill"
+    result = main([
+        "approve", str(source), str(target),
+        "--report", str(report), "--output", str(output),
+        "--invariants", str(manifest),
+    ])
+
+    assert result == 0
+    assert (output / "references" / "extra.md").read_text(encoding="utf-8") == "Reviewed extra resource.\\n"
+
+
 def test_review_resigns_existing_signed_report_and_retains_history(tmp_path: Path) -> None:
     from skilltether.report import read_json_report, verify_report_signature, write_json_report
     from skilltether.signing import create_signing_key
