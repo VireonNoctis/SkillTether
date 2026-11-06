@@ -179,7 +179,8 @@ def test_language_profiles_are_selected_by_primary_bcp47_subtag(
 ) -> None:
     from skilltether.invariant_language import classify_candidate, language_profile
 
-    profile = language_profile(locale + "-Latn")
+    tag = locale if "-" in locale else locale + "-Latn"
+    profile = language_profile(tag)
     assert profile is not None
     assert classify_candidate(text, profile) == category
 
