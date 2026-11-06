@@ -5,6 +5,7 @@ from pathlib import Path
 from skilltether.markdown_support import (
     create_markdown_parser,
     markdown_heading_anchors,
+    markdown_inline_line_numbers,
     markdown_link_targets,
     mdx_syntax_locations,
     walk_tokens,
@@ -133,6 +134,68 @@ import Alert from './Alert.jsx'
         "embedded JavaScript expression syntax",
     ]
     assert all(line >= 10 for line, _reason in locations)
+
+
+def test_markdown_ast_maps_nested_container_prose_but_not_code_or_frontmatter() -> None:
+    source = (
+        "\\ufeff---\\n"
+        "name: sample-skill\\n"
+        'description: "Do not translate this metadata."\\n'
+        "---\\n"
+        "> - Keep the quoted item safe.\\n"
+        ">   - Keep the nested item safe.\\n"
+        "- Keep the parent item safe.\\n"
+        "  - Keep the child item safe.\\n"
+        "\\n"
+        "~~~text\\n"
+        "Keep this code unchanged.\\n"
+        "~~~\\n"
+    )
+
+    mapped = markdown_inline_line_numbers(source)
+
+    assert {5, 6, 7, 8} <= mapped
+    assert 1 not in mapped
+    assert 3 not in mapped
+    assert 11 not in mapped
+
+
+def test_nested_blockquote_and_list_prose_is_translated_without_changing_containers() -> None:
+    class NestedAdapter:
+        name = "nested-adapter"
+        remote = False
+
+        def translate(self, text: str, source_locale: str, target_locale: str) -> str:
+            return (
+                text.replace("Keep the quoted item safe.", "Gardez l'élément cité en sécurité.")
+                .replace("Keep the nested item safe.", "Gardez l'élément imbriqué en sécurité.")
+                .replace("Keep the parent item safe.", "Gardez l'élément parent en sécurité.")
+                .replace("Keep the child item safe.", "Gardez l'élément enfant en sécurité.")
+            )
+
+    source = (
+        "> - Keep the quoted item safe.\\n"
+        ">   - Keep the nested item safe.\\n"
+        "- Keep the parent item safe.\\n"
+        "  - Keep the child item safe.\\n"
+    )
+
+    translated = translate_markdown(source, NestedAdapter(), "en", "fr")
+
+    assert translated.startswith(
+        "> - Gardez l'élément cité en sécurité.\\n"
+        ">   - Gardez l'élément imbriqué en sécurité.\\n"
+    )
+    assert "- Gardez l'élément parent en sécurité." in translated
+    assert "  - Gardez l'élément enfant en sécurité." in translated
+
+
+def test_mdx_syntax_fails_closed_in_direct_markdown_translation() -> None:
+    import pytest
+
+    source = "import Panel from './Panel.jsx'\\n\\n<Panel />\\n"
+    with pytest.raises(RuntimeError, match="MDX-only syntax is not supported"):
+        translate_markdown(source, ReplaceAdapter(), "en", "fr")
 
 
 def test_translation_preserves_footnotes_alerts_and_definition_lists() -> None:
