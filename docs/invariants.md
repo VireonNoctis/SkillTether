@@ -52,9 +52,11 @@ When word overlap cannot locate a translated passage (for example, when the targ
 ~~~yaml
 target_lines: [61, 61]
 target_text: "Exact target-language text copied from line 61"
+reviewed: true
+reviewer: "safety-reviewer"
 ~~~
 
-`target_lines` is a one-based inclusive line range in the same relative resource named by `source_path`; `target_text` must contain the exact trimmed text across that range. Supply both fields or neither. The CLI verifies the excerpt against the current target package on every comparison. A missing range, a line moved beyond the resource, or an excerpt mismatch produces a deterministic critical finding that cannot be approved away; update the manifest and rerun comparison.
+`target_lines` is a one-based inclusive line range in the same relative resource named by `source_path`; `target_text` must contain the exact trimmed text across that range. Supply both fields or neither, and set `reviewed: true` with a reviewer identifier; an unreviewed invariant cannot carry a target anchor. The CLI verifies the excerpt against the current target package on every comparison. A missing range, a line moved beyond the resource, or an excerpt mismatch produces a deterministic critical finding that cannot be approved away; update the manifest and rerun comparison.
 
 A valid anchor replaces word-overlap/positional location guessing for that invariant and gives the reviewer an exact target excerpt. It does not establish that the source and target passages are semantically equivalent. Critical invariants still require explicit human sign-off. If the candidate changes, refresh the target anchor before approval.
 
