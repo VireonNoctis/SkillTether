@@ -22,7 +22,7 @@ The normative format reference is the [official Agent Skills specification](http
 
 The package scanner now reports common Windows-reserved file names/characters, trailing spaces/periods, and collisions after Unicode NFC normalization plus case-folding. These deterministic portability findings improve cross-platform review, but do not model every filesystem's comparison rules or eliminate concurrent mutation races.
 
-The validator inspects a bounded package snapshot including file paths, file types, sizes, hashes, filesystem modes, expected text encodings, frontmatter metadata, local link targets, and conventional resource references. The local-link validator parses links in table cells, decodes percent-encoded fragments, and reports malformed URL syntax instead of crashing. Fragment validation reuses the bounded inventory where possible; fallback reads are bounded and refuse a final-component symlink. External URLs are not fetched and referenced scripts are never executed.
+The validator inspects a bounded package snapshot including file paths, file types, sizes, hashes, filesystem modes, expected text encodings, frontmatter metadata, local link targets, and conventional resource references. Parser-supported .cjs, .mjs, .psm1, and .psd1 resources are included in the readable script inventory. The local-link validator parses links in table cells, decodes percent-encoded fragments, and reports malformed URL syntax instead of crashing. Fragment validation reuses the bounded inventory where possible; fallback reads are bounded and refuse a final-component symlink. External URLs are not fetched and referenced scripts are never executed.
 
 ## Protected-span model
 
