@@ -34,7 +34,7 @@ MAX_TRANSLATION_TIMEOUT_SECONDS = 300.0
 FENCE = re.compile(r"^\s{0,3}(\x60{3,}|~{3,})")
 HTML_OPAQUE_OPEN = re.compile(r"^\s*<(script|style|pre|code|textarea)\b", re.I)
 PREFIX = re.compile(
-    r"^([ \t]*(?:(?:#{1,6}|>)[ \t]+|[-*+][ \t]+|\d+[.)][ \t]+)*)(.*?)(\r?\n?)$"
+    r"^([ \t]*(?:(?:#{1,6}|>)[ \t]+|[ \t]*(?:[-*+]|\d+[.)])[ \t]+)*)(.*?)(\r?\n?)$"
 )
 MASK_SPAN = re.compile(
     r"\x60+.*?\x60+|https?://[^ <>)]+|<[^>]+>|(?<=\]\()[^)]*(?=\))"
