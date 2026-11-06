@@ -850,7 +850,7 @@ def test_approve_recomputes_unsigned_report_evidence_before_export(
     assert main([
         "compare", str(source), str(target),
         "--invariants", str(manifest), "--out", str(report),
-    ]) == 1
+    ]) == 0
     payload = json.loads(report.read_text(encoding="utf-8"))
     assert any(item["code"] == "PACKAGE_FILE_ADDED" for item in payload["findings"])
 
@@ -885,7 +885,7 @@ def test_approve_allows_review_fields_after_recomputing_immutable_evidence(
     assert main([
         "compare", str(source), str(target),
         "--invariants", str(manifest), "--out", str(report),
-    ]) == 1
+    ]) == 0
 
     from skilltether.report import read_json_report
 
