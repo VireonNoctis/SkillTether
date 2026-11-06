@@ -719,9 +719,27 @@ def _contains_decimal_literal(text: str, expected: str) -> bool:
         if found < 0:
             return False
         end = found + len(normalized_expected)
-        left_is_digit = found > 0 and normalized_text[found - 1].isdecimal()
-        right_is_digit = end < len(normalized_text) and normalized_text[end].isdecimal()
-        if not left_is_digit and not right_is_digit:
+        left = normalized_text[found - 1] if found > 0 else ""
+        right = normalized_text[end] if end < len(normalized_text) else ""
+        left_continues_number = bool(left) and (
+            left.isalnum()
+            or left in "+-−"
+            or (
+                left in ".,_٬٫"
+                and found > 1
+                and normalized_text[found - 2].isdecimal()
+            )
+        )
+        right_continues_number = bool(right) and (
+            right.isalnum()
+            or right in "+-−"
+            or (
+                right in ".,_٬٫"
+                and end + 1 < len(normalized_text)
+                and normalized_text[end + 1].isdecimal()
+            )
+        )
+        if not left_continues_number and not right_continues_number:
             return True
         cursor = found + 1
 
