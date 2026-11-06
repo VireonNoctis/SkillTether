@@ -35,6 +35,43 @@ def walk_tokens(tokens: Iterable[Any]) -> Iterator[Any]:
             yield from walk_tokens(children)
 
 
+def markdown_inline_line_numbers(text: str) -> frozenset[int]:
+    """Return one-based source lines owned by Markdown inline AST nodes.
+
+    Frontmatter is kept opaque. Block-token source maps are inherited by nested
+    inline children where a Markdown extension omits a child map. Lines outside
+    inline nodes (fences, indented code, raw HTML blocks, reference definitions)
+    are not returned and therefore cannot accidentally become translation input.
+    """
+    lines = text.splitlines(keepends=True)
+    body_start = 0
+    first = lines[0].removeprefix("\\ufeff").strip() if lines else ""
+    if first == "---":
+        closing = next(
+            (index for index in range(1, len(lines)) if lines[index].strip() == "---"),
+            None,
+        )
+        if closing is None:
+            return frozenset()
+        body_start = closing + 1
+    body = "".join(lines[body_start:])
+    selected: set[int] = set()
+
+    def visit(tokens: Iterable[Any], inherited_map: Any = None) -> None:
+        for token in tokens:
+            token_map = getattr(token, "map", None) or inherited_map
+            if getattr(token, "type", "") == "inline" and token_map:
+                start, end = token_map
+                for zero_based in range(max(0, start), min(end, len(lines) - body_start)):
+                    selected.add(body_start + zero_based + 1)
+            children = getattr(token, "children", None)
+            if children:
+                visit(children, token_map)
+
+    visit(create_markdown_parser().parse(body))
+    return frozenset(selected)
+
+
 def markdown_link_targets(text: str) -> list[tuple[str, str]]:
     """Return parsed link/image destinations, including nested/list/table content."""
     result: list[tuple[str, str]] = []
