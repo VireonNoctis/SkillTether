@@ -33,10 +33,12 @@ _POWERSHELL_PARSE_COMMAND = (
 
 # Every command is a fixed parse-only invocation. User-controlled source never
 # enters argv, a command string, a filename, or a shell interpolation.
-def _parser_invocation(suffix: str, executable: str) -> tuple[list[str], str] | None:
+def _parser_invocation(
+    suffix: str, executable: str, parser_name: str,
+) -> tuple[list[str], str] | None:
     normalized = suffix.lower()
     if normalized in {".sh", ".bash"}:
-        return [executable, "-n"], "bash"
+        return [executable, "-n"], parser_name
     if normalized in {".js", ".cjs", ".mjs"}:
         input_type = "module" if normalized == ".mjs" else "commonjs"
         return [executable, "--check", f"--input-type={input_type}", "-"], "node"
@@ -58,7 +60,7 @@ def check_script_syntax(
     path: str | Path,
     source: str,
     *,
-    timeout_seconds: float = 8.0,
+    timeout_seconds: float = 3.0,
 ) -> ScriptSyntaxResult | None:
     """Return static syntax status for supported script suffixes, or None otherwise."""
     suffix = Path(path).suffix.lower()
@@ -72,15 +74,16 @@ def check_script_syntax(
         return None
 
     executable = None
+    selected_parser = candidates[0]
     for candidate in candidates:
         executable = shutil.which(candidate)
         if executable:
+            selected_parser = candidate
             break
-    preferred = candidates[0]
     if executable is None:
-        return ScriptSyntaxResult(parser=preferred, status="unavailable")
+        return ScriptSyntaxResult(parser=candidates[0], status="unavailable")
 
-    invocation = _parser_invocation(suffix, executable)
+    invocation = _parser_invocation(suffix, executable, selected_parser)
     if invocation is None:
         return None
     command, parser_name = invocation
