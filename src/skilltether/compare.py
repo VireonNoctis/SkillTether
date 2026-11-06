@@ -502,7 +502,13 @@ def compare_packages(
                     findings.append(new_finding(
                         "INVARIANT_FORBIDDEN_TOKEN_PRESENT", invariant.severity, "semantic_invariant",
                         f"Invariant {invariant.id!r} forbids a token found in the aligned target context ({forbidden!r}).",
-                        "The approximate context matcher located the forbidden literal in the instruction excerpt; confirm surrounding linguistic and example context.",
+                        (
+                            "The exact forbidden literal occurs inside the human-anchored target excerpt; "
+                            "this proves token presence at that location, not whether the instruction forbids "
+                            "it rather than quoting it as an example."
+                            if alignment_method == "reviewed-target-reference"
+                            else "The approximate context matcher located the forbidden literal in the instruction excerpt; confirm surrounding linguistic and example context."
+                        ),
                         path=invariant.source_path,
                         source_line=invariant.source_lines[0] if invariant.source_lines else None,
                         target_line=target_line,
