@@ -30,7 +30,7 @@ def test_static_script_parsers_receive_only_stdin_and_parse_only_flags(
     monkeypatch.setattr(
         static_analysis.shutil,
         "which",
-        lambda candidate: f"/trusted-tools/{candidate}" if candidate == executable else None,
+        lambda candidate: candidate if candidate == executable else None,
     )
 
     def fake_run(command: list[str], **kwargs: object) -> SimpleNamespace:
