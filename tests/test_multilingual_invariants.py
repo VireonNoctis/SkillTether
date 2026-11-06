@@ -82,16 +82,16 @@ def test_multilingual_invariant_suggestions_match_curated_corpus(tmp_path: Path)
         if negation is not None:
             assert negation["negation_markers"] == ["not", "never", "without", "cannot", "can't", "mustn't", "don't"]
 
-    assert aggregate == {"tp": 45, "fp": 0, "fn": 0}
+    assert aggregate == {"tp": 55, "fp": 0, "fn": 0}
     assert per_locale == {
         locale: {"tp": 5, "fp": 0, "fn": 0}
-        for locale in ("en", "fr", "es", "de", "pt", "it", "ar", "hi", "ru")
+        for locale in ("en", "fr", "es", "de", "pt", "it", "ar", "hi", "ru", "ja", "zh")
     }
     assert per_category == {
-        "negation": {"tp": 9, "fp": 0, "fn": 0},
-        "numeric_limit": {"tp": 18, "fp": 0, "fn": 0},
-        "precondition": {"tp": 9, "fp": 0, "fn": 0},
-        "mandatory_condition": {"tp": 9, "fp": 0, "fn": 0},
+        "negation": {"tp": 11, "fp": 0, "fn": 0},
+        "numeric_limit": {"tp": 22, "fp": 0, "fn": 0},
+        "precondition": {"tp": 11, "fp": 0, "fn": 0},
+        "mandatory_condition": {"tp": 11, "fp": 0, "fn": 0},
     }
     for metrics in per_category.values():
         assert metrics["tp"] / (metrics["tp"] + metrics["fp"]) == 1.0
@@ -172,6 +172,8 @@ def test_regional_document_fixture_preserves_expected_candidates_and_exclusions(
         ("ar-Arab", "يجب الحفاظ على الملف الأصلي.", "mandatory_condition"),
         ("hi-Deva", "मूल फ़ाइल रखना अनिवार्य है।", "mandatory_condition"),
         ("ru-Cyrl", "Вы должны сохранить исходный файл.", "mandatory_condition"),
+        ("ja-Jpan", "元のファイル順序を必ず保持してください。", "mandatory_condition"),
+        ("zh-Hans", "必须保留原始文件顺序。", "mandatory_condition"),
     ],
 )
 def test_language_profiles_are_selected_by_primary_bcp47_subtag(
@@ -194,6 +196,10 @@ def test_language_profiles_are_selected_by_primary_bcp47_subtag(
         ("ar", "mandatory_condition", "يجب"),
         ("hi", "mandatory_condition", "अनिवार्य"),
         ("ru", "mandatory_condition", "должен"),
+        ("ja", "negation", "しないでください"),
+        ("zh", "negation", "请勿"),
+        ("ja", "mandatory_condition", "必ず"),
+        ("zh", "mandatory_condition", "必须"),
     ],
 )
 def test_additional_target_locales_provide_only_explicit_draft_markers(
@@ -225,5 +231,5 @@ def test_unknown_language_profile_does_not_guess_invariant_candidates() -> None:
     from skilltether.invariant_language import classify_candidate, language_profile
 
     assert language_profile("ja") is None
-    assert language_profile("zh") is None
+    assert language_profile("zh-Hans") is not None
     assert classify_candidate("Never delete the source.", language_profile("en")) == "negation"
