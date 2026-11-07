@@ -37,9 +37,12 @@ MAX_EXPLICIT_TOKEN_CHARS = 2048
 TEXT_SUFFIXES = {".md", ".mdx", ".txt", ".rst"}
 SCRIPT_SUFFIXES = {
     ".py", ".sh", ".bash", ".js", ".cjs", ".mjs", ".ts",
-    ".ps1", ".psm1", ".psd1", ".bat",
+    ".ps1", ".psm1", ".psd1", ".bat", ".tsx", ".mts", ".cts",
 }
-PARSE_ONLY_SCRIPT_SUFFIXES = {".sh", ".bash", ".js", ".cjs", ".mjs", ".ps1", ".psm1", ".psd1"}
+PARSE_ONLY_SCRIPT_SUFFIXES = {
+    ".sh", ".bash", ".js", ".cjs", ".mjs", ".ps1", ".psm1", ".psd1",
+    ".ts", ".tsx", ".mts", ".cts", ".bat",
+}
 MAX_STATIC_SCRIPT_CHECKS = 16
 RESOURCE_REFERENCE = re.compile(r"(?<![A-Za-z0-9/:])(?P<path>(?:\.\.?/)*(?:scripts|references|assets|resources)/[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*)")
 READABLE_SUFFIXES = TEXT_SUFFIXES | {
@@ -663,7 +666,7 @@ def validate_local_links(
 
 
 def validate_script_syntax(rel_path: str, text: str) -> list:
-    """Apply available parse-only checks without executing package scripts."""
+    """Translate bounded parser statuses into evidence without overstating coverage."""
     result = check_script_syntax(rel_path, text)
     if result is None:
         return []
@@ -673,10 +676,33 @@ def validate_script_syntax(rel_path: str, text: str) -> list:
         return [new_finding(
             "SCRIPT_SYNTAX_CHECK_UNAVAILABLE", "info", "resource_validation",
             f"No local {result.parser} parser is installed; {rel_path!r} was not syntax-checked.",
-            "No parser was launched and no syntax-validity claim is made for this script. Install the relevant local parser to enable this check; SkillTether never downloads parsers.",
+            "No parser was launched and no syntax-validity claim is made for this script. Install the relevant trusted local parser to enable this check; SkillTether never downloads parsers.",
             path=rel_path,
             proposed_change="Run a trusted parser for this script language in your local toolchain and review its result.",
             requires_review=False,
+            analysis_method="deterministic",
+            uncertainty="high",
+        )]
+    if result.parser == "batch-delimiter-check":
+        if result.status == "invalid":
+            return [new_finding(
+                "SCRIPT_BATCH_DELIMITER_SUSPECTED", "medium", "resource_validation",
+                f"The conservative batch delimiter scan found an unmatched quote, parenthesis, or trailing escape in {rel_path!r}.",
+                "This is a bounded lexical heuristic only; Windows batch grammar is not fully parsed, and valid scripts with unusual quoting may produce false positives.",
+                path=rel_path,
+                proposed_change="Review the batch file with a trusted Windows command-language parser or maintainer before relying on it.",
+                requires_review=True,
+                analysis_method="heuristic",
+                uncertainty="high",
+                severity_rationale="The delimiter imbalance is a suspicious lexical signal, not a complete batch syntax diagnosis.",
+            )]
+        return [new_finding(
+            "SCRIPT_SYNTAX_CHECK_INCOMPLETE", "info", "resource_validation",
+            f"The batch delimiter scan completed for {rel_path!r}, but full batch syntax was not checked.",
+            "Balanced quotes and parentheses do not prove Windows batch syntax validity. Commands, expansion, labels, redirection, and block semantics remain unsupported.",
+            path=rel_path,
+            proposed_change="Run a trusted static checker or manually review the batch file on Windows.",
+            requires_review=True,
             analysis_method="deterministic",
             uncertainty="high",
         )]
@@ -684,13 +710,13 @@ def validate_script_syntax(rel_path: str, text: str) -> list:
         return [new_finding(
             "SCRIPT_SYNTAX_INVALID", "high", "resource_validation",
             f"The local {result.parser} parser rejected {rel_path!r} in parse-only mode.",
-            "The parser reported syntax errors. Parser dialect/version differences can cause false positives, so the result is a reviewable static finding rather than a claim about runtime behavior.",
+            "The parser reported syntax errors. Parser dialect/version differences can cause false positives; the result does not claim runtime behavior.",
             path=rel_path,
             proposed_change="Review the parser diagnostics locally and correct the script or document the required language dialect before approval.",
             requires_review=True,
             analysis_method="deterministic",
             uncertainty="low",
-            severity_rationale="A local syntax-only parser rejected the source; the check did not execute the script, and dialect-specific differences remain possible.",
+            severity_rationale="A local syntax-only parser rejected the source; the check did not execute the script.",
         )]
     return [new_finding(
         "SCRIPT_SYNTAX_CHECK_INCOMPLETE", "medium", "resource_validation",
