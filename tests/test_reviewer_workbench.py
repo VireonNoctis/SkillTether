@@ -27,3 +27,16 @@ def test_reviewer_workbench_keeps_signed_reports_read_only() -> None:
     assert "does not verify HMAC seals" in document
     assert "review_history" in document
     assert "previous_disposition" in document
+
+
+def test_reviewer_workbench_validates_history_entries_and_bounds_rendering() -> None:
+    document = Path("reviewer/index.html").read_text(encoding="utf-8")
+    assert "MAX_FINDINGS = 5000" in document
+    assert "MAX_REVIEW_EVENTS = 500" in document
+    assert "findingIds.has(finding.id)" in document
+    assert "Array.isArray(reviewEvent)" in document
+    assert "reviewEvent.previous_disposition" in document
+    assert "reviewEvent.recorded_at.length > 64" in document
+    assert "Number.isFinite(Date.parse(reviewEvent.recorded_at))" in document
+    assert "finding.requires_review !== undefined" in document
+    assert "Use the CLI to review larger reports." in document
