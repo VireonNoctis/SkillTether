@@ -4,47 +4,344 @@
   "title": "SkillTether invariant manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["manifest_version", "source_locale", "invariants"],
+  "required": [
+    "manifest_version",
+    "source_locale",
+    "invariants"
+  ],
   "properties": {
-    "manifest_version": { "const": "1.0" },
-    "source_locale": { "type": "string", "pattern": "^[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*$", "description": "Lexical envelope only. SkillTether applies full structural BCP 47 checks in its Pydantic model; registry membership and canonicalization are not checked." },
-    "target_locale": { "type": ["string", "null"], "pattern": "^[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*$", "description": "Lexical envelope only. SkillTether applies full structural BCP 47 checks in its Pydantic model; registry membership and canonicalization are not checked." },
-    "manifest_reviewer": { "type": ["string", "null"] },
-    "manifest_reviewed": { "type": "boolean", "default": false },
+    "manifest_version": {
+      "const": "1.0"
+    },
+    "source_locale": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*$",
+      "description": "Lexical envelope only. SkillTether applies full structural BCP 47 checks in its Pydantic model; registry membership and canonicalization are not checked."
+    },
+    "target_locale": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*$",
+      "description": "Lexical envelope only. SkillTether applies full structural BCP 47 checks in its Pydantic model; registry membership and canonicalization are not checked."
+    },
+    "manifest_reviewer": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "manifest_reviewed": {
+      "type": "boolean",
+      "default": false
+    },
     "invariants": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "statement"],
+        "required": [
+          "id",
+          "statement"
+        ],
         "properties": {
-          "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$" },
-          "statement": { "type": "string", "minLength": 1 },
-          "category": { "enum": ["safety_constraint", "mandatory_condition", "negation", "numeric_limit", "precondition", "decision_rule", "other"], "default": "other" },
-          "severity": { "enum": ["low", "medium", "high", "critical"], "default": "high" },
-          "source_path": { "type": "string", "default": "SKILL.md" },
-          "source_lines": { "type": ["array", "null"], "items": { "type": "integer", "minimum": 1 }, "minItems": 2, "maxItems": 2 },
-          "source_text": { "type": ["string", "null"] },
-          "target_lines": { "type": ["array", "null"], "items": { "type": "integer", "minimum": 1 }, "minItems": 2, "maxItems": 2, "description": "Optional human-verified inclusive line range in the target-language resource at source_path." },
-          "target_text": { "type": ["string", "null"], "minLength": 1, "pattern": "\\S", "description": "Exact trimmed target excerpt covering target_lines; both target fields must be supplied together." },
-          "required_tokens": { "type": "array", "items": { "type": "string" }, "default": [] },
-          "forbidden_tokens": { "type": "array", "items": { "type": "string" }, "default": [] },
-          "expected_numbers": { "type": "array", "items": { "type": "string" }, "default": [] },
-          "negation_required": { "type": "boolean", "default": false },
-          "negation_markers": { "type": "array", "items": { "type": "string" }, "default": [] },
-          "mandatory_required": { "type": "boolean", "default": false },
-          "mandatory_markers": { "type": "array", "items": { "type": "string" }, "default": [] },
-          "reviewed": { "type": "boolean", "default": false },
-          "reviewer": { "type": ["string", "null"] }
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "statement": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "enum": [
+              "safety_constraint",
+              "mandatory_condition",
+              "negation",
+              "numeric_limit",
+              "precondition",
+              "decision_rule",
+              "other"
+            ],
+            "default": "other"
+          },
+          "severity": {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ],
+            "default": "high"
+          },
+          "source_path": {
+            "type": "string",
+            "default": "SKILL.md"
+          },
+          "source_lines": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "source_text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target_lines": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "Optional human-verified inclusive line range in the target-language resource at source_path."
+          },
+          "target_text": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "pattern": "\\S",
+            "description": "Exact trimmed target excerpt covering target_lines; both target fields must be supplied together."
+          },
+          "required_tokens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "forbidden_tokens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "expected_numbers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "negation_required": {
+            "type": "boolean",
+            "default": false
+          },
+          "negation_markers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "mandatory_required": {
+            "type": "boolean",
+            "default": false
+          },
+          "mandatory_markers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "reviewed": {
+            "type": "boolean",
+            "default": false
+          },
+          "reviewer": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
         },
         "allOf": [
           {
-            "if": { "properties": { "target_lines": { "type": "array" } }, "required": ["target_lines"] },
-            "then": { "required": ["target_text", "reviewed", "reviewer"], "properties": { "target_text": { "type": "string", "minLength": 1, "pattern": "\\S" }, "reviewed": { "const": true }, "reviewer": { "type": "string", "minLength": 1 } } }
+            "if": {
+              "properties": {
+                "target_lines": {
+                  "type": "array"
+                }
+              },
+              "required": [
+                "target_lines"
+              ]
+            },
+            "then": {
+              "required": [
+                "target_text",
+                "reviewed",
+                "reviewer"
+              ],
+              "properties": {
+                "target_text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "reviewed": {
+                  "const": true
+                },
+                "reviewer": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
           },
           {
-            "if": { "properties": { "target_text": { "type": "string" } }, "required": ["target_text"] },
-            "then": { "required": ["target_lines"], "properties": { "target_lines": { "type": "array", "minItems": 2, "maxItems": 2 } } }
+            "if": {
+              "properties": {
+                "target_text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "target_text"
+              ]
+            },
+            "then": {
+              "required": [
+                "target_lines"
+              ],
+              "properties": {
+                "target_lines": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "protected_token_mappings": {
+      "type": "array",
+      "description": "Explicit reviewer-approved one-to-one protected-token rename mappings. Unreviewed or stale mappings never suppress token findings.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "category",
+          "source_token",
+          "target_token",
+          "rationale"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          },
+          "path": {
+            "type": "string",
+            "default": "SKILL.md"
+          },
+          "category": {
+            "enum": [
+              "code_block",
+              "inline_code",
+              "command_flag",
+              "file_path",
+              "windows_path",
+              "environment_variable",
+              "explicit_identifier",
+              "url"
+            ]
+          },
+          "source_token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "target_token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "reviewed": {
+            "type": "boolean",
+            "default": false
+          },
+          "reviewer": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 200
+          }
+        },
+        "allOf": [
+          {
+            "not": {
+              "properties": {
+                "source_token": {
+                  "const": ""
+                }
+              },
+              "required": [
+                "source_token"
+              ]
+            }
+          },
+          {
+            "not": {
+              "properties": {
+                "target_token": {
+                  "const": ""
+                }
+              },
+              "required": [
+                "target_token"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "reviewed": {
+                  "const": true
+                }
+              },
+              "required": [
+                "reviewed"
+              ]
+            },
+            "then": {
+              "required": [
+                "reviewer"
+              ],
+              "properties": {
+                "reviewer": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
           }
         ]
       }
