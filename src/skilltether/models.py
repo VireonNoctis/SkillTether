@@ -76,11 +76,44 @@ class Invariant(StrictModel):
             raise ValueError("target context anchors require reviewed=true")
         return self
 
+class ProtectedTokenMapping(StrictModel):
+    """Explicitly reviewed one-to-one rename for a protected machine-facing token."""
+
+    id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+    path: str = "SKILL.md"
+    category: Literal[
+        "code_block", "inline_code", "command_flag", "file_path", "windows_path",
+        "environment_variable", "explicit_identifier", "url",
+    ]
+    source_token: str = Field(min_length=1, max_length=2048)
+    target_token: str = Field(min_length=1, max_length=2048)
+    rationale: str = Field(min_length=1, max_length=2000)
+    reviewed: bool = False
+    reviewer: str | None = Field(default=None, max_length=200)
+
+    @model_validator(mode="after")
+    def mapping_requires_distinct_tokens_and_review(self) -> "ProtectedTokenMapping":
+        if self.source_token == self.target_token:
+            raise ValueError("protected-token mappings must change the token value")
+        if not self.path or self.path.startswith("/") or "\\" in self.path:
+            raise ValueError("protected-token mapping path must be a package-relative POSIX path")
+        if any(part in {"", ".", ".."} for part in self.path.split("/")):
+            raise ValueError("protected-token mapping path must not contain empty, dot, or parent components")
+        if not self.rationale.strip():
+            raise ValueError("protected-token mapping rationale must not be blank")
+        if self.reviewed and not (self.reviewer and self.reviewer.strip()):
+            raise ValueError("reviewed protected-token mappings require a reviewer")
+        if self.reviewer is not None and not self.reviewer.strip():
+            raise ValueError("protected-token mapping reviewer must not be blank")
+        return self
+
+
 class InvariantManifest(StrictModel):
     manifest_version: Literal["1.0"] = "1.0"
     source_locale: str
     target_locale: str | None = None
     invariants: list[Invariant] = Field(default_factory=list)
+    protected_token_mappings: list[ProtectedTokenMapping] = Field(default_factory=list)
     manifest_reviewer: str | None = None
     manifest_reviewed: bool = False
 
@@ -101,6 +134,15 @@ class InvariantManifest(StrictModel):
         duplicate_ids = [item.id for item in self.invariants]
         if len(duplicate_ids) != len(set(duplicate_ids)):
             raise ValueError("invariant IDs must be unique")
+        mapping_ids = [item.id for item in self.protected_token_mappings]
+        if len(mapping_ids) != len(set(mapping_ids)):
+            raise ValueError("protected-token mapping IDs must be unique")
+        mapping_keys = [
+            (item.path, item.category, item.source_token)
+            for item in self.protected_token_mappings
+        ]
+        if len(mapping_keys) != len(set(mapping_keys)):
+            raise ValueError("protected-token source mappings must be unique per path and category")
         return self
 
 class ReviewEvent(StrictModel):
