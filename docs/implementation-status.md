@@ -41,7 +41,7 @@ This page describes the repository implementation, not the entire long-term Skil
 - Common credential-shaped values are redacted or rejected in selected report/review fields. This is a limited guardrail, not a complete secret scanner.
 - Optional HMAC-SHA256 sealing can verify report integrity before review/export. It is symmetric integrity protection, not reviewer authentication or non-repudiation.
 - Optional SQLite history keeps run metadata, locale/provider/status values, and package fingerprints, not source/target document text or credentials. Local history improves traceability but is not itself cryptographically tamper-evident.
-- The offline reviewer workbench in reviewer/index.html loads a user-selected JSON report, filters findings, displays untrusted evidence as plain text, and appends timestamped decisions to unsigned reports before exporting a new JSON file. It makes no network requests and uses no browser storage. Signed reports are read-only; the CLI remains authoritative for signature verification and approval.
+- The offline reviewer workbench in reviewer/index.html loads a user-selected JSON report, filters findings, displays untrusted evidence as plain text, and appends timestamped decisions to unsigned reports before exporting a new JSON file. It makes no network requests and uses no browser storage. Signed reports are read-only; the CLI remains authoritative for signature verification and approval. Browser-side input checks reject duplicate finding IDs, malformed review-history events, incorrect optional field types, and reports beyond 5,000 findings or 500 history events per finding; these rendering bounds are intentionally lower than the CLI's capabilities.
 
 ## Verification and CI
 
