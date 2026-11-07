@@ -62,6 +62,8 @@ def fingerprint_manifest(manifest: InvariantManifest | None) -> str | None:
             invariant.pop("target_lines", None)
         if invariant.get("target_text") is None:
             invariant.pop("target_text", None)
+    if not model_payload.get("protected_token_mappings"):
+        model_payload.pop("protected_token_mappings", None)
     payload = json.dumps(model_payload, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -217,6 +219,66 @@ def compare_packages(
         target_token_objects.extend(extract_protected_tokens(text, path, patterns, explicit_tokens))
     source_counter.update((item.path, item.category, item.value) for item in source_token_objects)
     target_counter.update((item.path, item.category, item.value) for item in target_token_objects)
+
+    # A renamed machine-facing token is tolerated only when a human-reviewed,
+    # path/category-specific mapping exists and the target contains enough exact
+    # occurrences. Unreviewed, stale, or under-counted mappings never suppress
+    # ordinary PROTECTED_TOKEN_CHANGED / ADDED findings.
+    if manifest is not None:
+        for mapping in manifest.protected_token_mappings:
+            source_key = (mapping.path, mapping.category, mapping.source_token)
+            target_key = (mapping.path, mapping.category, mapping.target_token)
+            source_count = source_counter.get(source_key, 0)
+            target_count = target_counter.get(target_key, 0)
+            if not mapping.reviewed or not (mapping.reviewer and mapping.reviewer.strip()):
+                findings.append(new_finding(
+                    "PROTECTED_TOKEN_MAPPING_UNREVIEWED", "critical", "protected_token",
+                    f"Protected-token mapping {mapping.id!r} has not been explicitly reviewed.",
+                    "A token rename must never be accepted from an automatically generated or unreviewed mapping.",
+                    path=mapping.path, original_context=mapping.source_token,
+                    target_context=mapping.target_token,
+                    proposed_change="Verify the exact source/target token relationship, document the compatibility reason, and set reviewed=true with a reviewer.",
+                    requires_review=True, analysis_method="human_review", uncertainty="unknown",
+                ))
+                continue
+            if source_count == 0:
+                findings.append(new_finding(
+                    "PROTECTED_TOKEN_MAPPING_SOURCE_STALE", "critical", "protected_token",
+                    f"Protected-token mapping {mapping.id!r} no longer matches a source token.",
+                    "A stale mapping could accidentally authorize a future unrelated token change.",
+                    path=mapping.path, original_context=mapping.source_token,
+                    target_context=mapping.target_token,
+                    proposed_change="Remove or correct the mapping so it matches a detected source token exactly.",
+                    requires_review=True, analysis_method="deterministic", uncertainty="none",
+                ))
+                continue
+            if target_count < source_count:
+                findings.append(new_finding(
+                    "PROTECTED_TOKEN_MAPPING_TARGET_MISSING", "critical", "protected_token",
+                    f"Protected-token mapping {mapping.id!r} expects {source_count} target occurrences, but only {target_count} were found.",
+                    "An approved mapping does not permit deleting, partially renaming, or changing the number of machine-facing token occurrences.",
+                    path=mapping.path, original_context=mapping.source_token,
+                    target_context=mapping.target_token,
+                    proposed_change="Restore all mapped target occurrences or revise the mapping only after a fresh human review.",
+                    requires_review=True, analysis_method="deterministic", uncertainty="none",
+                ))
+                continue
+            source_counter[source_key] -= source_count
+            if source_counter[source_key] <= 0:
+                source_counter.pop(source_key, None)
+            target_counter[target_key] -= source_count
+            if target_counter[target_key] <= 0:
+                target_counter.pop(target_key, None)
+            findings.append(new_finding(
+                "PROTECTED_TOKEN_MAPPING_APPLIED", "info", "protected_token",
+                f"Reviewed mapping {mapping.id!r} matched {source_count} protected-token occurrence(s).",
+                "The exact token replacement was accepted only because this path- and category-specific mapping carries an explicit reviewer and rationale. This is not an automatic rename suggestion.",
+                path=mapping.path,
+                original_context=mapping.source_token,
+                target_context=mapping.target_token,
+                proposed_change=f"Retain the review record from {mapping.reviewer!r} and re-review the mapping if either identifier changes.",
+                requires_review=False, analysis_method="deterministic", uncertainty="none",
+            ))
 
     source_index = {(item.path, item.category, item.value): item for item in source_token_objects}
     target_index = {(item.path, item.category, item.value): item for item in target_token_objects}
