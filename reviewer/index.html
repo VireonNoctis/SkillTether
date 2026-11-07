@@ -194,6 +194,9 @@
             throw new Error("Finding " + finding.id + " has an invalid review history event at index " + eventIndex + ".");
           }
         }
+        if (finding.review_history.length && !historyIsConsistent(finding)) {
+          throw new Error("Finding " + finding.id + " has an inconsistent review history.");
+        }
       }
     }
     return value;
