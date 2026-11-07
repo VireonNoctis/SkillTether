@@ -255,3 +255,107 @@ def test_installed_system_parsers_check_syntax_without_executing_sources(
 
     assert valid is not None and valid.status == "valid"
     assert invalid is not None and invalid.status == "invalid"
+
+
+
+def test_typescript_uses_compiler_ast_parser_with_source_on_stdin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[list[str], dict[str, object]]] = []
+    monkeypatch.setattr(
+        static_analysis.shutil,
+        "which",
+        lambda name: {"node": "/trusted/node", "tsc": "/trusted/tsc"}.get(name),
+    )
+    monkeypatch.setattr(
+        static_analysis,
+        "_typescript_module_path",
+        lambda _tsc: "/trusted/node_modules/typescript",
+    )
+
+    def fake_run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        calls.append((command, kwargs))
+        return SimpleNamespace(returncode=0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(static_analysis.subprocess, "run", fake_run)
+    source = "export const answer: number = 42;\n"
+    result = static_analysis.check_script_syntax("scripts/check.ts", source)
+
+    assert result is not None and result.status == "valid"
+    assert result.parser == "typescript"
+    assert len(calls) == 1
+    command, kwargs = calls[0]
+    assert command[:2] == ["/trusted/node", "-e"]
+    assert "/trusted/node_modules/typescript" in command
+    assert ".ts" in command
+    assert source not in " ".join(command)
+    assert kwargs["input"] == source.encode("utf-8")
+    assert kwargs["shell"] is False
+    assert kwargs["timeout"] == 8.0
+    assert kwargs["env"] is not None
+
+
+def test_typescript_requires_an_already_installed_local_parser(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    launches: list[object] = []
+    monkeypatch.setattr(static_analysis.shutil, "which", lambda _name: None)
+    monkeypatch.setattr(
+        static_analysis.subprocess,
+        "run",
+        lambda *args, **kwargs: launches.append(args),
+    )
+
+    result = static_analysis.check_script_syntax("scripts/check.ts", "const answer = 42;")
+
+    assert result is not None
+    assert result.parser == "typescript"
+    assert result.status == "unavailable"
+    assert launches == []
+
+
+@pytest.mark.parametrize(
+    ("source", "status"),
+    [
+        ('@echo off\nif defined FLAG (\n  echo "open paren ("\n)\n', "partial"),
+        ("@echo off\nif defined FLAG (\n  echo missing close\n", "invalid"),
+        ("@echo off\necho unmatched )\n", "invalid"),
+        ("@echo off\necho ^(literal^)\n", "partial"),
+        ('@echo off\necho "unterminated\n', "invalid"),
+    ],
+)
+def test_batch_file_uses_only_conservative_delimiter_scan(source: str, status: str) -> None:
+    result = static_analysis.check_script_syntax("scripts/tool.bat", source)
+
+    assert result is not None
+    assert result.parser == "batch-delimiter-check"
+    assert result.status == status
+
+
+def test_batch_balanced_scan_never_claims_full_syntax_validity() -> None:
+    result = static_analysis.check_script_syntax("scripts/tool.bat", "@echo off\necho ready\n")
+
+    assert result is not None
+    assert result.status == "partial"
+
+
+def test_batch_delimiter_findings_are_heuristic_and_incomplete_results_are_explicit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    suspicious = analysis.validate_script_syntax("scripts/bad.bat", "if defined FLAG (\necho no close")
+    finding = next(item for item in suspicious if item.code == "SCRIPT_BATCH_DELIMITER_SUSPECTED")
+    assert finding.analysis_method == "heuristic"
+    assert finding.uncertainty == "high"
+    assert finding.requires_review is True
+
+    balanced = analysis.validate_script_syntax("scripts/good.bat", "@echo off\necho ready\n")
+    incomplete = next(item for item in balanced if item.code == "SCRIPT_SYNTAX_CHECK_INCOMPLETE")
+    assert incomplete.analysis_method == "deterministic"
+    assert incomplete.uncertainty == "high"
+    assert incomplete.requires_review is True
+
+
+def test_typescript_and_batch_extensions_are_classified_as_readable_scripts() -> None:
+    assert {".ts", ".tsx", ".mts", ".cts", ".bat"} <= analysis.SCRIPT_SUFFIXES
+    assert {".ts", ".tsx", ".mts", ".cts", ".bat"} <= analysis.READABLE_SUFFIXES
+    assert {".ts", ".tsx", ".mts", ".cts", ".bat"} <= analysis.PARSE_ONLY_SCRIPT_SUFFIXES
