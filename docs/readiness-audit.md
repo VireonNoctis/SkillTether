@@ -143,3 +143,11 @@ This snapshot records the passing code/test head; documentation-only commits aft
 ## Acceptance gate
 
 A release candidate should pass the current CI suite; include traceable tests for each newly implemented rule plus a hard negative; preserve source-package fingerprints; validate schemas and bundled fixtures; document coverage and cross-platform limits; and leave critical or ambiguous semantic changes for explicit human review. No single score should be presented as a “safe translation” certificate.
+
+## Additional offline reviewer hardening (2026-11-07)
+
+- **Validate review-history entries before rendering:** the browser workbench now checks each event's object shape, previous/current disposition, reviewer and note fields, bounded text lengths, and timezone-bearing parseable timestamp. Malformed entries are rejected before the renderer can dereference them.
+- **Prevent ambiguous finding selection:** duplicate or blank finding IDs are rejected; optional text, line-number, and review-required fields receive type checks.
+- **Bound browser rendering work:** the workbench rejects reports over 20 MiB, more than 5,000 findings, or more than 500 history events on a single finding. These are UI resource limits only; larger reports remain available to the CLI.
+- **Preserve the trust boundary:** untrusted evidence remains inserted through DOM text nodes; no HTML interpretation, network request, or browser storage was introduced. Signed reports remain read-only and CLI verification/approval remains authoritative.
+- Regression coverage: `tests/test_reviewer_workbench.py` checks the no-network/plain-text boundary, signed-report read-only behavior, event-shape validation, unique IDs, and browser bounds. These source-level assertions supplement—not replace—runtime browser testing.
