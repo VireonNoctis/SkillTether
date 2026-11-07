@@ -35,6 +35,8 @@
     .panel h2 { font-size:1.05rem; padding:.85rem 1rem; margin:0; border-bottom:1px solid color-mix(in srgb, CanvasText 16%, transparent); }
     .filters { padding:.75rem; align-items:end; }
     .finding-list { max-height:70vh; overflow:auto; }
+    .finding-group-heading { margin:0; padding:.65rem 1rem; font-size:.82rem; letter-spacing:.02em; text-transform:uppercase; opacity:.7; background:color-mix(in srgb, CanvasText 5%, Canvas); border-top:1px solid color-mix(in srgb, CanvasText 14%, transparent); }
+    #filter-summary { margin:.2rem .75rem .75rem; font-size:.82rem; }
     .finding { display:block; width:100%; text-align:left; border:0; border-radius:0; border-top:1px solid color-mix(in srgb, CanvasText 12%, transparent); padding:.85rem 1rem; background:transparent; }
     .finding[aria-current="true"] { background: color-mix(in srgb, Highlight 13%, Canvas); box-shadow: inset 3px 0 Highlight; }
     .finding-title { display:flex; gap:.5rem; justify-content:space-between; align-items:center; }
@@ -76,13 +78,18 @@
     <div class="metric"><strong id="critical">0</strong><span>Critical</span></div>
     <div class="metric"><strong id="needs-review">0</strong><span>Review required</span></div>
     <div class="metric"><strong id="approved">0</strong><span>Approved with audit event</span></div>
+    <div class="metric"><strong id="reviewed">0</strong><span>Findings with an audited decision</span></div>
   </div>
   <section id="workspace" hidden>
     <div class="filters">
-      <label>Search findings<input id="search" type="search" placeholder="Code, path, message, or context"></label>
+      <label>Search findings<input id="search" type="search" placeholder="Code, path, rule, evidence, reviewer, or rationale"></label>
       <label>Severity<select id="severity"><option value="">All severities</option><option>critical</option><option>high</option><option>medium</option><option>low</option><option>info</option></select></label>
       <label>Disposition<select id="disposition"><option value="">All dispositions</option><option>pending</option><option>approved</option><option>rejected</option><option>deferred</option></select></label>
+      <label>Category<select id="category"><option value="">All categories</option></select></label>
+      <label>Analysis method<select id="method"><option value="">All methods</option></select></label>
+      <label>Sort<select id="sort"><option value="priority">Review priority</option><option value="path">Package path</option><option value="category">Category</option></select></label>
     </div>
+    <p id="filter-summary" class="muted" aria-live="polite">Load a report to filter and group findings.</p>
     <div class="layout">
       <section class="panel" aria-label="Finding list">
         <h2>Findings</h2>
@@ -99,7 +106,7 @@
 (() => {
   "use strict";
   const byId = (id) => document.getElementById(id);
-  const state = { report: null, selectedId: null, filename: "" };
+  const state = { report: null, selectedId: null, filename: "", visibleIds: [] };
   const allowedSeverities = new Set(["critical", "high", "medium", "low", "info"]);
   const allowedDispositions = new Set(["pending", "approved", "rejected", "deferred"]);
   // The browser workbench is deliberately bounded independently of the CLI.
@@ -238,7 +245,30 @@
     byId("total").textContent = findings.length;
     byId("critical").textContent = findings.filter(f => f.severity === "critical").length;
     byId("needs-review").textContent = findings.filter(f => f.requires_review || f.severity === "critical" || f.severity === "high").length;
-    byId("approved").textContent = findings.filter(reviewIsAudited).length;
+    const audited = findings.filter(reviewIsAudited).length;
+    byId("approved").textContent = audited;
+    byId("reviewed").textContent = audited;
+  }
+  function populateFilterOptions() {
+    for (const [id, field, label] of [
+      ["category", "category", "All categories"],
+      ["method", "analysis_method", "All methods"]
+    ]) {
+      const select = byId(id);
+      const previous = select.value;
+      const values = [...new Set(state.report.findings
+        .map(f => f[field] || "unknown")
+        .filter(value => typeof value === "string" && value.length > 0))]
+        .sort((a, b) => a.localeCompare(b));
+      select.replaceChildren(el("option", "", label));
+      select.options[0].value = "";
+      for (const value of values) {
+        const option = el("option", "", value);
+        option.value = value;
+        select.append(option);
+      }
+      if (values.includes(previous)) select.value = previous;
+    }
   }
   function renderList() {
     const list = byId("finding-list");
@@ -247,34 +277,69 @@
     const q = byId("search").value.trim().toLocaleLowerCase();
     const severity = byId("severity").value;
     const disposition = byId("disposition").value;
+    const category = byId("category").value;
+    const method = byId("method").value;
+    const sort = byId("sort").value;
     const filtered = state.report.findings.filter(f => {
       if (severity && f.severity !== severity) return false;
       if (disposition && (f.disposition || "pending") !== disposition) return false;
-      const haystack = [f.id, f.code, f.path, f.message, f.original_context, f.target_context]
-        .filter(Boolean).join(" ").toLocaleLowerCase();
+      if (category && (f.category || "unknown") !== category) return false;
+      if (method && (f.analysis_method || "unknown") !== method) return false;
+      const haystack = [
+        f.id, f.code, f.path, f.message, f.rationale, f.rule_id,
+        f.original_context, f.target_context, f.proposed_change,
+        f.category, f.analysis_method, f.uncertainty, f.reviewer, f.review_note
+      ].filter(Boolean).join(" ").toLocaleLowerCase();
       return !q || haystack.includes(q);
     });
+    const severityRank = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+    filtered.sort((a, b) => {
+      if (sort === "path") return String(a.path || "").localeCompare(String(b.path || "")) || a.id.localeCompare(b.id);
+      if (sort === "category") return String(a.category || "unknown").localeCompare(String(b.category || "unknown")) || a.id.localeCompare(b.id);
+      return (severityRank[a.severity] ?? 5) - (severityRank[b.severity] ?? 5) ||
+        Number(Boolean(b.requires_review)) - Number(Boolean(a.requires_review)) ||
+        String(a.path || "").localeCompare(String(b.path || "")) || a.id.localeCompare(b.id);
+    });
+    state.visibleIds = filtered.map(f => f.id);
+    byId("filter-summary").textContent =
+      "Showing " + filtered.length + " of " + state.report.findings.length +
+      " findings · grouped by category · use j/k to move between visible findings and / to search";
     if (!filtered.length) {
       list.append(el("p", "muted", "No findings match these filters."));
       return;
     }
+    const groups = new Map();
     for (const finding of filtered) {
-      const button = el("button", "finding");
-      button.type = "button";
-      button.setAttribute("role", "listitem");
-      button.setAttribute("aria-current", finding.id === state.selectedId ? "true" : "false");
-      const title = el("div", "finding-title");
-      title.append(el("strong", "", finding.code));
-      title.append(el("span", "severity", finding.severity));
-      button.append(title);
-      button.append(el("div", "muted", finding.path || "(package)"));
-      button.append(el("small", "", (finding.disposition || "pending") + (finding.requires_review ? " · review required" : "")));
-      button.addEventListener("click", () => {
-        state.selectedId = finding.id;
-        renderList();
-        renderDetail();
-      });
-      list.append(button);
+      const key = finding.category || "unknown";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(finding);
+    }
+    for (const [groupName, group] of groups) {
+      const heading = el("h3", "finding-group-heading", groupName + " · " + group.length);
+      heading.setAttribute("role", "heading");
+      heading.setAttribute("aria-level", "3");
+      list.append(heading);
+      for (const finding of group) {
+        const button = el("button", "finding");
+        button.type = "button";
+        button.setAttribute("role", "listitem");
+        button.setAttribute("aria-current", finding.id === state.selectedId ? "true" : "false");
+        const title = el("div", "finding-title");
+        title.append(el("strong", "", finding.code));
+        title.append(el("span", "severity", finding.severity));
+        button.append(title);
+        button.append(el("div", "muted", finding.path || "(package)"));
+        button.append(el("small", "", (finding.disposition || "pending") +
+          (finding.requires_review ? " · review required" : "") +
+          " · " + (finding.analysis_method || "unknown") +
+          " · uncertainty: " + (finding.uncertainty || "unknown")));
+        button.addEventListener("click", () => {
+          state.selectedId = finding.id;
+          renderList();
+          renderDetail();
+        });
+        list.append(button);
+      }
     }
   }
   function addContext(parent, title, value) {
@@ -320,7 +385,10 @@
       "Uncertainty: " + (finding.uncertainty || "unknown"),
       "Source: " + (finding.path || "—") + (finding.source_line ? ":" + finding.source_line : ""),
       "Target line: " + (finding.target_line || "—"),
-      "Disposition: " + (finding.disposition || "pending")
+      "Disposition: " + (finding.disposition || "pending"),
+      "Rule: " + (finding.rule_id || finding.code),
+      "Review required: " + Boolean(finding.requires_review),
+      "Reviewer: " + (finding.reviewer || "—")
     ].join(" · ")));
     const rationale = el("p", "", finding.rationale || "");
     panel.append(rationale);
@@ -418,6 +486,7 @@
       state.report = parsed;
       state.filename = file.name;
       state.selectedId = parsed.findings[0]?.id || null;
+      populateFilterOptions();
       const signed = isSigned(parsed);
       byId("signed-notice").hidden = !signed;
       byId("metrics").hidden = false;
@@ -438,7 +507,30 @@
       showNotice(error instanceof Error ? error.message : "Unable to read report.", "error");
     }
   });
-  ["search", "severity", "disposition"].forEach(id => byId(id).addEventListener("input", renderList));
+  ["search"].forEach(id => byId(id).addEventListener("input", renderList));
+  ["severity", "disposition", "category", "method", "sort"].forEach(id =>
+    byId(id).addEventListener("change", renderList)
+  );
+  document.addEventListener("keydown", event => {
+    if (!state.report || event.ctrlKey || event.metaKey || event.altKey) return;
+    const active = document.activeElement;
+    const editing = active && ["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName);
+    if (event.key === "/" && !editing) {
+      event.preventDefault();
+      byId("search").focus();
+      return;
+    }
+    if (editing || !["j", "k"].includes(event.key)) return;
+    if (!state.visibleIds.length) return;
+    const current = Math.max(0, state.visibleIds.indexOf(state.selectedId));
+    const next = Math.min(
+      state.visibleIds.length - 1,
+      Math.max(0, current + (event.key === "j" ? 1 : -1))
+    );
+    state.selectedId = state.visibleIds[next];
+    renderList();
+    renderDetail();
+  });
   byId("export").addEventListener("click", () => {
     if (!state.report || isSigned(state.report)) return;
     const payload = JSON.stringify(state.report, null, 2) + "\n";
