@@ -102,6 +102,10 @@
   const state = { report: null, selectedId: null, filename: "" };
   const allowedSeverities = new Set(["critical", "high", "medium", "low", "info"]);
   const allowedDispositions = new Set(["pending", "approved", "rejected", "deferred"]);
+  // The browser workbench is deliberately bounded independently of the CLI.
+  // Large reports remain reviewable through the authoritative command-line flow.
+  const MAX_FINDINGS = 5000;
+  const MAX_REVIEW_EVENTS = 500;
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -121,14 +125,75 @@
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("The file is not a JSON object.");
     if (value.report_version !== "1.0") throw new Error("Unsupported report version. This workbench accepts report_version 1.0.");
     if (!Array.isArray(value.findings)) throw new Error("The report has no findings array.");
+    if (value.findings.length > MAX_FINDINGS) {
+      throw new Error("The report exceeds the " + MAX_FINDINGS + "-finding browser workbench limit. Use the CLI to review larger reports.");
+    }
+
+    const findingIds = new Set();
+    const nullableTextFields = [
+      "path", "original_context", "target_context", "proposed_change",
+      "reviewer", "review_note", "rule_id"
+    ];
+    const textFields = [
+      "category", "message", "rationale", "analysis_method",
+      "uncertainty", "severity_rationale"
+    ];
+
     for (const [index, finding] of value.findings.entries()) {
-      if (!finding || typeof finding !== "object" || typeof finding.id !== "string" ||
-          typeof finding.code !== "string" || !allowedSeverities.has(finding.severity) ||
-          !allowedDispositions.has(finding.disposition || "pending")) {
+      if (!finding || typeof finding !== "object" || Array.isArray(finding) ||
+          typeof finding.id !== "string" || !finding.id.trim() ||
+          typeof finding.code !== "string" || !finding.code.trim() ||
+          !allowedSeverities.has(finding.severity) ||
+          !allowedDispositions.has(finding.disposition === undefined ? "pending" : finding.disposition)) {
         throw new Error("Finding " + index + " does not match the supported report contract.");
       }
-      if (finding.review_history !== undefined && !Array.isArray(finding.review_history)) {
-        throw new Error("Finding " + finding.id + " has an invalid review history.");
+      if (findingIds.has(finding.id)) {
+        throw new Error("Finding IDs must be unique; duplicate ID: " + finding.id);
+      }
+      findingIds.add(finding.id);
+
+      for (const field of textFields) {
+        if (finding[field] !== undefined && typeof finding[field] !== "string") {
+          throw new Error("Finding " + finding.id + " has an invalid " + field + " field.");
+        }
+      }
+      for (const field of nullableTextFields) {
+        if (finding[field] !== undefined && finding[field] !== null && typeof finding[field] !== "string") {
+          throw new Error("Finding " + finding.id + " has an invalid " + field + " field.");
+        }
+      }
+      if (finding.requires_review !== undefined && typeof finding.requires_review !== "boolean") {
+        throw new Error("Finding " + finding.id + " has an invalid requires_review field.");
+      }
+      for (const field of ["source_line", "target_line"]) {
+        if (finding[field] !== undefined && finding[field] !== null &&
+            (!Number.isInteger(finding[field]) || finding[field] < 1)) {
+          throw new Error("Finding " + finding.id + " has an invalid " + field + " field.");
+        }
+      }
+
+      if (finding.review_history !== undefined) {
+        if (!Array.isArray(finding.review_history)) {
+          throw new Error("Finding " + finding.id + " has an invalid review history.");
+        }
+        if (finding.review_history.length > MAX_REVIEW_EVENTS) {
+          throw new Error("Finding " + finding.id + " exceeds the " + MAX_REVIEW_EVENTS + "-event browser review-history limit.");
+        }
+        for (const [eventIndex, reviewEvent] of finding.review_history.entries()) {
+          if (!reviewEvent || typeof reviewEvent !== "object" || Array.isArray(reviewEvent) ||
+              !allowedDispositions.has(reviewEvent.previous_disposition) ||
+              !allowedDispositions.has(reviewEvent.disposition) ||
+              typeof reviewEvent.reviewer !== "string" || !reviewEvent.reviewer.trim() ||
+              reviewEvent.reviewer.length > 200 ||
+              typeof reviewEvent.note !== "string" || !reviewEvent.note.trim() ||
+              reviewEvent.note.length > 4000 ||
+              typeof reviewEvent.recorded_at !== "string" ||
+              reviewEvent.recorded_at.length > 64 ||
+              !/(?:Z|[+-]\\d{2}:\\d{2})$/i.test(reviewEvent.recorded_at) ||
+              !Number.isFinite(Date.parse(reviewEvent.recorded_at))) {
+            throw new Error("Finding " + finding.id + " has an invalid review history event at index " + eventIndex + ".");
+          }
+        }
       }
     }
     return value;
