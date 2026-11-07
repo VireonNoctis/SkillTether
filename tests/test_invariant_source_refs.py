@@ -161,6 +161,356 @@ def test_unanchored_invariants_remain_supported_when_optional_refs_are_omitted(
     )
 
 
+def _write_manifest(path: Path, invariant: Invariant) -> InvariantManifest:
+    manifest = reviewed_manifest(invariant)
+    path.write_text(
+        yaml.safe_dump(manifest.model_dump(mode="json", exclude_none=True), sort_keys=False),
+        encoding="utf-8",
+    )
+    return manifest
+
+
+def test_human_verified_target_anchor_locates_translated_context_without_positional_guessing(
+    tmp_path: Path,
+) -> None:
+    source_sentence = "Do not exceed 3 retries."
+    target_sentence = "Ne dépassez pas 3 tentatives."
+    source = make_package(
+        tmp_path / "source" / "sample-skill",
+        source_sentence,
+    )
+    target = make_package(
+        tmp_path / "target" / "sample-skill",
+        "An added introduction.\nAnother translated paragraph.\n" + target_sentence,
+    )
+    target_lines = (target / "SKILL.md").read_text(encoding="utf-8").splitlines()
+    target_line = target_lines.index(target_sentence) + 1
+    invariant = Invariant(
+        id="INV-TARGET-ANCHOR-1",
+        statement="Do not exceed 3 retries.",
+        category="safety_constraint",
+        severity="critical",
+        source_path="SKILL.md",
+        source_lines=(8, 8),
+        source_text=source_sentence,
+        target_lines=(target_line, target_line),
+        target_text=target_sentence,
+        expected_numbers=["3"],
+        reviewed=True,
+        reviewer="qa-reviewer",
+    )
+
+    report = compare_packages(
+        source, target, reviewed_manifest(invariant), target_locale="fr",
+    )
+
+    assert not any(
+        finding.code in {
+            "INVARIANT_TARGET_CONTEXT_POSITIONAL",
+            "INVARIANT_TARGET_CONTEXT_UNCERTAIN",
+            "INVARIANT_REQUIRED_TOKEN_MISSING",
+        }
+        for finding in report.findings
+    )
+    critical = next(
+        finding for finding in report.findings
+        if finding.code == "CRITICAL_INVARIANT_REVIEW_REQUIRED"
+    )
+    assert critical.target_line == target_line
+    assert critical.target_context == target_sentence
+    # An exact human anchor identifies context; it does not remove critical sign-off.
+
+
+@pytest.mark.parametrize(
+    ("target_lines", "target_text", "expected_message"),
+    [
+        ((8, 8), "A stale excerpt.", "no longer matches"),
+        ((80, 81), "A range beyond the resource.", "exceeds the current"),
+    ],
+)
+def test_stale_target_anchor_is_a_deterministic_critical_blocker(
+    tmp_path: Path,
+    target_lines: tuple[int, int],
+    target_text: str,
+    expected_message: str,
+) -> None:
+    source_sentence = "Do not exceed 3 retries."
+    target_sentence = "Ne dépassez pas 3 tentatives."
+    source = make_package(tmp_path / "source" / "sample-skill", source_sentence)
+    target = make_package(tmp_path / "target" / "sample-skill", target_sentence)
+    invariant = Invariant(
+        id="INV-TARGET-ANCHOR-STALE",
+        statement="Do not exceed 3 retries.",
+        severity="critical",
+        source_path="SKILL.md",
+        source_lines=(8, 8),
+        source_text=source_sentence,
+        target_lines=target_lines,
+        target_text=target_text,
+        reviewed=True,
+        reviewer="qa-reviewer",
+    )
+
+    report = compare_packages(
+        source, target, reviewed_manifest(invariant), target_locale="fr",
+    )
+    finding = next(
+        finding for finding in report.findings
+        if finding.code == "INVARIANT_TARGET_REFERENCE_INVALID"
+    )
+
+    assert expected_message in finding.message
+    assert finding.severity == "critical"
+    assert finding.analysis_method == "deterministic"
+    assert finding.uncertainty == "none"
+    assert finding.requires_review is True
+
+
+def test_optional_target_anchors_preserve_legacy_manifest_fingerprints() -> None:
+    import hashlib
+    import json
+
+    from skilltether.compare import fingerprint_manifest
+
+    plain = reviewed_manifest(Invariant(
+        id="INV-FINGERPRINT",
+        statement="Preserve existing manifest fingerprints.",
+        reviewed=True,
+        reviewer="qa-reviewer",
+    ))
+    anchored = reviewed_manifest(Invariant(
+        id="INV-FINGERPRINT",
+        statement="Preserve existing manifest fingerprints.",
+        target_lines=(8, 8),
+        target_text="Localized excerpt.",
+        reviewed=True,
+        reviewer="qa-reviewer",
+    ))
+
+    legacy_shape = plain.model_dump(mode="json")
+    for invariant in legacy_shape["invariants"]:
+        invariant.pop("target_lines", None)
+        invariant.pop("target_text", None)
+    expected_legacy = hashlib.sha256(
+        json.dumps(legacy_shape, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+    assert fingerprint_manifest(plain) == expected_legacy
+    assert fingerprint_manifest(anchored) != fingerprint_manifest(plain)
+
+
+@pytest.mark.parametrize("localized_digit", ["٣", "۳", "३", "３"])
+def test_numeric_invariant_matches_unicode_decimal_digit_scripts(
+    tmp_path: Path, localized_digit: str,
+) -> None:
+    source_sentence = "Do not exceed 3 retries."
+    target_sentence = f"Ne dépassez pas {localized_digit} tentatives."
+    source = make_package(tmp_path / "source" / "sample-skill", source_sentence)
+    target = make_package(tmp_path / "target" / "sample-skill", target_sentence)
+    target_lines = (target / "SKILL.md").read_text(encoding="utf-8").splitlines()
+    target_line = target_lines.index(target_sentence) + 1
+    invariant = Invariant(
+        id="INV-UNICODE-DIGIT",
+        statement=source_sentence,
+        category="numeric_limit",
+        severity="critical",
+        source_path="SKILL.md",
+        source_lines=(8, 8),
+        source_text=source_sentence,
+        target_lines=(target_line, target_line),
+        target_text=target_sentence,
+        expected_numbers=["3"],
+        reviewed=True,
+        reviewer="qa-reviewer",
+    )
+
+    report = compare_packages(
+        source, target, reviewed_manifest(invariant), target_locale="fr",
+    )
+
+    assert not any(
+        finding.code == "INVARIANT_REQUIRED_TOKEN_MISSING"
+        for finding in report.findings
+    )
+    critical = next(
+        finding for finding in report.findings
+        if finding.code == "CRITICAL_INVARIANT_REVIEW_REQUIRED"
+    )
+    assert critical.target_context == target_sentence
+
+
+@pytest.mark.parametrize("localized_digit", ["٣", "۳", "३", "３"])
+def test_numeric_invariant_matches_unicode_decimal_digit_scripts(
+    tmp_path: Path, localized_digit: str,
+) -> None:
+    source_sentence = "Do not exceed 3 retries."
+    target_sentence = f"Ne dépassez pas {localized_digit} tentatives."
+    source = make_package(tmp_path / "source" / "sample-skill", source_sentence)
+    target = make_package(tmp_path / "target" / "sample-skill", target_sentence)
+    target_lines = (target / "SKILL.md").read_text(encoding="utf-8").splitlines()
+    target_line = target_lines.index(target_sentence) + 1
+    invariant = Invariant(
+        id="INV-UNICODE-DIGIT",
+        statement=source_sentence,
+        category="numeric_limit",
+        severity="critical",
+        source_path="SKILL.md",
+        source_lines=(8, 8),
+        source_text=source_sentence,
+        target_lines=(target_line, target_line),
+        target_text=target_sentence,
+        expected_numbers=["3"],
+        reviewed=True,
+        reviewer="qa-reviewer",
+    )
+
+    report = compare_packages(
+        source, target, reviewed_manifest(invariant), target_locale="fr",
+    )
+
+    assert not any(
+        finding.code == "INVARIANT_REQUIRED_TOKEN_MISSING"
+        for finding in report.findings
+    )
+    critical = next(
+        finding for finding in report.findings
+        if finding.code == "CRITICAL_INVARIANT_REVIEW_REQUIRED"
+    )
+    assert critical.target_context == target_sentence
+
+
+@pytest.mark.parametrize("target_number", ["13", "3.5", "3,5", "3rd", "-3"])
+def test_numeric_invariant_does_not_accept_partial_or_changed_literals(
+    tmp_path: Path, target_number: str,
+) -> None:
+    source_sentence = "Do not exceed 3 retries."
+    target_sentence = f"Ne dépassez pas {target_number} tentatives."
+    source = make_package(tmp_path / "source" / "sample-skill", source_sentence)
+    target = make_package(tmp_path / "target" / "sample-skill", target_sentence)
+    target_lines = (target / "SKILL.md").read_text(encoding="utf-8").splitlines()
+    target_line = target_lines.index(target_sentence) + 1
+    invariant = Invariant(
+        id="INV-NUMERIC-BOUNDARY",
+        statement=source_sentence,
+        category="numeric_limit",
+        severity="critical",
+        source_path="SKILL.md",
+        source_lines=(8, 8),
+        source_text=source_sentence,
+        target_lines=(target_line, target_line),
+        target_text=target_sentence,
+        expected_numbers=["3"],
+        reviewed=True,
+        reviewer="qa-reviewer",
+    )
+
+    report = compare_packages(
+        source, target, reviewed_manifest(invariant), target_locale="fr",
+    )
+
+    missing = next(
+        finding for finding in report.findings
+        if finding.code == "INVARIANT_REQUIRED_TOKEN_MISSING"
+    )
+    assert missing.severity == "critical"
+    assert missing.analysis_method == "deterministic"
+    assert missing.uncertainty == "none"
+
+
+def test_target_anchor_fields_must_be_paired_and_human_reviewed() -> None:
+    with pytest.raises(ValueError, match="target_lines and target_text must be supplied together"):
+        Invariant(
+            id="INV-TARGET-PAIR",
+            statement="The target passage is reviewed.",
+            target_lines=(8, 8),
+        )
+    with pytest.raises(ValueError, match="target context anchors require reviewed=true"):
+        Invariant(
+            id="INV-TARGET-UNREVIEWED",
+            statement="The target passage is not yet reviewed.",
+            target_lines=(8, 8),
+            target_text="A target excerpt.",
+            reviewer="qa-reviewer",
+        )
+
+
+def test_target_anchor_manifest_matches_json_schema_and_rejects_incomplete_pair() -> None:
+    import json
+    import jsonschema
+
+    schema = json.loads(
+        Path("schemas/invariant-manifest.schema.json").read_text(encoding="utf-8")
+    )
+    validator = jsonschema.Draft202012Validator(schema)
+    manifest = reviewed_manifest(Invariant(
+        id="INV-TARGET-SCHEMA",
+        statement="The source and target are anchored.",
+        target_lines=(8, 8),
+        target_text="Target-language excerpt.",
+        reviewed=True,
+        reviewer="qa-reviewer",
+    ))
+    payload = manifest.model_dump(mode="json", exclude_none=True)
+
+    validator.validate(payload)
+    incomplete = json.loads(json.dumps(payload))
+    incomplete["invariants"][0].pop("target_text")
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate(incomplete)
+
+    unreviewed = json.loads(json.dumps(payload))
+    unreviewed["invariants"][0]["reviewed"] = False
+    with pytest.raises(jsonschema.ValidationError):
+        validator.validate(unreviewed)
+
+
+def test_approval_cannot_override_stale_target_reference(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    source_sentence = "Do not exceed 3 retries."
+    target_sentence = "Ne dépassez pas 3 tentatives."
+    source = make_package(tmp_path / "source" / "sample-skill", source_sentence)
+    target = make_package(tmp_path / "target" / "sample-skill", target_sentence)
+    invariant = Invariant(
+        id="INV-TARGET-ANCHOR-BLOCK",
+        statement="Do not exceed 3 retries.",
+        severity="critical",
+        source_path="SKILL.md",
+        source_lines=(8, 8),
+        source_text=source_sentence,
+        target_lines=(8, 8),
+        target_text="Stale target excerpt.",
+        reviewed=True,
+        reviewer="qa-reviewer",
+    )
+    manifest_path = tmp_path / "invariants.yaml"
+    manifest = _write_manifest(manifest_path, invariant)
+    report = compare_packages(source, target, manifest, target_locale="fr")
+    report_path = tmp_path / "report.json"
+    write_json_report(report, report_path)
+    blocker = next(
+        item for item in report.findings
+        if item.code == "INVARIANT_TARGET_REFERENCE_INVALID"
+    )
+
+    assert main([
+        "review", str(report_path), blocker.id,
+        "--disposition", "approved", "--reviewer", "qa-reviewer",
+        "--note", "Reviewed the report but the target anchor must be corrected.",
+    ]) == 0
+
+    output = tmp_path / "approved" / "sample-skill"
+    result = main([
+        "approve", str(source), str(target),
+        "--report", str(report_path), "--output", str(output),
+        "--invariants", str(manifest_path),
+    ])
+
+    assert result == 2
+    assert "invalid source/target references" in capsys.readouterr().err
+    assert not output.exists()
+
+
 def test_approval_cannot_override_stale_source_reference(
     tmp_path: Path, capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -203,5 +553,5 @@ def test_approval_cannot_override_stale_source_reference(
     ])
 
     assert result == 2
-    assert "invalid source references" in capsys.readouterr().err
+    assert "invalid source/target references" in capsys.readouterr().err
     assert not output.exists()

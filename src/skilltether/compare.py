@@ -21,10 +21,13 @@ from . import __version__
 FATAL_STRUCTURE_CODES = {
     "SKILL_MD_MISSING", "SKILL_MD_NOT_UTF8", "PACKAGE_TOO_LARGE", "FRONTMATTER_INVALID",
     "FRONTMATTER_REQUIRED_FIELD", "SKILL_NAME_INVALID", "SKILL_NAME_DIRECTORY_MISMATCH",
-    "DESCRIPTION_TOO_LONG", "COMPATIBILITY_INVALID", "ALLOWED_TOOLS_INVALID",
-    "METADATA_INVALID", "SKILL_BODY_EMPTY", "SYMLINK_NOT_ALLOWED", "FILE_TOO_LARGE",
-    "FILE_STAT_ERROR", "FILE_READ_ERROR", "PATH_TRAVERSAL_LINK", "BROKEN_LOCAL_LINK",
-    "SCRIPT_NOT_UTF8", "SPECIAL_FILE_NOT_ALLOWED", "RESOURCE_SYNTAX_INVALID", "MISSING_REFERENCED_RESOURCE",
+    "DESCRIPTION_TOO_LONG", "DESCRIPTION_EMPTY", "COMPATIBILITY_INVALID",
+    "ALLOWED_TOOLS_INVALID", "LICENSE_INVALID", "METADATA_INVALID",
+    "FRONTMATTER_KEY_INVALID", "SKILL_BODY_EMPTY", "SYMLINK_NOT_ALLOWED", "FILE_TOO_LARGE",
+    "FILE_STAT_ERROR", "FILE_READ_ERROR", "FILE_IDENTITY_CHANGED",
+    "PATH_TRAVERSAL_LINK", "BROKEN_LOCAL_LINK",
+    "LOCAL_LINK_PATH_INVALID", "SCRIPT_NOT_UTF8", "TEXT_RESOURCE_NOT_UTF8",
+    "SPECIAL_FILE_NOT_ALLOWED", "RESOURCE_SYNTAX_INVALID", "MISSING_REFERENCED_RESOURCE",
     "PATH_TRAVERSAL_RESOURCE", "MDX_SYNTAX_UNSUPPORTED",
     "PACKAGE_PATH_NOT_PORTABLE", "PACKAGE_PATH_NORMALIZATION_COLLISION",
 }
@@ -51,7 +54,17 @@ def fingerprint_manifest(manifest: InvariantManifest | None) -> str | None:
     """Stable fingerprint of normalized manifest contracts and reviewer decisions."""
     if manifest is None:
         return None
-    payload = json.dumps(manifest.model_dump(mode="json"), ensure_ascii=False, sort_keys=True)
+    model_payload = manifest.model_dump(mode="json")
+    # Preserve historical fingerprints for v1 manifests that do not use the
+    # additive target-anchor fields. Explicit anchors remain fingerprinted.
+    for invariant in model_payload.get("invariants", []):
+        if invariant.get("target_lines") is None:
+            invariant.pop("target_lines", None)
+        if invariant.get("target_text") is None:
+            invariant.pop("target_text", None)
+    if not model_payload.get("protected_token_mappings"):
+        model_payload.pop("protected_token_mappings", None)
+    payload = json.dumps(model_payload, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -207,6 +220,66 @@ def compare_packages(
     source_counter.update((item.path, item.category, item.value) for item in source_token_objects)
     target_counter.update((item.path, item.category, item.value) for item in target_token_objects)
 
+    # A renamed machine-facing token is tolerated only when a human-reviewed,
+    # path/category-specific mapping exists and the target contains enough exact
+    # occurrences. Unreviewed, stale, or under-counted mappings never suppress
+    # ordinary PROTECTED_TOKEN_CHANGED / ADDED findings.
+    if manifest is not None:
+        for mapping in manifest.protected_token_mappings:
+            source_key = (mapping.path, mapping.category, mapping.source_token)
+            target_key = (mapping.path, mapping.category, mapping.target_token)
+            source_count = source_counter.get(source_key, 0)
+            target_count = target_counter.get(target_key, 0)
+            if not mapping.reviewed or not (mapping.reviewer and mapping.reviewer.strip()):
+                findings.append(new_finding(
+                    "PROTECTED_TOKEN_MAPPING_UNREVIEWED", "critical", "protected_token",
+                    f"Protected-token mapping {mapping.id!r} has not been explicitly reviewed.",
+                    "A token rename must never be accepted from an automatically generated or unreviewed mapping.",
+                    path=mapping.path, original_context=mapping.source_token,
+                    target_context=mapping.target_token,
+                    proposed_change="Verify the exact source/target token relationship, document the compatibility reason, and set reviewed=true with a reviewer.",
+                    requires_review=True, analysis_method="human_review", uncertainty="unknown",
+                ))
+                continue
+            if source_count == 0:
+                findings.append(new_finding(
+                    "PROTECTED_TOKEN_MAPPING_SOURCE_STALE", "critical", "protected_token",
+                    f"Protected-token mapping {mapping.id!r} no longer matches a source token.",
+                    "A stale mapping could accidentally authorize a future unrelated token change.",
+                    path=mapping.path, original_context=mapping.source_token,
+                    target_context=mapping.target_token,
+                    proposed_change="Remove or correct the mapping so it matches a detected source token exactly.",
+                    requires_review=True, analysis_method="deterministic", uncertainty="none",
+                ))
+                continue
+            if target_count < source_count:
+                findings.append(new_finding(
+                    "PROTECTED_TOKEN_MAPPING_TARGET_MISSING", "critical", "protected_token",
+                    f"Protected-token mapping {mapping.id!r} expects {source_count} target occurrences, but only {target_count} were found.",
+                    "An approved mapping does not permit deleting, partially renaming, or changing the number of machine-facing token occurrences.",
+                    path=mapping.path, original_context=mapping.source_token,
+                    target_context=mapping.target_token,
+                    proposed_change="Restore all mapped target occurrences or revise the mapping only after a fresh human review.",
+                    requires_review=True, analysis_method="deterministic", uncertainty="none",
+                ))
+                continue
+            source_counter[source_key] -= source_count
+            if source_counter[source_key] <= 0:
+                source_counter.pop(source_key, None)
+            target_counter[target_key] -= source_count
+            if target_counter[target_key] <= 0:
+                target_counter.pop(target_key, None)
+            findings.append(new_finding(
+                "PROTECTED_TOKEN_MAPPING_APPLIED", "info", "protected_token",
+                f"Reviewed mapping {mapping.id!r} matched {source_count} protected-token occurrence(s).",
+                "The exact token replacement was accepted only because this path- and category-specific mapping carries an explicit reviewer and rationale. This is not an automatic rename suggestion.",
+                path=mapping.path,
+                original_context=mapping.source_token,
+                target_context=mapping.target_token,
+                proposed_change=f"Retain the review record from {mapping.reviewer!r} and re-review the mapping if either identifier changes.",
+                requires_review=False, analysis_method="deterministic", uncertainty="none",
+            ))
+
     source_index = {(item.path, item.category, item.value): item for item in source_token_objects}
     target_index = {(item.path, item.category, item.value): item for item in target_token_objects}
     for token_key, source_count in sorted(source_counter.items()):
@@ -359,25 +432,72 @@ def compare_packages(
                     )
                     if source_close is not None:
                         source_context_offset = source_close + 2
-            preferred_target_line = None
-            if (
-                invariant.source_lines
-                and len(source_doc.splitlines()) == len(target_doc.splitlines())
-            ):
-                candidate_line = invariant.source_lines[0] - source_context_offset + 1
-                if candidate_line > 0:
-                    preferred_target_line = candidate_line
-            alignment = _find_invariant_context(
-                context_doc,
-                invariant.source_text or invariant.statement,
-                preferred_line=preferred_target_line,
-            )
-            if alignment is None:
-                target_line, target_context = None, None
-                alignment_method = None
+            if invariant.target_lines is not None:
+                target_start, target_end = invariant.target_lines
+                target_reference_problem: str | None = None
+                target_lines_full = target_doc.splitlines()
+                target_excerpt: str | None = None
+                if target_end > len(target_lines_full):
+                    target_reference_problem = (
+                        f"target line range {target_start}-{target_end} exceeds the current "
+                        f"{len(target_lines_full)}-line resource"
+                    )
+                elif invariant.source_path == "SKILL.md" and target_start < context_offset:
+                    target_reference_problem = "target line range points into SKILL.md frontmatter rather than the instruction body"
+                else:
+                    target_excerpt = "\n".join(
+                        line.strip() for line in target_lines_full[target_start - 1:target_end]
+                    )
+                    declared_target_excerpt = "\n".join(
+                        line.strip() for line in (invariant.target_text or "").splitlines()
+                    )
+                    if target_excerpt != declared_target_excerpt:
+                        target_reference_problem = (
+                            "target_text no longer matches the declared target_lines range"
+                        )
+
+                if target_reference_problem:
+                    findings.append(new_finding(
+                        "INVARIANT_TARGET_REFERENCE_INVALID", "critical", "semantic_invariant",
+                        f"Invariant {invariant.id!r} has stale or invalid target evidence: {target_reference_problem}.",
+                        "A human-verified target anchor must still identify the exact localized passage; a stale line range or excerpt can direct reviewers to the wrong instruction.",
+                        path=invariant.source_path,
+                        source_line=invariant.source_lines[0] if invariant.source_lines else None,
+                        target_line=target_start,
+                        original_context=invariant.source_text or invariant.statement,
+                        target_context=target_excerpt,
+                        proposed_change="Correct target_lines and target_text to match the current localized instruction, then rerun comparison and review the updated evidence.",
+                        requires_review=True,
+                        analysis_method="deterministic",
+                        uncertainty="none",
+                        severity_rationale="The declared target excerpt can be checked deterministically and no longer matches the candidate package; approval must be blocked until corrected.",
+                    ))
+                    continue
+
+                # This establishes a human-curated location, not semantic equivalence.
+                target_line = target_start
+                target_context = (target_excerpt or "")[:1000]
+                alignment_method = "reviewed-target-reference"
             else:
-                relative_line, target_context, alignment_method = alignment
-                target_line = context_offset + relative_line - 1
+                preferred_target_line = None
+                if (
+                    invariant.source_lines
+                    and len(source_doc.splitlines()) == len(target_doc.splitlines())
+                ):
+                    candidate_line = invariant.source_lines[0] - source_context_offset + 1
+                    if candidate_line > 0:
+                        preferred_target_line = candidate_line
+                alignment = _find_invariant_context(
+                    context_doc,
+                    invariant.source_text or invariant.statement,
+                    preferred_line=preferred_target_line,
+                )
+                if alignment is None:
+                    target_line, target_context = None, None
+                    alignment_method = None
+                else:
+                    relative_line, target_context, alignment_method = alignment
+                    target_line = context_offset + relative_line - 1
             if alignment_method == "positional":
                 findings.append(new_finding(
                     "INVARIANT_TARGET_CONTEXT_POSITIONAL", "info", "semantic_invariant",
@@ -410,9 +530,18 @@ def compare_packages(
                     uncertainty="high",
                 ))
 
+            numeric_expectations = set(invariant.expected_numbers)
             for expected in dict.fromkeys(invariant.required_tokens + invariant.expected_numbers):
-                missing_from_document = expected not in target_doc
-                missing_from_context = not target_context or expected not in target_context
+                if expected in numeric_expectations:
+                    present_in_document = _contains_decimal_literal(target_doc, expected)
+                    present_in_context = bool(
+                        target_context and _contains_decimal_literal(target_context, expected)
+                    )
+                else:
+                    present_in_document = expected in target_doc
+                    present_in_context = bool(target_context and expected in target_context)
+                missing_from_document = not present_in_document
+                missing_from_context = not present_in_context
                 if expected and (missing_from_document or missing_from_context):
                     findings.append(new_finding(
                         "INVARIANT_REQUIRED_TOKEN_MISSING", invariant.severity, "semantic_invariant",
@@ -425,8 +554,16 @@ def compare_packages(
                         target_context=target_context,
                         proposed_change=f"Restore {expected!r} in the corresponding target instruction if required, or revise the manifest after human review.",
                         requires_review=True,
-                        analysis_method="deterministic" if missing_from_document else "heuristic",
-                        uncertainty="none" if missing_from_document else "high",
+                        analysis_method=(
+                            "deterministic"
+                            if missing_from_document or alignment_method == "reviewed-target-reference"
+                            else "heuristic"
+                        ),
+                        uncertainty=(
+                            "none"
+                            if missing_from_document or alignment_method == "reviewed-target-reference"
+                            else "high"
+                        ),
                     ))
 
             for forbidden in invariant.forbidden_tokens:
@@ -436,7 +573,13 @@ def compare_packages(
                     findings.append(new_finding(
                         "INVARIANT_FORBIDDEN_TOKEN_PRESENT", invariant.severity, "semantic_invariant",
                         f"Invariant {invariant.id!r} forbids a token found in the aligned target context ({forbidden!r}).",
-                        "The approximate context matcher located the forbidden literal in the instruction excerpt; confirm surrounding linguistic and example context.",
+                        (
+                            "The exact forbidden literal occurs inside the human-anchored target excerpt; "
+                            "this proves token presence at that location, not whether the instruction forbids "
+                            "it rather than quoting it as an example."
+                            if alignment_method == "reviewed-target-reference"
+                            else "The approximate context matcher located the forbidden literal in the instruction excerpt; confirm surrounding linguistic and example context."
+                        ),
                         path=invariant.source_path,
                         source_line=invariant.source_lines[0] if invariant.source_lines else None,
                         target_line=target_line,
@@ -444,8 +587,16 @@ def compare_packages(
                         target_context=target_context,
                         proposed_change="Review the aligned instruction and remove the forbidden value if the invariant applies in this context.",
                         requires_review=True,
-                        analysis_method="heuristic",
-                        uncertainty="high",
+                        analysis_method=(
+                            "deterministic"
+                            if alignment_method == "reviewed-target-reference"
+                            else "heuristic"
+                        ),
+                        uncertainty=(
+                            "none"
+                            if alignment_method == "reviewed-target-reference"
+                            else "high"
+                        ),
                     ))
                 else:
                     findings.append(new_finding(
@@ -598,6 +749,86 @@ def compare_packages(
 
 def _normalized_marker_text(value: str) -> str:
     return re.sub(r"\s+", " ", unicodedata.normalize("NFC", value).casefold()).strip()
+
+
+def _normalize_decimal_digits(value: str) -> str:
+    """Map Unicode decimal digits (category Nd) to ASCII without changing separators."""
+    normalized: list[str] = []
+    for character in value:
+        if unicodedata.category(character) == "Nd":
+            try:
+                normalized.append(str(unicodedata.digit(character)))
+                continue
+            except (TypeError, ValueError):
+                pass
+        normalized.append(character)
+    return "".join(normalized)
+
+
+_CJK_NUMERIC_COUNTERS = frozenset("回次個个本枚件人台つ度番分秒日月年歳才")
+
+
+def _is_cjk_letter(character: str) -> bool:
+    if not character:
+        return False
+    codepoint = ord(character)
+    return (
+        0x3400 <= codepoint <= 0x4DBF
+        or 0x4E00 <= codepoint <= 0x9FFF
+        or 0xF900 <= codepoint <= 0xFAFF
+        or 0x3040 <= codepoint <= 0x30FF
+        or 0x31F0 <= codepoint <= 0x31FF
+        or 0xAC00 <= codepoint <= 0xD7AF
+        or 0x20000 <= codepoint <= 0x2FA1F
+    )
+
+
+def _contains_decimal_literal(text: str, expected: str) -> bool:
+    """Match an expected numeric literal across Unicode decimal-digit scripts.
+
+    Grouping/decimal punctuation and units remain exact. This intentionally does
+    not infer number words, convert units, or equate locale-specific separators.
+    """
+    normalized_text = _normalize_decimal_digits(text)
+    normalized_expected = _normalize_decimal_digits(expected)
+    if not normalized_expected:
+        return False
+    cursor = 0
+    while True:
+        found = normalized_text.find(normalized_expected, cursor)
+        if found < 0:
+            return False
+        end = found + len(normalized_expected)
+        left = normalized_text[found - 1] if found > 0 else ""
+        right = normalized_text[end] if end < len(normalized_text) else ""
+        left_continues_number = bool(left) and (
+            (left.isalnum() and not _is_cjk_letter(left))
+            or left in "+-−"
+            or (
+                left in ".,_٬٫"
+                and found > 1
+                and normalized_text[found - 2].isdecimal()
+            )
+        )
+        right_continues_number = bool(right) and (
+            (
+                right.isalnum()
+                and not (right in _CJK_NUMERIC_COUNTERS and _is_cjk_letter(right))
+            )
+            or (
+                right in "+-−"
+                and end + 1 < len(normalized_text)
+                and normalized_text[end + 1].isdecimal()
+            )
+            or (
+                right in ".,_٬٫"
+                and end + 1 < len(normalized_text)
+                and normalized_text[end + 1].isdecimal()
+            )
+        )
+        if not left_continues_number and not right_continues_number:
+            return True
+        cursor = found + 1
 
 
 def _contains_any_marker(text: str, markers: list[str]) -> bool:

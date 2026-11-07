@@ -82,16 +82,16 @@ def test_multilingual_invariant_suggestions_match_curated_corpus(tmp_path: Path)
         if negation is not None:
             assert negation["negation_markers"] == ["not", "never", "without", "cannot", "can't", "mustn't", "don't"]
 
-    assert aggregate == {"tp": 30, "fp": 0, "fn": 0}
+    assert aggregate == {"tp": 55, "fp": 0, "fn": 0}
     assert per_locale == {
         locale: {"tp": 5, "fp": 0, "fn": 0}
-        for locale in ("en", "fr", "es", "de", "pt", "it")
+        for locale in ("en", "fr", "es", "de", "pt", "it", "ar", "hi", "ru", "ja", "zh")
     }
     assert per_category == {
-        "negation": {"tp": 6, "fp": 0, "fn": 0},
-        "numeric_limit": {"tp": 12, "fp": 0, "fn": 0},
-        "precondition": {"tp": 6, "fp": 0, "fn": 0},
-        "mandatory_condition": {"tp": 6, "fp": 0, "fn": 0},
+        "negation": {"tp": 11, "fp": 0, "fn": 0},
+        "numeric_limit": {"tp": 22, "fp": 0, "fn": 0},
+        "precondition": {"tp": 11, "fp": 0, "fn": 0},
+        "mandatory_condition": {"tp": 11, "fp": 0, "fn": 0},
     }
     for metrics in per_category.values():
         assert metrics["tp"] / (metrics["tp"] + metrics["fp"]) == 1.0
@@ -100,6 +100,64 @@ def test_multilingual_invariant_suggestions_match_curated_corpus(tmp_path: Path)
     recall = aggregate["tp"] / (aggregate["tp"] + aggregate["fn"])
     assert precision == 1.0
     assert recall == 1.0
+
+
+def test_regional_document_fixture_preserves_expected_candidates_and_exclusions(
+    tmp_path: Path,
+) -> None:
+    corpus = json.loads(
+        Path("tests/fixtures/invariant-suggestion-regional.json").read_text(encoding="utf-8")
+    )
+    totals = {"tp": 0, "fp": 0, "fn": 0}
+    per_locale: dict[str, dict[str, int]] = {}
+
+    for case in corpus["cases"]:
+        source = tmp_path / case["package"]
+        source.mkdir()
+        (source / "SKILL.md").write_text(
+            f"---\nname: {case['package']}\ndescription: Regional evaluation fixture.\n---\n\n"
+            + case["body"],
+            encoding="utf-8",
+        )
+        output = tmp_path / "review" / f"{case['package']}.yaml"
+        status = main([
+            "init-manifest", str(source), "--out", str(output),
+            "--source-locale", case["locale"], "--target-locale", "en",
+        ])
+        assert status == 0
+
+        payload = yaml.safe_load(output.read_text(encoding="utf-8"))
+        observed = [
+            {"source_text": item["source_text"], "category": item["category"]}
+            for item in payload["invariants"]
+        ]
+        assert observed == case["expected_candidates"], case["locale"]
+
+        expected = {
+            (item["source_text"], item["category"])
+            for item in case["expected_candidates"]
+        }
+        actual = {(item["source_text"], item["category"]) for item in observed}
+        metrics = {
+            "tp": len(expected & actual),
+            "fp": len(actual - expected),
+            "fn": len(expected - actual),
+        }
+        per_locale[case["locale"]] = metrics
+        for key in totals:
+            totals[key] += metrics[key]
+
+        observed_text = {item["source_text"] for item in payload["invariants"]}
+        for excluded in case["expected_exclusions"]:
+            assert excluded not in observed_text, f"{case['locale']}: {excluded}"
+        assert payload["manifest_reviewed"] is False
+        assert all(item["reviewed"] is False for item in payload["invariants"])
+
+    assert totals == {"tp": 24, "fp": 0, "fn": 0}
+    assert per_locale == {
+        locale: {"tp": 4, "fp": 0, "fn": 0}
+        for locale in ("en-GB", "fr-CA", "es-MX", "de-AT", "pt-BR", "it-CH")
+    }
 
 
 @pytest.mark.parametrize(
@@ -111,6 +169,11 @@ def test_multilingual_invariant_suggestions_match_curated_corpus(tmp_path: Path)
         ("de", "Du musst die Datei erhalten.", "mandatory_condition"),
         ("pt", "Não exclua o arquivo.", "negation"),
         ("it", "Devi conservare il file.", "mandatory_condition"),
+        ("ar-Arab", "يجب الحفاظ على الملف الأصلي.", "mandatory_condition"),
+        ("hi-Deva", "मूल फ़ाइल रखना अनिवार्य है।", "mandatory_condition"),
+        ("ru-Cyrl", "Вы должны сохранить исходный файл.", "mandatory_condition"),
+        ("ja-Jpan", "元のファイル順序を必ず保持してください。", "mandatory_condition"),
+        ("zh-Hans", "必须保留原始文件顺序。", "mandatory_condition"),
     ],
 )
 def test_language_profiles_are_selected_by_primary_bcp47_subtag(
@@ -118,13 +181,57 @@ def test_language_profiles_are_selected_by_primary_bcp47_subtag(
 ) -> None:
     from skilltether.invariant_language import classify_candidate, language_profile
 
-    profile = language_profile(locale + "-Latn")
+    tag = locale if "-" in locale else locale + "-Latn"
+    profile = language_profile(tag)
     assert profile is not None
     assert classify_candidate(text, profile) == category
+
+
+@pytest.mark.parametrize(
+    ("locale", "category", "expected_marker"),
+    [
+        ("ar", "negation", "لا"),
+        ("hi", "negation", "नहीं"),
+        ("ru", "negation", "не"),
+        ("ar", "mandatory_condition", "يجب"),
+        ("hi", "mandatory_condition", "अनिवार्य"),
+        ("ru", "mandatory_condition", "должен"),
+        ("ja", "negation", "しないでください"),
+        ("zh", "negation", "请勿"),
+        ("ja", "mandatory_condition", "必ず"),
+        ("zh", "mandatory_condition", "必须"),
+    ],
+)
+def test_additional_target_locales_provide_only_explicit_draft_markers(
+    locale: str, category: str, expected_marker: str,
+) -> None:
+    from skilltether.invariant_language import suggested_target_markers
+
+    negation, mandatory = suggested_target_markers(locale, category)
+    selected = negation if category == "negation" else mandatory
+    assert expected_marker in selected
+
+
+def test_hindi_only_when_conditional_is_not_misclassified_as_generic_action() -> None:
+    from skilltether.invariant_language import classify_candidate, language_profile
+
+    profile = language_profile("hi-Deva")
+    assert profile is not None
+    assert classify_candidate(
+        "यह चरण केवल तभी चलाएँ जब कॉन्फ़िगरेशन फ़ाइल मौजूद हो।",
+        profile,
+    ) == "precondition"
+    assert classify_candidate(
+        "केवल इस दस्तावेज़ में तीन अध्याय हैं।",
+        profile,
+    ) is None
 
 
 def test_unknown_language_profile_does_not_guess_invariant_candidates() -> None:
     from skilltether.invariant_language import classify_candidate, language_profile
 
-    assert language_profile("ja") is None
+    assert language_profile("ja") is not None
+    assert language_profile("ja-Jpan") is not None
+    assert language_profile("zh-Hans") is not None
+    assert language_profile("xx-Latn") is None
     assert classify_candidate("Never delete the source.", language_profile("en")) == "negation"
