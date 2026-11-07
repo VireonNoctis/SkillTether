@@ -146,7 +146,7 @@ A release candidate should pass the current CI suite; include traceable tests fo
 
 ## Additional offline reviewer hardening (2026-11-07)
 
-- **Validate review-history entries before rendering:** the browser workbench now checks each event's object shape, previous/current disposition, reviewer and note fields, bounded text lengths, and timezone-bearing parseable timestamp. Malformed entries are rejected before the renderer can dereference them.
+- **Validate review-history entries before rendering:** the browser workbench now checks each event's object shape, previous/current disposition, reviewer and note fields, bounded text lengths, and timezone-bearing parseable timestamp. It also verifies disposition-chain continuity, monotonic timestamps, and consistency between the final event and the finding's current reviewer/disposition before rendering.
 - **Prevent ambiguous finding selection:** duplicate or blank finding IDs are rejected; optional text, line-number, and review-required fields receive type checks.
 - **Bound browser rendering work:** the workbench rejects reports over 20 MiB, more than 5,000 findings, or more than 500 history events on a single finding. These are UI resource limits only; larger reports remain available to the CLI.
 - **Preserve the trust boundary:** untrusted evidence remains inserted through DOM text nodes; no HTML interpretation, network request, or browser storage was introduced. Signed reports remain read-only and CLI verification/approval remains authoritative.
