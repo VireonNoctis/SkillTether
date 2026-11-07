@@ -48,7 +48,7 @@ RESOURCE_REFERENCE = re.compile(r"(?<![A-Za-z0-9/:])(?P<path>(?:\.\.?/)*(?:scrip
 READABLE_SUFFIXES = TEXT_SUFFIXES | {
     ".py", ".sh", ".bash", ".js", ".cjs", ".mjs", ".ts",
     ".json", ".yaml", ".yml", ".toml", ".xml", ".html", ".css", ".sql",
-    ".ps1", ".psm1", ".psd1", ".bat", ".env",
+    ".ps1", ".psm1", ".psd1", ".bat", ".env", ".tsx", ".mts", ".cts",
 }
 def _normalized_skill_name(value: str) -> str:
     """Return the NFKC comparison form without rewriting package metadata."""
