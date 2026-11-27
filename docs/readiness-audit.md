@@ -1,7 +1,8 @@
 # Requirements-to-code readiness audit
 
 **Original audit date:** 2026-10-30  
-**Scope:** implementation and regression fixtures on `feat/multilingual-reviewer-and-markdown-hardening` at code/test head `bf2698d72d70e311b95d5fb948b64ed9ddc73464` (2026-10-30), including the CLI, shared Markdown parser, Pydantic models, schemas, comparison and translation paths, offline reviewer workbench, path portability checks, test fixtures, and CI.  
+**Original scope:** implementation and regression fixtures on `feat/multilingual-reviewer-and-markdown-hardening` at code/test head `bf2698d72d70e311b95d5fb948b64ed9ddc73464` (2026-10-30).
+**Latest scope update (2026-11-27):** this audit now covers PR #7 branch `fix/frontmatter-edge-cases-20261103`, current code/test head `7208dc6079972fa3636cc9f35468b97d2024fe36`, including the repaired locale/token-mapping/manifest compatibility regressions, local `doctor` diagnostics, configurable validation exit thresholds, registry-backed locale validation, reviewed token mappings, and updated documentation. The documentation-only branch head is `22775ff214b92e07ee65a4b434d2e51f644a3752`.  
 **Normative reference:** [official Agent Skills specification](https://agentskills.io/specification), checked on the audit date; [RFC 5646 / BCP 47](https://www.rfc-editor.org/rfc/rfc5646).
 
 This is a traceability audit, not a semantic-safety certification. “Implemented” means the behavior exists and has regression coverage; it does not mean all possible inputs or operating systems are proven safe. “Partial” identifies heuristic, client-dependent, or deliberately bounded support.
@@ -129,7 +130,7 @@ These checks require the current PR-head matrix to pass before being treated as 
 - CI enforces an 80% aggregate coverage floor on Linux only. Other jobs report coverage without a per-OS threshold; no per-module floors are enforced. Coverage is evidence of exercised code, not proof of correctness.
 
 This snapshot records the passing code/test head; documentation-only commits after it require their own CI run before merge.
-## Current PR #7 verification (2026-11-06)
+## Earlier PR #7 verification (2026-11-06; historical)
 
 - **Verified code/test head:** `c3881bd9e27315e0fb5c8951714dac1414cc2ef4`.
 - **CI:** [run 42180192914](https://github.com/VireonNoctis/SkillTether/actions/runs/42180192914) passed all seven jobs: Ubuntu/macOS/Windows with Python 3.13 and 3.14, plus pinned `skills-ref@v0.0.1` reference conformance.
@@ -139,6 +140,15 @@ This snapshot records the passing code/test head; documentation-only commits aft
 - The curated multilingual source-cue corpus now has 55 positive examples across eleven primary-language profiles; its perfect fixture metrics are not production accuracy estimates.
 - These results validate this PR head only; PR #7 remains open and must still be reviewed/merged before the default branch includes the changes.
 
+
+## Latest PR #7 verification (2026-11-27)
+
+- **Verified code/test head:** `7208dc6079972fa3636cc9f35468b97d2024fe36`; documentation/schema-description head `22775ff214b92e07ee65a4b434d2e51f644a3752`.
+- **CI:** [run 45995090335](https://github.com/VireonNoctis/SkillTether/actions/runs/45995090335) passed all six Python 3.13/3.14 × Ubuntu/macOS/Windows jobs and pinned `skills-ref@v0.0.1` reference conformance. The later docs/schema-description head also passed [run 45995954987](https://github.com/VireonNoctis/SkillTether/actions/runs/45995954987).
+- **Tests:** 396 passed on each Ubuntu job; 395 passed and one filesystem-dependent skip on each macOS job; 391 passed and five platform-specific skips on each Windows job.
+- **Coverage:** 87% on Ubuntu and macOS; 86% on Windows. The Linux aggregate 80% floor passed. No per-module minimum is claimed.
+- **Repository health:** [run 45995955018](https://github.com/VireonNoctis/SkillTether/actions/runs/45995955018) passed.
+- The CI head includes the CLI diagnostics and threshold tests. These results validate structural and regression behavior only; they do not establish translation semantic equivalence.
 
 ## Acceptance gate
 
