@@ -49,6 +49,11 @@ READABLE_SUFFIXES = TEXT_SUFFIXES | {
     ".py", ".sh", ".bash", ".js", ".cjs", ".mjs", ".ts",
     ".json", ".yaml", ".yml", ".toml", ".xml", ".html", ".css", ".sql",
     ".ps1", ".psm1", ".psd1", ".bat", ".env", ".tsx", ".mts", ".cts",
+    ".pem", ".key", ".ini", ".cfg", ".conf", ".properties", ".tf", ".tfvars", ".envrc", ".netrc",
+}
+READABLE_SECRET_FILENAMES = {
+    ".npmrc", ".pypirc", ".netrc", "credentials", "id_rsa", "id_ecdsa",
+    "id_ed25519", "id_dsa",
 }
 def _normalized_skill_name(value: str) -> str:
     """Return the NFKC comparison form without rewriting package metadata."""
@@ -300,7 +305,7 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
             try:
                 text = data.decode("utf-8")
                 encoding = "utf-8"
-                if path.suffix.lower() in READABLE_SUFFIXES:
+                if path.suffix.lower() in READABLE_SUFFIXES or path.name.lower() in READABLE_SECRET_FILENAMES:
                     texts[rel] = text
             except UnicodeDecodeError:
                 suffix = path.suffix.lower()

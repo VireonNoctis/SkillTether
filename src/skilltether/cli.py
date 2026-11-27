@@ -16,7 +16,7 @@ from . import __version__
 from .analysis import inspect_package, load_policy, normalize_package_root, package_fingerprint
 from .compare import compare_packages, fingerprint_manifest, fingerprint_policy, load_invariant_manifest
 from .history import default_history_path, record_event
-from .models import Invariant, InvariantManifest
+from .models import Invariant, InvariantManifest, new_finding
 from .report import _redact_report, read_json_report, verify_report_signature, write_json_report, write_markdown_report
 from .signing import create_signing_key
 from .translation import HttpJsonAdapter, IdentityAdapter, translate_package
@@ -24,6 +24,7 @@ from .locale_tags import registry_file_date, validate_bcp47_tag
 from .static_analysis import _typescript_module_path
 from .reviewing import has_audited_approval, record_review
 from .invariant_language import classify_candidate, language_profile, suggested_target_markers
+from .secret_scan import scan_secret_indicators
 
 NUMBER_PATTERN = re.compile(
     r"(?<![A-Za-z])(?:[<>]=?\s*)?\d+(?:[.,]\d+)?(?:\s*(?:%|seconds?|minutes?|hours?|days?|files?|tokens?))?",
@@ -195,8 +196,54 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0 if python_supported else 1
 
 
+_SECRET_SCAN_BLOCKER_CODES = {
+    "FILE_STAT_ERROR", "FILE_READ_ERROR", "FILE_TOO_LARGE", "PACKAGE_TOO_LARGE",
+    "FILE_IDENTITY_CHANGED", "SYMLINK_NOT_ALLOWED", "SPECIAL_FILE_NOT_ALLOWED",
+    "SCRIPT_NOT_UTF8", "TEXT_RESOURCE_NOT_UTF8",
+}
+
+
+def _secret_scan_incomplete_findings(package_findings: list) -> list:
+    """Convert unsafe or unreadable inventory entries into redacted scan blockers."""
+    return [
+        new_finding(
+            "SECRET_SCAN_INCOMPLETE", "high", "secret_scan",
+            "A package entry could not be scanned as readable UTF-8 text.",
+            "Unreadable, oversized, unstable, symlink, or special-file entries were excluded from the secret scan.",
+            path=item.path,
+            source_line=item.source_line,
+            proposed_change="Resolve the package-inspection issue and rerun the local secret scan.",
+            requires_review=True,
+            analysis_method="deterministic",
+            uncertainty="high",
+        )
+        for item in package_findings if item.code in _SECRET_SCAN_BLOCKER_CODES
+    ]
+
+
+def cmd_scan_secrets(args: argparse.Namespace) -> int:
+    """Scan bounded readable UTF-8 package resources for common credential indicators."""
+    _inventory, package_findings, texts = inspect_package(args.package)
+    findings = scan_secret_indicators(texts)
+    incomplete = _secret_scan_incomplete_findings(package_findings)
+    findings.extend(incomplete)
+    if args.json:
+        print(json.dumps([item.model_dump(mode="json") for item in findings], indent=2, ensure_ascii=False))
+    else:
+        _show_findings(findings)
+        print("Scope: readable UTF-8 package resources only; binary and unsupported encodings are not searched.")
+        print("A clean result is not proof that the package contains no secrets.")
+    if incomplete:
+        return 2
+    return 1 if findings else 0
+
+
 def cmd_validate(args: argparse.Namespace) -> int:
-    _inventory, findings, _texts = inspect_package(args.package)
+    _inventory, package_findings, texts = inspect_package(args.package)
+    findings = package_findings
+    if getattr(args, "scan_secrets", False):
+        findings.extend(scan_secret_indicators(texts))
+        findings.extend(_secret_scan_incomplete_findings(package_findings))
     if args.json:
         print(json.dumps([item.model_dump(mode="json") for item in findings], indent=2, ensure_ascii=False))
     else:
@@ -575,7 +622,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--fail-on", choices=["info", "low", "medium", "high", "critical"], default="high",
         help="minimum finding severity that returns exit status 1 (default: high)",
     )
+    validate.add_argument(
+        "--scan-secrets", action="store_true",
+        help="also report common credential indicators from readable UTF-8 resources (heuristic; values omitted)",
+    )
     validate.set_defaults(func=cmd_validate)
+
+    scan_secrets = sub.add_parser(
+        "scan-secrets", help="scan readable UTF-8 package resources for common credential indicators",
+    )
+    scan_secrets.add_argument("package")
+    scan_secrets.add_argument("--json", action="store_true", help="print redacted findings as JSON")
+    scan_secrets.set_defaults(func=cmd_scan_secrets)
 
     init_manifest = sub.add_parser("init-manifest", help="suggest invariant candidates for human review")
     init_manifest.add_argument("source")
