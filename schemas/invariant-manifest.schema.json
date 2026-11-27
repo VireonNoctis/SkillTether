@@ -16,7 +16,7 @@
     "source_locale": {
       "type": "string",
       "pattern": "^[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*$",
-      "description": "Lexical envelope only. SkillTether applies full structural BCP 47 checks in its Pydantic model; registry membership and canonicalization are not checked."
+      "description": "Lexical envelope only. Pydantic applies BCP 47 syntax and subtag-membership validation against the bundled iana-bcp47 registry snapshot dated 2026-09-17; supplied values are not automatically canonicalized."
     },
     "target_locale": {
       "type": [
@@ -24,7 +24,7 @@
         "null"
       ],
       "pattern": "^[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*$",
-      "description": "Lexical envelope only. SkillTether applies full structural BCP 47 checks in its Pydantic model; registry membership and canonicalization are not checked."
+      "description": "Lexical envelope only. Pydantic applies BCP 47 syntax and subtag-membership validation against the bundled iana-bcp47 registry snapshot dated 2026-09-17; supplied values are not automatically canonicalized."
     },
     "manifest_reviewer": {
       "type": [

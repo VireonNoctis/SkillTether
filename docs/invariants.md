@@ -60,6 +60,24 @@ reviewer: "safety-reviewer"
 
 A valid anchor replaces word-overlap/positional location guessing for that invariant and gives the reviewer an exact target excerpt. It does not establish that the source and target passages are semantically equivalent. Critical invariants still require explicit human sign-off. If the candidate changes, refresh the target anchor before approval.
 
+## Reviewed protected-token rename mappings
+
+A package sometimes changes a machine-facing literal for a documented compatibility reason (for example, an upstream CLI renames an option). Do not rely on text similarity to silently accept that change. Add an explicit one-to-one mapping to the manifest and obtain reviewer sign-off:
+
+~~~yaml
+protected_token_mappings:
+  - id: CLI-FLAG-RENAME-01
+    path: SKILL.md
+    category: command_flag
+    source_token: "--old-mode"
+    target_token: "--new-mode"
+    rationale: "The target CLI version renamed this option; verified against its published interface."
+    reviewed: true
+    reviewer: "compatibility-reviewer"
+~~~
+
+The mapping matches one exact token value at one package-relative path and one protected-token category. The detected source occurrence count must be non-zero, and the target must contain at least the same number of matching occurrences. A stale source, missing/under-counted target, unreviewed mapping, or conflicting mapping fails closed; it never suppresses normal token-change findings. Keep the rationale and reviewer attributable, and rerun comparison after every mapping edit. SkillTether does not propose, infer, or approve token renames automatically. Check the report's exact token context and category before authoring the mapping; overlapping detections may require more than one explicit category mapping.
+
 ## Findings and disposition
 
 A comparison finding includes:
