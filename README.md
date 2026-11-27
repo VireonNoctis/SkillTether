@@ -16,15 +16,17 @@ SkillTether is a local-first CLI for validating and localizing [Agent Skills](ht
 
 ## What it does
 
-- **Validate the package:** check frontmatter, metadata types, local links and fragments, referenced resources, path safety, file modes, encodings, and bounded package size. Scripts are inspected statically and **never executed**.
-- **Protect machine-facing content:** identify commands, code, URLs, paths, environment variables, and configured identifiers; flag token changes and package-resource drift.
-- **Track operational invariants:** create a draft YAML manifest for requirements, negations, numeric limits, prerequisites, and decision rules. Draft suggestions include explicit cue profiles for English, French, Spanish, German, Portuguese, and Italian, with a curated evaluation fixture that reports precision/recall by language and rule family; the cues remain heuristic and unreviewed until a person curates them.
-- **Localize Markdown carefully:** use a shared GFM-like parser with tables, task lists, alerts, strikethrough, footnotes, and definition lists. Protect syntax, enforce provider budgets, and reject detected structure drift; obvious MDX-only constructs are flagged rather than translated. This is not a complete CommonMark/MDX AST transformation.
+- **Validate the package:** check frontmatter, metadata types, Unicode lowercase skill names, local links and fragments, referenced resources, path safety, file modes, encodings, and bounded package size. Unicode name comparison trims surrounding whitespace and uses NFKC without rewriting package identifiers; unreadable directories fail closed. Python and supported structured resources receive static syntax checks. Bash/sh, JavaScript, and PowerShell use bounded parse-only checks when local parsers exist; TypeScript-family scripts use the installed TypeScript compiler's parser; Windows batch files receive only a conservative delimiter scan. No package script is executed and no parser is downloaded.
+- **Protect machine-facing content:** identify commands, code, URLs, paths, environment variables, and configured identifiers; flag token changes and package-resource drift. Explicit one-to-one token renames can be recorded only with a reviewed, path/category-scoped manifest mapping; stale, incomplete, or unreviewed mappings never suppress findings.
+- **Track operational invariants:** create a draft YAML manifest for requirements, negations, numeric limits, prerequisites, and decision rules. Draft suggestions include conservative cue profiles for English, French, Spanish, German, Portuguese, Italian, Arabic, Hindi, Russian, Japanese, and Chinese, with an eleven-language primary-tag fixture and a separate document-like regional-tag fixture (en-GB, fr-CA, es-MX, de-AT, pt-BR, it-CH); both report finite-corpus precision/recall and hard negatives, and neither is a representative dialect benchmark. The cues remain heuristic and unreviewed until a person curates them. Human reviewers can also pin an invariant to an exact target-language `target_lines`/`target_text` excerpt when source/target word overlap is unavailable; stale anchors block approval, and a valid anchor identifies context without proving semantic equivalence.
+- **Localize Markdown carefully:** use the shared GFM-like parser and its inline source maps to restrict translation to parser-owned prose lines, including nested list/blockquote content. Preserve syntax with protected placeholders, enforce provider budgets, and reject detected structure drift. Obvious MDX-only module/JSX/expression constructs fail closed and are not translated. This is AST-informed line gating, not a complete source-preserving CommonMark/MDX AST round-trip.
 - **Keep decisions auditable:** generate JSON/Markdown reports, retain review history and rationale, and require fingerprint-matched evidence before exporting an approved candidate.
 - **Review reports offline:** open the dependency-free local workbench in reviewer/index.html to inspect evidence, filter findings, record decisions on unsigned reports, and export the updated JSON. HMAC-signed reports remain read-only in the browser.
 - **Make remote translation opt-in:** the default identity adapter sends no content. The generic JSON adapter requires an endpoint and explicit `--allow-remote` consent; per-line and aggregate limits bound provider output.
 - **Keep local run metadata minimal:** optional SQLite history stores fingerprints and run metadata, not source/target document text.
 - **Support report integrity:** optionally seal JSON reports using a local HMAC-SHA256 key and verify the seal before review or approval.
+
+- **Diagnose the local CLI environment:** `skilltether doctor` reports the Python requirement, bundled locale-registry snapshot, and optional local parser availability in text or JSON. It does not access the network, install tools, or execute package scripts.
 
 See the [requirements-to-code readiness audit](docs/readiness-audit.md) for the traceability matrix and known gaps.
 
@@ -111,7 +113,7 @@ skilltether review ./review/report.json FINDING_ID \
   --note "Compared the full source and target context; approval rationale."
 ~~~
 
-`rejected` and `deferred` findings remain blockers. Missing or unreviewed manifests and invalid source references cannot be approved away; correct them and rerun comparison. Export to a new directory:
+`rejected` and `deferred` findings remain blockers. Missing or unreviewed manifests and invalid source or target excerpt anchors cannot be approved away; correct them and rerun comparison. Export to a new directory:
 
 ~~~sh
 skilltether approve ./skills/my-skill ./candidate/my-skill \
@@ -120,7 +122,7 @@ skilltether approve ./skills/my-skill ./candidate/my-skill \
   --policy config/protected-tokens.yaml
 ~~~
 
-Approval checks the current fingerprints and review evidence, rejects structural failures and unresolved blockers, and refuses existing or unsafe output paths. It never overwrites an existing approved package.
+Approval checks the current fingerprints and review evidence, then regenerates the comparison from the current source, candidate, invariant manifest, and protected-token policy. Machine-produced findings, statuses, and evidence must match that fresh result; only reviewer disposition/history fields may differ. Structural failures and unresolved blockers cannot be approved away, and existing or unsafe output paths are refused. It never overwrites an existing approved package. Unsigned review history remains editable by anyone who can edit the report; use HMAC signing when report tamper detection is required.
 
 ### Optional: seal review reports
 
@@ -143,7 +145,8 @@ Use the same key with `review` and `approve` for a signed report. HMAC detects r
 
 | Command | Purpose |
 |---|---|
-| `skilltether validate PACKAGE` | Validate package metadata, structure, and local links |
+| `skilltether validate PACKAGE [--fail-on SEVERITY]` | Validate a package; choose the minimum finding severity that returns exit status 1 |
+| `skilltether doctor [--json]` | Diagnose Python compatibility, locale registry snapshot, and optional local parser availability |
 | `skilltether init-manifest SOURCE --out FILE` | Generate unreviewed invariant candidates |
 | `skilltether translate SOURCE OUTPUT` | Create a candidate and initial report |
 | `skilltether compare SOURCE TARGET --out REPORT` | Compare packages and create a review queue |
@@ -152,7 +155,7 @@ Use the same key with `review` and `approve` for a signed report. HMAC detects r
 | `skilltether init-signing-key --out FILE` | Create a private report-signing key |
 | `skilltether verify-report REPORT --signing-key KEY` | Verify a signed report without modifying it |
 
-Use `skilltether COMMAND --help` for available options. For automation that should fail when semantic review is still required, `compare` and `translate` support `--fail-on-review`.
+Use `skilltether COMMAND --help` for available options. `validate --fail-on` accepts `info`, `low`, `medium`, `high`, or `critical`; its default is `high` to preserve existing exit semantics. For automation that should fail when semantic review is still required, `compare` and `translate` support `--fail-on-review`.
 
 ## Integrity model
 
@@ -167,14 +170,15 @@ Use `skilltether COMMAND --help` for available options. For automation that shou
 
 ## CI and specification compatibility
 
-GitHub Actions tests the suite on **Python 3.13 and 3.14 × Ubuntu, macOS, and Windows**. It reports line and branch coverage on all six combinations and enforces the **80% aggregate coverage floor on Linux**. A separate Ubuntu job checks valid and invalid fixtures with the pinned `skills-ref@v0.0.1` reference validator, including a valid fixture with optional metadata. That smoke test is compatibility evidence, not a full differential benchmark; the reference tool is not a runtime dependency.
+GitHub Actions tests the suite on **Python 3.13 and 3.14 × Ubuntu, macOS, and Windows** for pull requests and pushes to `main`. A per-PR concurrency group cancels superseded runs instead of duplicating every feature-branch push. It reports line and branch coverage on all six combinations and enforces the **80% aggregate coverage floor on Linux**. A separate Ubuntu job checks valid Unicode and maximum-length metadata fixtures, invalid name/compatibility boundaries, and expected unknown-extension divergence with the pinned `skills-ref@v0.0.1` validator. This is a small, version-pinned differential corpus—not exhaustive compatibility proof—and the reference tool is not a runtime dependency.
 
 ## Limits
 
 - **No semantic-equivalence guarantee.** Invariants and marker comparisons are heuristic and context-sensitive. Critical operational instructions need human review.
-- **Locale validation is structural.** BCP 47 formatting and ordering are checked, but IANA registry membership and canonicalization are not.
-- **Reference and syntax coverage is bounded.** External URLs are not fetched. The parser supports a documented GFM-like/Pandoc subset; heading fragments and MDX detection have known limits. JSX and JavaScript constructs are flagged as unsupported, not parsed or translated. Shell, JavaScript, and PowerShell resources are not fully semantically parsed.
-- **Protected-token detection is incomplete.** Unknown identifiers may be missed. Automatic renamed-token mappings are not implemented.
+- **Locale validation uses a bundled IANA snapshot.** BCP 47 syntax and subtag membership are checked against the `iana-bcp47` registry snapshot dated 2026-09-17. Validation preserves the supplied tag and does not automatically canonicalize it; explicit canonicalization is a separate opt-in helper. The bundled snapshot is not a live registry query.
+- **Reference and syntax coverage is bounded.** External URLs are not fetched. The parser supports a documented GFM-like/Pandoc subset; heading fragments and MDX detection have known limits. JSX and JavaScript constructs are flagged as unsupported, not parsed or translated. AST source maps gate eligible Markdown prose lines, but this is not a complete AST transformation.
+- **Script syntax support is bounded.** Bash/sh, JavaScript, and PowerShell parsing is syntax-only and depends on trusted local parsers. TypeScript/TSX/MTS/CTS use an already-installed TypeScript compiler AST parser without type-checking or execution. Windows batch files receive a conservative delimiter scan only, never a full syntax-validity claim. Checks are limited to 16 files per package and eight seconds per parser process. Missing parsers, timeouts, partial checks, and skipped scripts are reported; package scripts are never executed.
+- **Protected-token detection is incomplete.** Unknown identifiers may be missed. Human-reviewed path/category-scoped exact token mappings are supported; SkillTether does not generate or approve rename mappings automatically.
 - **Secret redaction is not a secret scanner.** Common credential shapes are redacted, but unfamiliar formats may pass through. Do not store credentials in skill content, policy files, or review notes.
 - **Filesystem portability is checked, not guaranteed.** Common Windows-invalid path components and case/Unicode-normalization collisions are reported. This does not model every filesystem, Unicode equivalence rule, or race condition.
 - **Hostile-system isolation is not provided.** File and path protections reduce common risks, but SkillTether is not a sandbox for malicious operating-system inputs.

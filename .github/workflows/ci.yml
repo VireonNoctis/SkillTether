@@ -2,10 +2,17 @@ name: SkillTether CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
   contents: read
+
+# Feature branches are validated by their pull_request event. Avoid duplicate
+# push + pull_request matrices and stop obsolete runs when a PR head advances.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -52,6 +59,37 @@ jobs:
         run: |
           skilltether validate tests/fixtures/valid-skill
           skilltether validate tests/fixtures/valid-optional-skill
+          skilltether validate tests/fixtures/utf8-bom
+          skilltether validate tests/fixtures/crlf-frontmatter
+          skilltether validate tests/fixtures/café-tool
+          skilltether validate tests/fixtures/skill-tool
+          skilltether validate tests/fixtures/éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé
+          skilltether validate tests/fixtures/extension-skill
+          set +e
+          skilltether validate tests/fixtures/numeric-metadata-scalar
+          numeric_metadata_status=$?
+          set -e
+          if [[ "$numeric_metadata_status" -ne 1 ]]; then
+            echo "Expected SkillTether to reject non-string metadata keys/values with status 1, got $numeric_metadata_status" >&2
+            exit 1
+          fi
+          skilltether validate tests/fixtures/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          set +e
+          skilltether validate tests/fixtures/bad--name
+          invalid_boundary_status=$?
+          set -e
+          if [[ "$invalid_boundary_status" -ne 1 ]]; then
+            echo "Expected SkillTether to reject the invalid boundary fixture with status 1, got $invalid_boundary_status" >&2
+            exit 1
+          fi
+          set +e
+          skilltether validate tests/fixtures/ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé
+          unicode_invalid_status=$?
+          set -e
+          if [[ "$unicode_invalid_status" -ne 1 ]]; then
+            echo "Expected SkillTether to reject the 65-character Unicode name fixture with status 1, got $unicode_invalid_status" >&2
+            exit 1
+          fi
 
   reference-conformance:
     # The upstream skills-ref README describes this as a demonstration/reference
@@ -72,11 +110,40 @@ jobs:
           skills-ref --version
           skills-ref validate tests/fixtures/valid-skill
           skills-ref validate tests/fixtures/valid-optional-skill
+          skills-ref validate tests/fixtures/utf8-bom
+          skills-ref validate tests/fixtures/crlf-frontmatter
+          skills-ref validate tests/fixtures/café-tool
+          skills-ref validate tests/fixtures/skill-tool
+          # The pinned ref accepts scalar YAML tags and serializes their values as strings;
+          # SkillTether intentionally rejects this non-string metadata shape per the spec.
+          skills-ref validate tests/fixtures/numeric-metadata-scalar
+          skills-ref validate tests/fixtures/éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé
+          skills-ref validate tests/fixtures/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           set +e
           skills-ref validate tests/fixtures/invalid-skill
           status=$?
-          set -e
           if [[ "$status" -ne 1 ]]; then
             echo "Expected skills-ref to return 1 for the invalid fixture, got $status" >&2
+            exit 1
+          fi
+          skills-ref validate tests/fixtures/bad--name
+          invalid_boundary_status=$?
+          skills-ref validate tests/fixtures/extension-skill
+          extension_status=$?
+          set -e
+          if [[ "$invalid_boundary_status" -ne 1 ]]; then
+            echo "Expected skills-ref to reject the invalid boundary fixture with status 1, got $invalid_boundary_status" >&2
+            exit 1
+          fi
+          if [[ "$extension_status" -ne 1 ]]; then
+            echo "Expected pinned skills-ref to reject an unknown extension field (policy divergence), got $extension_status" >&2
+            exit 1
+          fi
+          set +e
+          skills-ref validate tests/fixtures/ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé
+          unicode_invalid_status=$?
+          set -e
+          if [[ "$unicode_invalid_status" -ne 1 ]]; then
+            echo "Expected skills-ref to reject the 65-character Unicode name fixture with status 1, got $unicode_invalid_status" >&2
             exit 1
           fi

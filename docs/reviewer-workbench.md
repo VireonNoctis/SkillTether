@@ -26,9 +26,11 @@ skilltether review ./review/report.json FINDING_ID \
 
 - The report is read from a user-selected file and processed in the current tab. The workbench does not make network requests and does not use localStorage or sessionStorage.
 - Source and target contexts, notes, and metadata are treated as untrusted. The interface inserts them as plain text rather than interpreting them as HTML.
-- Files larger than 20 MiB are rejected by the browser workbench.
+- Files larger than 20 MiB, reports with more than 5,000 findings, and individual findings with more than 500 review events are rejected by the browser workbench. These UI limits keep rendering bounded; the CLI remains available for larger reports.
+- Finding IDs must be unique; optional finding fields are type-checked, and every review-history event is checked for its required fields, disposition values, bounded reviewer/note lengths, and a timezone-bearing parseable timestamp before the event is rendered. The history chain must also be internally consistent with the finding's current disposition and reviewer record.
 - Reviewer identifiers and notes have the same 200/4,000 character limits as the report model and a small credential-pattern guard. That guard is not a complete secret scanner.
 - Browser decisions are local edits, not authenticated identity claims. Anyone able to modify the file can forge review history. Use trusted version control, organizational review controls, and optional HMAC signing where stronger integrity is needed.
+- When Node.js is already installed, the regression suite uses `node --check` on the extracted inline script and verifies a malformed-script negative case. This is syntax parsing only and does not execute the reviewer; Node.js is not an application dependency.
 - The browser workbench performs basic report-shape checks, not the complete Pydantic/JSON Schema or package-fingerprint validation. Always validate and approve through the CLI.
 
 The UI is intentionally a small adjunct to the CLI, not a replacement for structural validation, signature verification, or the approval gate.

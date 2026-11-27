@@ -24,7 +24,7 @@ from skilltether.cli import _validate_locale_tag
         "i-klingon",
         "en-GB-oed",
         "sgn-BE-FR",
-        "qaa-Qaaa-001-abcde",
+        "en-US-1901",
     ],
 )
 def test_well_formed_bcp47_tags_are_preserved_without_canonicalization(tag: str) -> None:
@@ -59,16 +59,15 @@ def test_malformed_bcp47_tags_are_rejected(tag: str) -> None:
         validate_bcp47_tag(tag)
 
 
-def test_well_formed_unknown_subtags_are_not_rejected_as_registry_unknown() -> None:
-    # Syntax validation is deliberately independent of a live/versioned IANA
-    # registry. Valid structure is not the same as registry validity.
-    assert validate_bcp47_tag("qaa-Qaaa-001") == "qaa-Qaaa-001"
+def test_unregistered_subtags_are_rejected_by_the_bundled_registry() -> None:
+    with pytest.raises(ValueError, match="bundled IANA registry"):
+        validate_bcp47_tag("zz-Zzzz")
 
 
 def test_case_insensitive_duplicate_singletons_and_variants_are_rejected() -> None:
-    with pytest.raises(ValueError, match="duplicate extension singleton"):
+    with pytest.raises(ValueError, match="repeated"):
         validate_bcp47_tag("en-a-foo-A-bar")
-    with pytest.raises(ValueError, match="duplicate variant"):
+    with pytest.raises(ValueError, match="repeated"):
         validate_bcp47_tag("de-1901-1901")
 
 
@@ -135,3 +134,27 @@ def test_valid_bcp47_tags_pass_manifest_model_and_json_schema(tag: str) -> None:
         "source_locale": tag,
         "invariants": [],
     })
+
+
+
+def test_registry_snapshot_date_and_explicit_canonicalization() -> None:
+    from skilltether.locale_tags import (
+        canonicalize_bcp47_tag, is_canonical_bcp47_tag, registry_file_date,
+    )
+
+    assert registry_file_date() == "2026-09-17"
+    assert canonicalize_bcp47_tag("EN-us") == "en-US"
+    assert canonicalize_bcp47_tag("i-klingon") == "tlh"
+    assert canonicalize_bcp47_tag("iw") == "he"
+    assert canonicalize_bcp47_tag("en-Latn") == "en"
+    assert canonicalize_bcp47_tag("en-b-ccc-a-bbb") == "en-a-bbb-b-ccc"
+    assert is_canonical_bcp47_tag("en-US")
+    assert not is_canonical_bcp47_tag("EN-us")
+
+
+def test_registry_validation_preserves_input_and_private_use() -> None:
+    from skilltether.locale_tags import canonicalize_bcp47_tag
+
+    assert validate_bcp47_tag("EN-us") == "EN-us"
+    assert validate_bcp47_tag("x-private") == "x-private"
+    assert canonicalize_bcp47_tag("X-Private") == "x-private"

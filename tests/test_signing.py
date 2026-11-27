@@ -40,6 +40,92 @@ def test_new_key_is_private_random_and_never_overwrites(tmp_path: Path) -> None:
         create_signing_key(path)
 
 
+def test_signing_key_generation_failure_does_not_leave_a_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skilltether.signing as signing
+
+    destination = tmp_path / "keys" / "failed.key"
+
+    def fail_token_bytes(_size: int) -> bytes:
+        raise RuntimeError("synthetic CSPRNG failure")
+
+    monkeypatch.setattr(signing.secrets, "token_bytes", fail_token_bytes)
+
+    with pytest.raises(RuntimeError, match="synthetic CSPRNG failure"):
+        create_signing_key(destination)
+
+    assert not destination.exists()
+
+
+def test_existing_signing_key_path_wins_over_random_generation_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skilltether.signing as signing
+
+    destination = tmp_path / "existing.key"
+    destination.write_bytes(b"existing sentinel")
+
+    def fail_token_bytes(_size: int) -> bytes:
+        raise RuntimeError("synthetic CSPRNG failure")
+
+    monkeypatch.setattr(signing.secrets, "token_bytes", fail_token_bytes)
+
+    with pytest.raises(FileExistsError, match="already exists"):
+        create_signing_key(destination)
+
+    assert destination.read_bytes() == b"existing sentinel"
+
+
+def test_signing_key_fdopen_failure_closes_descriptor_and_removes_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import skilltether.signing as signing
+
+    destination = tmp_path / "keys" / "fdopen-failure.key"
+    opened: list[int] = []
+
+    def fail_fdopen(descriptor: int, *_args, **_kwargs):
+        opened.append(descriptor)
+        raise RuntimeError("synthetic fdopen failure")
+
+    monkeypatch.setattr(signing.os, "fdopen", fail_fdopen)
+
+    with pytest.raises(RuntimeError, match="synthetic fdopen failure"):
+        create_signing_key(destination)
+
+    assert len(opened) == 1
+    assert not destination.exists()
+    with pytest.raises(OSError):
+        os.fstat(opened[0])
+
+
+def test_signing_key_loader_rejects_short_key(tmp_path: Path) -> None:
+    key_path = tmp_path / "short.key"
+    key_path.write_bytes(b"too-short")
+    if os.name == "posix":
+        key_path.chmod(0o600)
+
+    with pytest.raises(ValueError, match="at least 32 bytes"):
+        load_signing_key(key_path)
+
+
+def test_verify_payload_rejects_missing_or_invalid_signature_metadata(tmp_path: Path) -> None:
+    from skilltether.signing import verify_payload
+
+    key = create_signing_key(tmp_path / "key")
+
+    assert verify_payload({}, key) is False
+    assert verify_payload({
+        "integrity_algorithm": "sha512",
+        "integrity_signature": "0" * 64,
+    }, key) is False
+    assert verify_payload({
+        "integrity_algorithm": "hmac-sha256",
+        "integrity_signature": 123,
+    }, key) is False
+
+
 def test_signing_key_loader_preserves_all_raw_bytes(tmp_path: Path) -> None:
     key_path = tmp_path / "binary.key"
     key_bytes = b"A" * 16 + b"\x1a\r\n" + b"B" * 20

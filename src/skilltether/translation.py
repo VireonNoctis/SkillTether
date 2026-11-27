@@ -13,7 +13,9 @@ import urllib.request
 from pathlib import Path
 from typing import Protocol
 
-from .markdown_support import create_markdown_parser
+from .markdown_support import (
+    create_markdown_parser, markdown_inline_line_numbers, mdx_syntax_locations,
+)
 
 from .analysis import (
     MAX_EXPLICIT_TOKEN_CHARS, MAX_EXPLICIT_TOKENS, MAX_POLICY_PATTERNS,
@@ -31,7 +33,9 @@ MAX_TRANSLATION_TOTAL_RESPONSE_BYTES = 10 * 1024 * 1024
 MAX_TRANSLATION_TIMEOUT_SECONDS = 300.0
 FENCE = re.compile(r"^\s{0,3}(\x60{3,}|~{3,})")
 HTML_OPAQUE_OPEN = re.compile(r"^\s*<(script|style|pre|code|textarea)\b", re.I)
-PREFIX = re.compile(r"^(\s*(?:(?:#{1,6}|>)\s+|[-*+]\s+|\d+[.)]\s+)?)(.*?)(\r?\n?)$")
+PREFIX = re.compile(
+    r"^([ \t]*(?:(?:#{1,6}|>)[ \t]+|[ \t]*(?:[-*+]|\d+[.)])[ \t]+)*)(.*?)(\r?\n?)$"
+)
 MASK_SPAN = re.compile(
     r"\x60+.*?\x60+|https?://[^ <>)]+|<[^>]+>|(?<=\]\()[^)]*(?=\))"
     r"|(?<![A-Za-z0-9_])[$][A-Z][A-Z0-9_]*|%[A-Z][A-Z0-9_]*%"
@@ -211,21 +215,37 @@ def translate_markdown(
     text: str, adapter: TranslationAdapter, source_locale: str, target_locale: str,
     extra_patterns: list[dict[str, str]] | None = None,
     explicit_tokens: list[str] | None = None,
+    *,
+    detect_mdx: bool = True,
 ) -> str:
-    """Translate prose while masking machine-facing literals and preserving Markdown structure."""
+    """Translate AST-owned Markdown prose while preserving syntax and structure."""
+    mdx_locations = mdx_syntax_locations(text) if detect_mdx else []
+    if mdx_locations:
+        first_line, reason = mdx_locations[0]
+        raise RuntimeError(
+            f"MDX-only syntax is not supported by the Markdown translator (line {first_line}: {reason}); no output was produced"
+        )
+    inline_lines = markdown_inline_line_numbers(text)
     lines = text.splitlines(keepends=True)
-    in_frontmatter = bool(lines and lines[0].strip() == "---")
+    first_line = lines[0].removeprefix("\ufeff") if lines else ""
+    in_frontmatter = bool(first_line.strip() == "---")
     frontmatter_closed = not in_frontmatter
     fence_marker: str | None = None
     html_comment_open = False
     html_opaque_tag: str | None = None
     output: list[str] = []
-    for line in lines:
+    for line_number, line in enumerate(lines, start=1):
         stripped = line.strip()
         if not frontmatter_closed:
+            # Frontmatter is outside the Markdown AST and always stays byte-opaque.
             output.append(line)
             if stripped == "---" and len(output) > 1:
                 frontmatter_closed = True
+            continue
+        # AST source maps decide which body lines are eligible prose. This excludes
+        # code/raw blocks while retaining nested blockquote/list paragraph text.
+        if line_number not in inline_lines:
+            output.append(line)
             continue
         fence_match = FENCE.match(line)
         if fence_marker is not None:
@@ -554,6 +574,7 @@ def translate_package(
         translate_markdown(
             original_text, budget_probe, source_locale, target_locale,
             extra_patterns=protected_patterns, explicit_tokens=explicit_tokens,
+            detect_mdx=Path(rel).suffix.lower() in {".md", ".mdx"},
         )
 
     output_root.parent.mkdir(parents=True, exist_ok=True)
@@ -580,6 +601,7 @@ def translate_package(
             translated = translate_markdown(
                 original_text, output_budget_adapter, source_locale, target_locale,
                 extra_patterns=protected_patterns, explicit_tokens=explicit_tokens,
+                detect_mdx=Path(rel).suffix.lower() in {".md", ".mdx"},
             )
             if translated != original_text:
                 (temp_package / rel).write_text(translated, encoding="utf-8", newline="")

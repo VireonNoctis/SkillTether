@@ -8,6 +8,14 @@ For every finding that requires review or is critical, the current disposition m
 
 The `skilltether review` command appends a decision instead of discarding earlier decisions. Changing a decision creates another event. Rejected and deferred decisions remain blockers until a later explicit approval is recorded.
 
+## Fresh comparison at approval
+
+Before publishing an approved package, the CLI reruns comparison using the current source, candidate, invariant manifest, and protected-token policy. It compares the report's immutable machine-produced evidence (including finding identities/content, analysis method, uncertainty, severity rationale, structural/semantic statuses, fingerprints, and declared limitations) with the fresh result. Only reviewer disposition, reviewer identifier, review note, and review history may differ. A report with removed, edited, or invented findings must be regenerated and reviewed again.
+
+This protects against accidental or deliberate edits that hide machine-generated findings in an unsigned JSON report. It does **not** authenticate reviewer identity or make unsigned review history tamper-evident. Use HMAC signing to detect edits to the report payload; HMAC still proves possession of the shared key, not who made the review decision.
+
+Structural validation errors are export blockers, not review-only warnings. This includes invalid frontmatter keys or optional-field types, expected text resources that are not UTF-8, and local-link paths that cannot be safely decoded/resolved. A reviewer disposition cannot convert a structural failure into a pass.
+
 ## What the metadata means
 
 New findings include:

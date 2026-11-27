@@ -11,14 +11,24 @@ pytest
 
 Run commands from the repository root or pass a repository-relative policy file explicitly.
 
+## Diagnose the local environment
+
+~~~sh
+skilltether doctor
+skilltether doctor --json
+~~~
+
+`doctor` reports the active Python version and support status, the date of the bundled IANA language-subtag registry snapshot, and whether optional local script parsers are available. It performs local availability checks only: it does not make network requests, install parsers, inspect private credentials, or execute package scripts. Missing optional parsers are informational; the command returns a failure only when Python is below the supported 3.13 minimum.
+
 ## Validate a package
 
 ~~~sh
 skilltether validate ./sample-skill
 skilltether validate ./sample-skill --json
+skilltether validate ./sample-skill --fail-on low
 ~~~
 
-A skill directory must contain a readable UTF-8 SKILL.md beginning with a closed YAML frontmatter block. The base Agent Skills contract requires non-empty name and description. The name must be lowercase kebab-case, at most 64 characters, and match the package directory name. The package root itself may not be a symlink alias, and symlinked entries inside the package are rejected; symlinks in parent path components are resolved normally. The implementation also checks optional compatibility and metadata types, local links, fragments, and bounded input sizes.
+A skill directory must contain a readable UTF-8 SKILL.md beginning with a closed YAML frontmatter block. `--fail-on` accepts `info`, `low`, `medium`, `high`, or `critical` and returns exit status 1 when any finding meets or exceeds that severity; the default is `high`, preserving existing exit behavior. `--json` continues to emit the findings array for scripts and automation. The base Agent Skills contract requires non-empty name and description. The name must be lowercase kebab-case, at most 64 characters, and match the package directory name. The package root itself may not be a symlink alias, and symlinked entries inside the package are rejected; symlinks in parent path components are resolved normally. The implementation also checks optional compatibility and metadata types, local links, fragments, and bounded input sizes.
 
 External HTTP(S) links are preserved but are not fetched. Scripts and other assets are never executed.
 
@@ -54,7 +64,7 @@ The built-in identity adapter sends nothing and leaves prose unchanged. The gene
 
 ## Translate and compare
 
-Source and target locale arguments are checked against BCP 47 tag structure, including private-use tags, extension sequences, subtag order, and duplicate extension singletons or variants. Unknown but syntactically well-formed subtags are accepted: SkillTether does not bundle or query the versioned [IANA Language Subtag Registry](https://www.iana.org/assignments/language-subtag-registry/language-subtag-registry) and does not canonicalize casing or deprecated tags. See [RFC 5646](https://www.rfc-editor.org/rfc/rfc5646) for the language-tag format.
+Source and target locale arguments are checked against BCP 47 syntax and subtag membership using the bundled `iana-bcp47` snapshot dated 2026-09-17. Unregistered subtags fail validation; private-use and recognized grandfathered forms are handled by the bundled validator. Supplied spelling and casing are preserved, and the CLI never automatically canonicalizes locale values. The package does not contact IANA at runtime; refresh the dependency deliberately when updating registry data. See [RFC 5646](https://www.rfc-editor.org/rfc/rfc5646) and the [IANA Language Subtag Registry](https://www.iana.org/assignments/language-subtag-registry/language-subtag-registry).
 
 ~~~sh
 skilltether translate ./sample-skill /tmp/candidate/sample-skill \
@@ -68,7 +78,7 @@ Inline Markdown delimiters, link/image destinations, reference-link identifiers,
 
 A candidate directory must not exist and must have the same leaf directory name as the source package. Source and output may not overlap. Candidate construction uses a temporary sibling, preserves rather than follows symlinks during staging, and revalidates the staged bytes and permission metadata before writing translated text. It publishes only when all translation calls finish and structural validation passes. Approval export also preserves late-arriving symlinks during staging and rejects a fingerprint mismatch before publishing.
 
-For CI workflows, add `--fail-on-review` to `compare` or `translate` to return exit status 1 when the report recommends human review or leaves semantic status unknown. Without this opt-in flag, commands retain their existing structural-failure exit semantics while still recording review findings.
+For CI workflows, add `--fail-on-review` to `compare` or `translate` to return exit status 1 when the report recommends human review or leaves semantic status unknown. Without this opt-in flag, commands retain their existing structural-failure exit semantics while still recording review findings. `validate --fail-on` separately configures the finding-severity threshold for the validation command.
 
 To rerun comparison after manifest edits or reviewer changes:
 

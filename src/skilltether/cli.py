@@ -17,10 +17,11 @@ from .analysis import inspect_package, load_policy, normalize_package_root, pack
 from .compare import compare_packages, fingerprint_manifest, fingerprint_policy, load_invariant_manifest
 from .history import default_history_path, record_event
 from .models import Invariant, InvariantManifest
-from .report import read_json_report, verify_report_signature, write_json_report, write_markdown_report
+from .report import _redact_report, read_json_report, verify_report_signature, write_json_report, write_markdown_report
 from .signing import create_signing_key
 from .translation import HttpJsonAdapter, IdentityAdapter, translate_package
-from .locale_tags import validate_bcp47_tag
+from .locale_tags import registry_file_date, validate_bcp47_tag
+from .static_analysis import _typescript_module_path
 from .reviewing import has_audited_approval, record_review
 from .invariant_language import classify_candidate, language_profile, suggested_target_markers
 
@@ -29,6 +30,68 @@ NUMBER_PATTERN = re.compile(
     re.I,
 )
 
+
+
+# Reviewer disposition fields are intentionally excluded from fresh-evidence comparison.
+# Their integrity is an optional HMAC concern; all machine-produced evidence is recomputed.
+_REVIEW_MUTABLE_FINDING_FIELDS = {"disposition", "reviewer", "review_note", "review_history"}
+
+
+def _approval_evidence_payload(report) -> dict:
+    """Return the immutable, machine-produced evidence used by the approval gate."""
+    # File-map keys are redacted on disk when they resemble credentials. Apply the
+    # same report sanitizer to a fresh comparison before comparing those maps.
+    normalized = _redact_report(report)
+    payload = {
+        "report_version": report.report_version,
+        "tool_version": report.tool_version,
+        "source_locale": report.source_locale,
+        "target_locale": report.target_locale,
+        "invariant_manifest_fingerprint": report.invariant_manifest_fingerprint,
+        "protected_policy_fingerprint": report.protected_policy_fingerprint,
+        "source_fingerprint": report.source_fingerprint,
+        "target_fingerprint": report.target_fingerprint,
+        "source_files": normalized.source_files,
+        "target_files": normalized.target_files,
+        "structural_status": report.structural_status,
+        "semantic_status": report.semantic_status,
+        "limitations": report.limitations,
+    }
+    findings = [
+        finding.model_dump(
+            mode="json",
+            exclude=_REVIEW_MUTABLE_FINDING_FIELDS,
+        )
+        for finding in report.findings
+    ]
+    payload["findings"] = sorted(
+        findings,
+        key=lambda item: (
+            item["id"],
+            json.dumps(item, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+        ),
+    )
+    return payload
+
+
+def _require_fresh_approval_evidence(
+    report, source: Path, target: Path, manifest: InvariantManifest | None,
+    policy_path: str | None,
+) -> None:
+    """Reject reports whose machine-generated evidence differs from a fresh comparison."""
+    current = compare_packages(
+        source,
+        target,
+        manifest,
+        target_locale=report.target_locale,
+        policy_path=policy_path,
+    )
+    if _approval_evidence_payload(report) != _approval_evidence_payload(current):
+        raise ValueError(
+            "Comparison report evidence does not match a fresh comparison of the current "
+            "packages, invariant manifest, and protected-token policy; rerun compare and "
+            "record review decisions against the regenerated report."
+        )
 
 
 def _manifest_arg(path_value: str | None, source: Path) -> InvariantManifest | None:
@@ -89,25 +152,83 @@ def _ensure_outputs_outside_packages(
     return lexical_outputs
 
 
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """Report local runtime and optional parser availability without network access."""
+    node = shutil.which("node")
+    tsc = shutil.which("tsc")
+    python_supported = sys.version_info >= (3, 13)
+    checks = {
+        "bash_sh": bool(shutil.which("bash") or shutil.which("sh")),
+        "javascript": node is not None,
+        "typescript": bool(node and tsc and _typescript_module_path(tsc)),
+        "powershell": bool(shutil.which("pwsh") or shutil.which("powershell")),
+        "batch": "heuristic-only",
+    }
+    payload = {
+        "skilltether_version": __version__,
+        "python": {"version": sys.version.split()[0], "supported": python_supported},
+        "locale_registry": {
+            "provider": "iana-bcp47",
+            "snapshot_date": registry_file_date(),
+            "canonicalization": "explicit-only",
+        },
+        "script_parsers": checks,
+        "checks_are_local": True,
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True))
+    else:
+        status = "supported" if python_supported else "unsupported (requires Python 3.13+)"
+        print(f"SkillTether {__version__}")
+        print(f"Python {payload['python']['version']}: {status}")
+        print(
+            "BCP 47 registry snapshot: "
+            f"{payload['locale_registry']['snapshot_date']} (validation only; no automatic canonicalization)"
+        )
+        print("Optional local script checks:")
+        for name, available in checks.items():
+            label = "heuristic delimiter scan only" if available == "heuristic-only" else (
+                "available" if available else "not installed"
+            )
+            print(f"  {name}: {label}")
+        print("No network requests or package scripts are used by doctor.")
+    return 0 if python_supported else 1
+
+
 def cmd_validate(args: argparse.Namespace) -> int:
     _inventory, findings, _texts = inspect_package(args.package)
     if args.json:
         print(json.dumps([item.model_dump(mode="json") for item in findings], indent=2, ensure_ascii=False))
     else:
         _show_findings(findings)
-    return 1 if any(item.severity in ("high", "critical") for item in findings) else 0
+    severity_rank = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
+    threshold = severity_rank[getattr(args, "fail_on", "high")]
+    return 1 if any(severity_rank[item.severity] >= threshold for item in findings) else 0
 
 
 def _suggest_invariants(source_root: Path, source_locale: str, target_locale: str | None) -> InvariantManifest:
-    _inventory, _findings, texts = inspect_package(source_root)
+    _inventory, package_findings, texts = inspect_package(source_root)
     if "SKILL.md" not in texts:
         raise ValueError("Cannot suggest invariants without a readable SKILL.md")
+    if any(
+        finding.path == "SKILL.md" and finding.code == "FRONTMATTER_INVALID"
+        for finding in package_findings
+    ):
+        raise ValueError("Cannot suggest invariants from malformed SKILL.md frontmatter")
     source_profile = language_profile(source_locale)
     suggestions: list[Invariant] = []
     fence_character: str | None = None
     fence_length = 0
     html_code_tag: str | None = None
-    for line_no, line in enumerate(texts["SKILL.md"].splitlines(), start=1):
+    skill_lines = texts["SKILL.md"].splitlines()
+    first_line = skill_lines[0].removeprefix("\ufeff") if skill_lines else ""
+    frontmatter_open = bool(first_line.strip() == "---")
+    frontmatter_closed = not frontmatter_open
+    for line_no, line in enumerate(skill_lines, start=1):
+        if not frontmatter_closed:
+            if line_no > 1 and line.strip() == "---":
+                frontmatter_closed = True
+            continue
         fence_match = re.match(r"^\s{0,3}(\x60{3,}|~{3,})", line)
         if fence_character is not None:
             if (
@@ -360,7 +481,7 @@ def cmd_approve(args: argparse.Namespace) -> int:
     _ensure_outputs_outside_packages(
         [output], [source, target], label="Approved output",
     )
-    report_path = Path(args.report).expanduser().resolve(strict=True)
+    report_path = Path(args.report).expanduser()
     if args.signing_key:
         _ensure_outputs_outside_packages(
             [Path(args.signing_key).expanduser()], [source, target, output],
@@ -388,15 +509,18 @@ def cmd_approve(args: argparse.Namespace) -> int:
         raise ValueError("Source package changed after comparison; rerun compare before approval")
     if _fingerprint_path(target) != report.target_fingerprint:
         raise ValueError("Candidate package changed after comparison; rerun compare before approval")
+    _require_fresh_approval_evidence(
+        report, source, target, current_manifest, args.policy,
+    )
     if report.structural_status != "pass":
         raise ValueError("Structural validation failed. Fix the package and rerun comparison before approval.")
     permanently_blocked = {
         "INVARIANT_MANIFEST_MISSING", "INVARIANT_MANIFEST_UNREVIEWED", "INVARIANT_NOT_HUMAN_REVIEWED",
-        "INVARIANT_SOURCE_REFERENCE_INVALID",
+        "INVARIANT_SOURCE_REFERENCE_INVALID", "INVARIANT_TARGET_REFERENCE_INVALID",
     }
     blocked = [finding for finding in report.findings if finding.code in permanently_blocked]
     if blocked:
-        raise ValueError("The invariant manifest is missing, unreviewed, or contains invalid source references; correct it and rerun comparison before approval.")
+        raise ValueError("The invariant manifest is missing, unreviewed, or contains invalid source/target references; correct it and rerun comparison before approval.")
     unresolved = [
         finding for finding in report.findings
         if (finding.requires_review or finding.severity == "critical")
@@ -440,9 +564,17 @@ def build_parser() -> argparse.ArgumentParser:
     init_key.add_argument("--out", required=True, help="new key file path; existing files are never overwritten")
     init_key.set_defaults(func=cmd_init_signing_key)
 
+    doctor = sub.add_parser("doctor", help="show local runtime, locale registry, and parser availability")
+    doctor.add_argument("--json", action="store_true", help="print diagnostics as JSON")
+    doctor.set_defaults(func=cmd_doctor)
+
     validate = sub.add_parser("validate", help="validate SKILL.md metadata, structure, and local links")
     validate.add_argument("package")
     validate.add_argument("--json", action="store_true", help="print findings as JSON")
+    validate.add_argument(
+        "--fail-on", choices=["info", "low", "medium", "high", "critical"], default="high",
+        help="minimum finding severity that returns exit status 1 (default: high)",
+    )
     validate.set_defaults(func=cmd_validate)
 
     init_manifest = sub.add_parser("init-manifest", help="suggest invariant candidates for human review")
