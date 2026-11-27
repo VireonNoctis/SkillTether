@@ -225,3 +225,37 @@ def test_translate_secret_preflight_stops_on_incomplete_inventory(
     assert not output.exists()
     assert not report.exists()
     assert not history.exists()
+
+
+def test_provider_token_families_are_recognized_without_echoing_values() -> None:
+    tokens = [
+        "gho_" + "A" * 24,
+        "github_pat_" + "B" * 48,
+        "sk-proj-" + "C" * 28,
+        "xoxb-" + "D" * 24,
+        "AIza" + "E" * 35,
+        "sk_live_" + "F" * 24,
+        "SK" + "a" * 32,
+        "SG." + "G" * 20 + "." + "H" * 20,
+    ]
+    text_by_path = {
+        f"references/token-{index}.md": token
+        for index, token in enumerate(tokens)
+    }
+    findings = scan_secret_indicators(text_by_path)
+    serialized = json.dumps([item.model_dump(mode="json") for item in findings])
+
+    assert len(findings) == len(tokens)
+    assert all(item.code == "SECRET_PROVIDER_TOKEN" for item in findings)
+    assert all(token not in serialized for token in tokens)
+
+
+def test_multisegment_secret_assignment_names_are_detected_and_redacted() -> None:
+    value = "opaque-cloud-session-secret-value-987654"
+    findings = scan_secret_indicators({
+        ".env.production": f"AWS_SESSION_TOKEN={value}"
+    })
+    assert len(findings) == 1
+    assert findings[0].code == "SECRET_CREDENTIAL_ASSIGNMENT"
+    assert value not in json.dumps([item.model_dump(mode="json") for item in findings])
+    assert value not in redact_sensitive_text(f"AWS_SESSION_TOKEN={value}")
