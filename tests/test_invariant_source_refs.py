@@ -291,6 +291,8 @@ def test_optional_target_anchors_preserve_legacy_manifest_fingerprints() -> None
     for invariant in legacy_shape["invariants"]:
         invariant.pop("target_lines", None)
         invariant.pop("target_text", None)
+    # The additive protected-token mapping field is also omitted from legacy v1 payloads.
+    legacy_shape.pop("protected_token_mappings", None)
     expected_legacy = hashlib.sha256(
         json.dumps(legacy_shape, ensure_ascii=False, sort_keys=True).encode("utf-8")
     ).hexdigest()

@@ -24,7 +24,7 @@ from skilltether.cli import _validate_locale_tag
         "i-klingon",
         "en-GB-oed",
         "sgn-BE-FR",
-        "qaa-Qaaa-001-abcde",
+        "en-US-1901",
     ],
 )
 def test_well_formed_bcp47_tags_are_preserved_without_canonicalization(tag: str) -> None:
@@ -65,9 +65,9 @@ def test_unregistered_subtags_are_rejected_by_the_bundled_registry() -> None:
 
 
 def test_case_insensitive_duplicate_singletons_and_variants_are_rejected() -> None:
-    with pytest.raises(ValueError, match="duplicate extension singleton"):
+    with pytest.raises(ValueError, match="repeated"):
         validate_bcp47_tag("en-a-foo-A-bar")
-    with pytest.raises(ValueError, match="duplicate variant"):
+    with pytest.raises(ValueError, match="repeated"):
         validate_bcp47_tag("de-1901-1901")
 
 

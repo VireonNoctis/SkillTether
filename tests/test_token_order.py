@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from skilltether.compare import compare_packages
 from skilltether.models import InvariantManifest
 
@@ -64,8 +66,8 @@ def test_reviewed_path_scoped_token_mapping_suppresses_only_exact_rename(tmp_pat
     from skilltether.compare import compare_packages
     from skilltether.models import InvariantManifest, ProtectedTokenMapping
 
-    source = make_package(tmp_path / "source", "Use `--old-mode` for this operation.\n")
-    target = make_package(tmp_path / "target", "Use `--new-mode` for this operation.\n")
+    source = make_package(tmp_path / "source", "Use --old-mode for this operation.\n")
+    target = make_package(tmp_path / "target", "Use --new-mode for this operation.\n")
     manifest = InvariantManifest(
         source_locale="en",
         target_locale="fr",
@@ -75,7 +77,7 @@ def test_reviewed_path_scoped_token_mapping_suppresses_only_exact_rename(tmp_pat
             ProtectedTokenMapping(
                 id="rename-cli-flag",
                 path="SKILL.md",
-                category="inline_code",
+                category="command_flag",
                 source_token="--old-mode",
                 target_token="--new-mode",
                 rationale="The upstream CLI renamed this flag; verified against the target tool release.",
@@ -95,8 +97,8 @@ def test_unreviewed_token_mapping_never_suppresses_token_change_findings(tmp_pat
     from skilltether.compare import compare_packages
     from skilltether.models import InvariantManifest, ProtectedTokenMapping
 
-    source = make_package(tmp_path / "source", "Use `--old-mode`.\n")
-    target = make_package(tmp_path / "target", "Use `--new-mode`.\n")
+    source = make_package(tmp_path / "source", "Use --old-mode.\n")
+    target = make_package(tmp_path / "target", "Use --new-mode.\n")
     manifest = InvariantManifest(
         source_locale="en",
         target_locale="fr",
@@ -106,7 +108,7 @@ def test_unreviewed_token_mapping_never_suppresses_token_change_findings(tmp_pat
             ProtectedTokenMapping(
                 id="unreviewed-rename",
                 path="SKILL.md",
-                category="inline_code",
+                category="command_flag",
                 source_token="--old-mode",
                 target_token="--new-mode",
                 rationale="Pending review.",
@@ -128,8 +130,8 @@ def test_stale_or_incomplete_token_mappings_fail_closed(tmp_path: Path) -> None:
     from skilltether.compare import compare_packages
     from skilltether.models import InvariantManifest, ProtectedTokenMapping
 
-    source = make_package(tmp_path / "source", "Use `--old-mode` twice: `--old-mode`.\n")
-    target = make_package(tmp_path / "target", "Use `--new-mode`.\n")
+    source = make_package(tmp_path / "source", "Use --old-mode twice: --old-mode.\n")
+    target = make_package(tmp_path / "target", "Use --new-mode.\n")
     manifest = InvariantManifest(
         source_locale="en",
         manifest_reviewed=True,
@@ -138,7 +140,7 @@ def test_stale_or_incomplete_token_mappings_fail_closed(tmp_path: Path) -> None:
             ProtectedTokenMapping(
                 id="not-enough-replacements",
                 path="SKILL.md",
-                category="inline_code",
+                category="command_flag",
                 source_token="--old-mode",
                 target_token="--new-mode",
                 rationale="The replacement is incomplete.",
