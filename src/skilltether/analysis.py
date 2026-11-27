@@ -52,7 +52,7 @@ READABLE_SUFFIXES = TEXT_SUFFIXES | {
     ".pem", ".key", ".ini", ".cfg", ".conf", ".properties", ".tf", ".tfvars", ".envrc", ".netrc",
 }
 READABLE_SECRET_FILENAMES = {
-    ".npmrc", ".pypirc", ".netrc", "credentials", "id_rsa", "id_ecdsa",
+    ".env", ".npmrc", ".pypirc", ".netrc", "credentials", "id_rsa", "id_ecdsa",
     "id_ed25519", "id_dsa",
 }
 def _normalized_skill_name(value: str) -> str:

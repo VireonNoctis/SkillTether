@@ -45,7 +45,10 @@ _CREDENTIAL_ASSIGNMENT = re.compile(
         private[_-]?key|signing[_-]?key|aws[_-]?secret[_-]?access[_-]?key
     )
     ["']?\s*[:=]\s*
-    (?P<value>"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;#}]+)
+    (?P<value>
+        "[^"\r\n]*"|'[^'\r\n]*'|\$\{[^}\r\n]*\}|\{\{[^}\r\n]*\}\}|
+        <[^>\r\n]*>|\[[^\]\r\n]*\]|[^\s,;#}]+
+    )
     """
 )
 _PLACEHOLDER_VALUE = re.compile(
