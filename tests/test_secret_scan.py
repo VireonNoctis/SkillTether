@@ -125,3 +125,4 @@ def test_cli_secret_scan_reports_incomplete_readable_resource(tmp_path: Path, ca
     assert main(["scan-secrets", str(package), "--json"]) == 2
     payload = json.loads(capsys.readouterr().out)
     assert any(item["code"] == "SECRET_SCAN_INCOMPLETE" for item in payload)
+    assert main(["validate", str(package), "--scan-secrets", "--fail-on", "critical"]) == 2

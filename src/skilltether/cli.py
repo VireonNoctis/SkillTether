@@ -241,15 +241,19 @@ def cmd_scan_secrets(args: argparse.Namespace) -> int:
 def cmd_validate(args: argparse.Namespace) -> int:
     _inventory, package_findings, texts = inspect_package(args.package)
     findings = package_findings
+    secret_scan_incomplete: list = []
     if getattr(args, "scan_secrets", False):
         findings.extend(scan_secret_indicators(texts))
-        findings.extend(_secret_scan_incomplete_findings(package_findings))
+        secret_scan_incomplete = _secret_scan_incomplete_findings(package_findings)
+        findings.extend(secret_scan_incomplete)
     if args.json:
         print(json.dumps([item.model_dump(mode="json") for item in findings], indent=2, ensure_ascii=False))
     else:
         _show_findings(findings)
     severity_rank = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
     threshold = severity_rank[getattr(args, "fail_on", "high")]
+    if secret_scan_incomplete:
+        return 2
     return 1 if any(severity_rank[item.severity] >= threshold for item in findings) else 0
 
 

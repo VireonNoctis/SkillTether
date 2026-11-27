@@ -317,7 +317,7 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
                         path=rel, proposed_change="Restore the intended encoding or explicitly mark this as a binary asset.",
                         requires_review=True,
                     ))
-                elif suffix in READABLE_SUFFIXES and rel != "SKILL.md":
+                elif (suffix in READABLE_SUFFIXES or path.name.lower() in READABLE_SECRET_FILENAMES) and rel != "SKILL.md":
                     findings.append(new_finding(
                         "TEXT_RESOURCE_NOT_UTF8", "high", "resource_validation",
                         "A text resource expected to be readable is not valid UTF-8.",
