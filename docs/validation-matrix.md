@@ -23,6 +23,11 @@ PR #7 code/test head `7208dc6079972fa3636cc9f35468b97d2024fe36` passed [CI run 4
 | Windows path portability | Reserved device name, forbidden character, trailing dot/space | Deterministic portability finding |
 | Unicode/case path collision | Two file paths share NFC + case-folded key | Critical normalized-path collision finding on case-sensitive hosts; aliasing hosts skip fixture |
 | Offline reviewer workbench | Load unsigned JSON, append a review event and export; attempt to edit signed report | Unsigned report edits are local and append-only; signed report remains read-only; content is rendered as text and no network/storage API is used |
+| Credential indicator detection | Synthetic provider token, private-key header, bearer/basic value, credential-bearing URL, cloud access-key identifier, and named credential assignment | Emit a location-only finding with the matched value omitted; do not validate or claim the credential is active |
+| Placeholder negatives | `your-api-key-here`, `${{DATABASE_PASSWORD}}`, `<set-at-deploy-time>`, ordinary bearer prose | Do not report documented placeholders or ordinary prose |
+| Secret scan file coverage | `.env`, `.pem`, `.key`, `.ini`, `.conf`, `.properties`, `.tf`, `.tfvars`, `.npmrc`, `id_rsa`, `id_ed25519`, and readable Markdown/script resources | Scan decoded UTF-8 content within package inventory bounds; binary and unsupported encodings remain out of scope |
+| Secret scan incomplete inventory | Oversized, unreadable, unstable, symlink, special, or expected-text non-UTF-8 entry | Emit `SECRET_SCAN_INCOMPLETE` and exit 2; never silently claim a complete scan |
+| Secret value non-disclosure | Provider token, private-key marker, bearer token, credential assignment, or URL password | JSON and terminal findings include path/line/rule only; no matched value or source context is copied; package bytes remain unchanged |
 
 | Test class | Example | Expected result |
 |---|---|---|
