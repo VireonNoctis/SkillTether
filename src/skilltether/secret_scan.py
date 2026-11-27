@@ -42,7 +42,8 @@ _CREDENTIAL_ASSIGNMENT = re.compile(
     (?P<name>
         api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|
         secret(?:[_-]?(?:access[_-]?)?key)?|password|passwd|authorization|
-        private[_-]?key|signing[_-]?key|aws[_-]?secret[_-]?access[_-]?key
+        private[_-]?key|signing[_-]?key|aws[_-]?secret[_-]?access[_-]?key|
+        aws[_-]?access[_-]?key[_-]?id|[a-z0-9]+[_-](?:token|secret|password)
     )
     ["']?\s*[:=]\s*
     (?P<value>

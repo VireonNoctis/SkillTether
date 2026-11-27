@@ -11,7 +11,8 @@ _ASSIGNMENT = re.compile(
     r"""(?ix)
     \b(api[_-]?key|access[_-]?token|refresh[_-]?token|password|passwd|
        client[_-]?secret|secret(?:[_-]?(?:access[_-]?)?key)?|
-       private[_-]?key|signing[_-]?key|authorization|aws[_-]?secret[_-]?access[_-]?key)\b
+       private[_-]?key|signing[_-]?key|authorization|aws[_-]?secret[_-]?access[_-]?key|
+       aws[_-]?access[_-]?key[_-]?id|[a-z0-9]+[_-](?:token|secret|password))\b
     (\s*[:=]\s*)
     (?:"[^"]*"|'[^']*'|[^\s,;]+)
     """

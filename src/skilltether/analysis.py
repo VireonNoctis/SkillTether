@@ -49,12 +49,17 @@ READABLE_SUFFIXES = TEXT_SUFFIXES | {
     ".py", ".sh", ".bash", ".js", ".cjs", ".mjs", ".ts",
     ".json", ".yaml", ".yml", ".toml", ".xml", ".html", ".css", ".sql",
     ".ps1", ".psm1", ".psd1", ".bat", ".env", ".tsx", ".mts", ".cts",
-    ".pem", ".key", ".ini", ".cfg", ".conf", ".properties", ".tf", ".tfvars", ".envrc", ".netrc",
+    ".pem", ".key", ".ini", ".cfg", ".conf", ".cnf", ".properties", ".tf", ".tfvars", ".envrc", ".netrc",
 }
 READABLE_SECRET_FILENAMES = {
-    ".env", ".npmrc", ".pypirc", ".netrc", "credentials", "id_rsa", "id_ecdsa",
+    ".env", ".npmrc", ".pypirc", ".netrc", ".git-credentials", ".pgpass",
+    ".my.cnf", ".dockerconfigjson", "credentials", "id_rsa", "id_ecdsa",
     "id_ed25519", "id_dsa",
 }
+def _is_readable_secret_filename(name: str) -> bool:
+    lowered = name.lower()
+    return lowered in READABLE_SECRET_FILENAMES or lowered.startswith(".env.")
+
 def _normalized_skill_name(value: str) -> str:
     """Return the NFKC comparison form without rewriting package metadata."""
     return unicodedata.normalize("NFKC", value.strip())
@@ -305,7 +310,7 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
             try:
                 text = data.decode("utf-8")
                 encoding = "utf-8"
-                if path.suffix.lower() in READABLE_SUFFIXES or path.name.lower() in READABLE_SECRET_FILENAMES:
+                if path.suffix.lower() in READABLE_SUFFIXES or _is_readable_secret_filename(path.name):
                     texts[rel] = text
             except UnicodeDecodeError:
                 suffix = path.suffix.lower()
@@ -317,7 +322,7 @@ def inspect_package(root: str | Path) -> tuple[dict[str, FileFingerprint], list,
                         path=rel, proposed_change="Restore the intended encoding or explicitly mark this as a binary asset.",
                         requires_review=True,
                     ))
-                elif (suffix in READABLE_SUFFIXES or path.name.lower() in READABLE_SECRET_FILENAMES) and rel != "SKILL.md":
+                elif (suffix in READABLE_SUFFIXES or _is_readable_secret_filename(path.name)) and rel != "SKILL.md":
                     findings.append(new_finding(
                         "TEXT_RESOURCE_NOT_UTF8", "high", "resource_validation",
                         "A text resource expected to be readable is not valid UTF-8.",

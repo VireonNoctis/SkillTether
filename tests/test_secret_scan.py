@@ -89,8 +89,10 @@ def test_cli_scans_secret_files_and_never_mutates_or_echoes_values(tmp_path: Pat
     github_token = "ghp_" + "Q" * 36
     private_key_header = "-----BEGIN OPENSSH PRIVATE KEY-----"
     env_path = package / ".env"
+    local_env_path = package / ".env.local"
     key_path = package / "id_ed25519"
     env_path.write_text(f"GITHUB_TOKEN={github_token}\n", encoding="utf-8")
+    local_env_path.write_text("GITHUB_TOKEN=opaque-development-token-123456\n", encoding="utf-8")
     key_path.write_text(private_key_header + "\n", encoding="utf-8")
     before = {item.name: item.read_bytes() for item in package.iterdir()}
 
@@ -99,7 +101,10 @@ def test_cli_scans_secret_files_and_never_mutates_or_echoes_values(tmp_path: Pat
     payload = json.loads(output)
 
     assert status == 1
-    assert {item["code"] for item in payload} >= {"SECRET_PROVIDER_TOKEN", "SECRET_PRIVATE_KEY"}
+    assert {item["code"] for item in payload} >= {
+        "SECRET_PROVIDER_TOKEN", "SECRET_PRIVATE_KEY", "SECRET_CREDENTIAL_ASSIGNMENT",
+    }
+    assert any(item["path"] == ".env.local" for item in payload)
     assert github_token not in output
     assert private_key_header not in output
     assert {item.name: item.read_bytes() for item in package.iterdir()} == before
@@ -131,7 +136,7 @@ def test_cli_secret_scan_reports_incomplete_readable_resource(tmp_path: Path, ca
 def test_scanner_reports_output_truncation_as_incomplete() -> None:
     token = "ghp_" + "R" * 36
     findings = scan_secret_indicators({
-        "SKILL.md": "".join(f"token {token} line {index}\\n" for index in range(1005))
+        "SKILL.md": "".join(f"token {token} line {index}\n" for index in range(1005))
     })
 
     assert len(findings) == 1001
@@ -170,3 +175,18 @@ def test_translate_secret_preflight_stops_before_provider_or_output(
     assert not output.exists()
     assert not report.exists()
     assert not history.exists()
+
+
+def test_service_specific_token_assignment_is_detected_and_redacted() -> None:
+    opaque_token = "internal-token-material-123456789"
+    findings = scan_secret_indicators({
+        ".env.local": f"GITHUB_TOKEN={opaque_token}",
+    })
+    assert len(findings) == 1
+    assert findings[0].code == "SECRET_CREDENTIAL_ASSIGNMENT"
+    assert findings[0].path == ".env.local"
+    assert opaque_token not in json.dumps([item.model_dump(mode="json") for item in findings])
+
+    redacted = redact_sensitive_text(f"GITHUB_TOKEN={opaque_token}")
+    assert opaque_token not in redacted
+    assert "[REDACTED]" in redacted
