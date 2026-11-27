@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -52,15 +53,24 @@ def test_reviewer_workbench_validates_history_entries_and_bounds_rendering() -> 
 
 
 def _node_syntax_check(script: str, node: str) -> subprocess.CompletedProcess[str]:
-    """Parse JavaScript from stdin without evaluating or executing it."""
-    return subprocess.run(
-        [node, "--check", "-"],
-        input=script,
-        text=True,
-        capture_output=True,
-        timeout=10,
-        check=False,
-    )
+    """Parse a temporary JavaScript file without evaluating or executing it."""
+    script_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", suffix=".js", delete=False,
+        ) as stream:
+            stream.write(script)
+            script_path = Path(stream.name)
+        return subprocess.run(
+            [node, "--check", str(script_path)],
+            text=True,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    finally:
+        if script_path is not None:
+            script_path.unlink(missing_ok=True)
 
 
 def test_offline_reviewer_javascript_passes_parse_only_node_check() -> None:
