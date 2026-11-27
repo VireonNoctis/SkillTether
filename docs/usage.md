@@ -32,6 +32,20 @@ A skill directory must contain a readable UTF-8 SKILL.md beginning with a closed
 
 External HTTP(S) links are preserved but are not fetched. Scripts and other assets are never executed.
 
+## Scan for credential indicators
+
+~~~sh
+skilltether scan-secrets ./sample-skill
+skilltether scan-secrets ./sample-skill --json
+skilltether validate ./sample-skill --scan-secrets
+~~~
+
+The local scanner checks the package inventory's readable UTF-8 resources for selected provider token formats (GitHub, Google, OpenAI-style, Slack, Stripe, Twilio, and SendGrid patterns), private-key PEM/PGP headers, bearer/basic credentials, credentials embedded in HTTP(S) URLs, AWS-style access-key identifiers, and non-placeholder values assigned to credential-like fields. The matched value is never included in the finding, JSON output, or terminal summary; findings identify the file and line only.
+
+`scan-secrets` returns **1** when indicators are found, **2** when package entries could not be inspected safely (for example, unreadable/oversized/symlinked entries), and **0** when no supported pattern matched. `validate --scan-secrets` adds the same findings to normal validation and applies the configured `--fail-on` threshold; the default threshold remains `high`, so medium-severity named-field heuristics require `--fail-on medium` to fail the command. For translation, add `--scan-secrets` to run the check against the source snapshot inside the translation pipeline. Any indicator or incomplete scan stops before provider requests, candidate staging, report creation, or history writes.
+
+This is a fixed-pattern heuristic, not a comprehensive secret scanner. It does not inspect binary files or unsupported encodings, infer arbitrary high-entropy strings, verify whether a credential is active, or guarantee that a package contains no secrets. A clean result must not be used as evidence that sending the package to a provider is safe. Run it locally before remote translation, then make the separate provider-consent decision.
+
 ## Create a manifest for human review
 
 ~~~sh
@@ -72,7 +86,7 @@ skilltether translate ./sample-skill /tmp/candidate/sample-skill \
   --invariants ./review/sample-skill.invariants.yaml
 ~~~
 
-The identity adapter is for testing the pipeline, not for producing a real translation. For a configured HTTP bridge, set --adapter http-json --endpoint URL --allow-remote.
+The identity adapter is for testing the pipeline, not for producing a real translation. For a configured HTTP bridge, set --adapter http-json --endpoint URL --allow-remote. Add `--scan-secrets` to run a local credential-indicator check against the same source snapshot used by translation; it stops before the provider, candidate staging, report, or history writes if matches are found or the scan is incomplete.
 
 Inline Markdown delimiters, link/image destinations, reference-link identifiers, checkbox tokens, escaped punctuation, table pipes, and hard line breaks are masked as exact-once placeholders. The provider can translate link labels and table-cell prose, while SkillTether rejects missing, duplicated, or reordered Markdown syntax markers before it writes translated text. Fenced code, frontmatter, indented code, reference-definition lines, multiline HTML comments, and code-bearing HTML blocks (`script`, `style`, `pre`, `code`, `textarea`) remain unchanged. Provider output containing a line break or unsupported control character is rejected because this adapter contract translates one Markdown line at a time. Every adapter—including custom local adapters—also observes a 2 MiB per-line response cap and a 10 MiB aggregate response cap. After restoration, SkillTether also compares parser-visible Markdown structure (including links, emphasis, lists, headings, code, and tables) while ignoring ordinary prose text; newly introduced or removed structure aborts candidate creation. These are structural safeguards, not a full Markdown/MDX AST transformation or semantic-equivalence proof; unusual nested constructs still require comparison and human review.
 

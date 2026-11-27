@@ -43,6 +43,12 @@ The identity adapter enables a no-network pipeline exercise but does not transla
 
 When local parser executables are already available, selected Bash/sh, JavaScript, TypeScript-family, and PowerShell resources can be checked without running the package script. Source is sent over stdin to fixed parser-only modes, with a minimal environment, an eight-second process timeout, and a 16-file per-package budget. TypeScript uses the already-installed compiler AST parser without type checking or module resolution. Windows batch files receive only a conservative delimiter scan, which is marked partial and is not syntax validation. Missing tools and incomplete checks are reported instead of silently passing. Runtime semantics, imports/dependencies, and shell portability remain unsupported; parsers are never downloaded.
 
+### Local credential indicator scan
+
+The optional `scan-secrets` CLI command uses only fixed local patterns over the bounded package inventory's readable UTF-8 resources. It identifies selected provider token formats, private-key headers, bearer/basic credentials, HTTP(S) URL user-info, cloud access-key identifiers, and non-placeholder values assigned to credential-like fields. Findings omit matched values and source excerpts. `validate --scan-secrets` integrates the same findings without changing default validation behavior. A scan can be incomplete when package entries are unreadable or unsafe; it returns a distinct exit status in that case.
+
+The scanner is intentionally heuristic: it does not inspect binary or unsupported-encoding files, search for arbitrary high-entropy strings, validate credential activity, or guarantee that a package is secret-free. Run it as a local preflight before considering remote translation, not as proof that transmission is safe.
+
 ### Locale metadata and audit evidence
 
 BCP 47 syntax and subtag membership are validated consistently across CLI/model/history surfaces using the locally bundled `iana-bcp47` registry snapshot dated 2026-09-17. Original supplied tags are retained; canonicalization is explicit-only and no live registry request occurs. Versioned report contracts, evidence locations, method/uncertainty fields, reviewer history, optional local SQLite metadata history, and optional HMAC report seals support review traceability. HMAC is a shared-key integrity check, not reviewer authentication; history itself is not cryptographically tamper-evident.

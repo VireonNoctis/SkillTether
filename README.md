@@ -23,6 +23,7 @@ SkillTether is a local-first CLI for validating and localizing [Agent Skills](ht
 - **Keep decisions auditable:** generate JSON/Markdown reports, retain review history and rationale, and require fingerprint-matched evidence before exporting an approved candidate.
 - **Review reports offline:** open the dependency-free local workbench in reviewer/index.html to inspect evidence, filter findings, record decisions on unsigned reports, and export the updated JSON. HMAC-signed reports remain read-only in the browser.
 - **Make remote translation opt-in:** the default identity adapter sends no content. The generic JSON adapter requires an endpoint and explicit `--allow-remote` consent; per-line and aggregate limits bound provider output.
+- **Audit credential indicators locally:** `skilltether scan-secrets` and `validate --scan-secrets` check readable UTF-8 resources for common provider tokens, private-key headers, bearer/basic credentials, URL user-info, cloud access-key identifiers, and suspicious credential assignments. Findings never include matched values.
 - **Keep local run metadata minimal:** optional SQLite history stores fingerprints and run metadata, not source/target document text.
 - **Support report integrity:** optionally seal JSON reports using a local HMAC-SHA256 key and verify the seal before review or approval.
 
@@ -42,11 +43,14 @@ pytest
 
 ## Typical workflow
 
-### 1. Validate the source package
+### 1. Validate and audit the source package
 
 ~~~sh
 skilltether validate ./skills/my-skill
+skilltether scan-secrets ./skills/my-skill
 ~~~
+
+Run the local credential-indicator scan before choosing a remote translation provider. It does not send data anywhere; it reports file/line locations and redacted rule explanations only. For a strict translation gate, pass `--scan-secrets` to `translate`; it scans the exact source snapshot and blocks before the provider or any output writes.
 
 The package directory basename must match the `name` field in `SKILL.md`. Inspection is read-only; scripts and external URLs are not executed or fetched.
 
@@ -74,13 +78,13 @@ skilltether translate ./skills/my-skill ./candidate/my-skill \
   --report ./review/candidate-report.json
 ~~~
 
-For an approved remote gateway, use the provider-neutral JSON bridge:
+For an approved remote gateway, use the provider-neutral JSON bridge. Add `--scan-secrets` to stop locally when supported credential indicators are found or the source inventory cannot be fully scanned:
 
 ~~~sh
 skilltether translate ./skills/my-skill ./candidate/my-skill \
   --source-locale en --target-locale fr --adapter http-json \
   --endpoint https://your-approved-gateway.example/translate \
-  --allow-remote \
+  --allow-remote --scan-secrets \
   --invariants ./review/my-skill.invariants.yaml \
   --policy config/protected-tokens.yaml \
   --report ./review/candidate-report.json
@@ -145,7 +149,8 @@ Use the same key with `review` and `approve` for a signed report. HMAC detects r
 
 | Command | Purpose |
 |---|---|
-| `skilltether validate PACKAGE [--fail-on SEVERITY]` | Validate a package; choose the minimum finding severity that returns exit status 1 |
+| `skilltether validate PACKAGE [--fail-on SEVERITY] [--scan-secrets]` | Validate a package; optionally include local credential-indicator checks |
+| `skilltether scan-secrets PACKAGE [--json]` | Scan readable UTF-8 package resources for common credential indicators; values are omitted |
 | `skilltether doctor [--json]` | Diagnose Python compatibility, locale registry snapshot, and optional local parser availability |
 | `skilltether init-manifest SOURCE --out FILE` | Generate unreviewed invariant candidates |
 | `skilltether translate SOURCE OUTPUT` | Create a candidate and initial report |
@@ -179,7 +184,7 @@ GitHub Actions tests the suite on **Python 3.13 and 3.14 × Ubuntu, macOS, and W
 - **Reference and syntax coverage is bounded.** External URLs are not fetched. The parser supports a documented GFM-like/Pandoc subset; heading fragments and MDX detection have known limits. JSX and JavaScript constructs are flagged as unsupported, not parsed or translated. AST source maps gate eligible Markdown prose lines, but this is not a complete AST transformation.
 - **Script syntax support is bounded.** Bash/sh, JavaScript, and PowerShell parsing is syntax-only and depends on trusted local parsers. TypeScript/TSX/MTS/CTS use an already-installed TypeScript compiler AST parser without type-checking or execution. Windows batch files receive a conservative delimiter scan only, never a full syntax-validity claim. Checks are limited to 16 files per package and eight seconds per parser process. Missing parsers, timeouts, partial checks, and skipped scripts are reported; package scripts are never executed.
 - **Protected-token detection is incomplete.** Unknown identifiers may be missed. Human-reviewed path/category-scoped exact token mappings are supported; SkillTether does not generate or approve rename mappings automatically.
-- **Secret redaction is not a secret scanner.** Common credential shapes are redacted, but unfamiliar formats may pass through. Do not store credentials in skill content, policy files, or review notes.
+- **Secret scanning is heuristic and bounded.** `scan-secrets` recognizes selected provider token formats, private-key headers, bearer/basic credentials, URL user-info, cloud access-key identifiers, and non-placeholder credential assignments. It scans readable UTF-8 resources only and does not validate whether credentials are active. Binary/unsupported encodings, unknown token formats, and arbitrary high-entropy values can be missed; a clean scan is not proof of no secrets.
 - **Filesystem portability is checked, not guaranteed.** Common Windows-invalid path components and case/Unicode-normalization collisions are reported. This does not model every filesystem, Unicode equivalence rule, or race condition.
 - **Hostile-system isolation is not provided.** File and path protections reduce common risks, but SkillTether is not a sandbox for malicious operating-system inputs.
 - **Coverage is not a correctness proof.** Per-module coverage floors are not enforced, and platform-specific filesystem behavior still requires care.
