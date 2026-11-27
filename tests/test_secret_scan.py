@@ -198,7 +198,7 @@ def test_translate_secret_preflight_stops_on_incomplete_inventory(
     from skilltether import cli as cli_module
 
     package = _make_skill(tmp_path / "source" / "incomplete-skill")
-    (package / "private.pem").write_bytes(b"\\xff\\xfe\\xfa")
+    (package / "private.pem").write_bytes(bytes((0xFF, 0xFE, 0xFA)))
     output = tmp_path / "candidate" / "incomplete-skill"
     report = tmp_path / "review" / "report.json"
     history = tmp_path / "review" / "history.sqlite3"
