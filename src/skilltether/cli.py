@@ -20,7 +20,8 @@ from .models import Invariant, InvariantManifest
 from .report import _redact_report, read_json_report, verify_report_signature, write_json_report, write_markdown_report
 from .signing import create_signing_key
 from .translation import HttpJsonAdapter, IdentityAdapter, translate_package
-from .locale_tags import validate_bcp47_tag
+from .locale_tags import registry_file_date, validate_bcp47_tag
+from .static_analysis import _typescript_module_path
 from .reviewing import has_audited_approval, record_review
 from .invariant_language import classify_candidate, language_profile, suggested_target_markers
 
@@ -151,13 +152,58 @@ def _ensure_outputs_outside_packages(
     return lexical_outputs
 
 
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """Report local runtime and optional parser availability without network access."""
+    node = shutil.which("node")
+    tsc = shutil.which("tsc")
+    python_supported = sys.version_info >= (3, 13)
+    checks = {
+        "bash_sh": bool(shutil.which("bash") or shutil.which("sh")),
+        "javascript": node is not None,
+        "typescript": bool(node and tsc and _typescript_module_path(tsc)),
+        "powershell": bool(shutil.which("pwsh") or shutil.which("powershell")),
+        "batch": "heuristic-only",
+    }
+    payload = {
+        "skilltether_version": __version__,
+        "python": {"version": sys.version.split()[0], "supported": python_supported},
+        "locale_registry": {
+            "provider": "iana-bcp47",
+            "snapshot_date": registry_file_date(),
+            "canonicalization": "explicit-only",
+        },
+        "script_parsers": checks,
+        "checks_are_local": True,
+    }
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True))
+    else:
+        status = "supported" if python_supported else "unsupported (requires Python 3.13+)"
+        print(f"SkillTether {__version__}")
+        print(f"Python {payload['python']['version']}: {status}")
+        print(
+            "BCP 47 registry snapshot: "
+            f"{payload['locale_registry']['snapshot_date']} (validation only; no automatic canonicalization)"
+        )
+        print("Optional local script checks:")
+        for name, available in checks.items():
+            label = "heuristic delimiter scan only" if available == "heuristic-only" else (
+                "available" if available else "not installed"
+            )
+            print(f"  {name}: {label}")
+        print("No network requests or package scripts are used by doctor.")
+    return 0 if python_supported else 1
+
+
 def cmd_validate(args: argparse.Namespace) -> int:
     _inventory, findings, _texts = inspect_package(args.package)
     if args.json:
         print(json.dumps([item.model_dump(mode="json") for item in findings], indent=2, ensure_ascii=False))
     else:
         _show_findings(findings)
-    return 1 if any(item.severity in ("high", "critical") for item in findings) else 0
+    severity_rank = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
+    threshold = severity_rank[getattr(args, "fail_on", "high")]
+    return 1 if any(severity_rank[item.severity] >= threshold for item in findings) else 0
 
 
 def _suggest_invariants(source_root: Path, source_locale: str, target_locale: str | None) -> InvariantManifest:
@@ -518,9 +564,17 @@ def build_parser() -> argparse.ArgumentParser:
     init_key.add_argument("--out", required=True, help="new key file path; existing files are never overwritten")
     init_key.set_defaults(func=cmd_init_signing_key)
 
+    doctor = sub.add_parser("doctor", help="show local runtime, locale registry, and parser availability")
+    doctor.add_argument("--json", action="store_true", help="print diagnostics as JSON")
+    doctor.set_defaults(func=cmd_doctor)
+
     validate = sub.add_parser("validate", help="validate SKILL.md metadata, structure, and local links")
     validate.add_argument("package")
     validate.add_argument("--json", action="store_true", help="print findings as JSON")
+    validate.add_argument(
+        "--fail-on", choices=["info", "low", "medium", "high", "critical"], default="high",
+        help="minimum finding severity that returns exit status 1 (default: high)",
+    )
     validate.set_defaults(func=cmd_validate)
 
     init_manifest = sub.add_parser("init-manifest", help="suggest invariant candidates for human review")

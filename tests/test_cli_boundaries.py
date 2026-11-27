@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from skilltether import cli as cli_module
 from skilltether.cli import main
 
 
@@ -112,3 +113,63 @@ def test_http_translation_requires_explicit_consent_before_any_candidate_write(
     assert not output.exists()
     assert not report.exists()
     assert not history.exists()
+
+
+
+def test_validate_fail_on_threshold_can_include_low_warnings(
+    tmp_path: Path,
+) -> None:
+    package = make_skill(tmp_path / "extension-skill")
+    skill_file = package / "SKILL.md"
+    content = skill_file.read_text(encoding="utf-8")
+    skill_file.write_text(
+        content.replace(
+            "description: A CLI boundary fixture.\\n",
+            "description: A CLI boundary fixture.\\nx-client-extension: preserved\\n",
+        ),
+        encoding="utf-8",
+    )
+
+    assert main(["validate", str(package)]) == 0
+    assert main(["validate", str(package), "--fail-on", "medium"]) == 0
+    assert main(["validate", str(package), "--fail-on", "low"]) == 1
+
+
+def test_doctor_reports_local_capabilities_without_invoking_parsers(
+    monkeypatch: pytest.MonkeyPatch, capsys,
+) -> None:
+    available = {
+        "bash": "/usr/bin/bash",
+        "node": "/usr/bin/node",
+        "tsc": "/usr/bin/tsc",
+        "pwsh": None,
+        "powershell": None,
+        "sh": None,
+    }
+    calls: list[str] = []
+
+    def which(name: str) -> str | None:
+        calls.append(name)
+        return available.get(name)
+
+    monkeypatch.setattr(cli_module.shutil, "which", which)
+    monkeypatch.setattr(
+        cli_module,
+        "_typescript_module_path",
+        lambda _path: "/usr/lib/node_modules/typescript",
+    )
+
+    assert main(["doctor", "--json"]) == 0
+    payload = __import__("json").loads(capsys.readouterr().out)
+
+    assert payload["checks_are_local"] is True
+    assert payload["locale_registry"]["provider"] == "iana-bcp47"
+    assert payload["locale_registry"]["snapshot_date"]
+    assert payload["script_parsers"] == {
+        "bash_sh": True,
+        "javascript": True,
+        "typescript": True,
+        "powershell": False,
+        "batch": "heuristic-only",
+    }
+    assert calls
