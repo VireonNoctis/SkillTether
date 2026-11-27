@@ -11,7 +11,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Protocol
+from typing import Callable, Protocol
 
 from .markdown_support import (
     create_markdown_parser, markdown_inline_line_numbers, mdx_syntax_locations,
@@ -533,6 +533,8 @@ def translate_package(
     source_locale: str, target_locale: str,
     protected_patterns: list[dict[str, str]] | None = None,
     explicit_tokens: list[str] | None = None,
+    *,
+    preflight: Callable[[dict[str, str], list], None] | None = None,
 ) -> tuple[dict[str, FileFingerprint], dict[str, FileFingerprint], int]:
     """Generate a candidate atomically; never mutate source or overwrite an existing output."""
     source_root = normalize_package_root(source)
@@ -562,6 +564,8 @@ def translate_package(
     if severe:
         codes = ", ".join(sorted({f.code for f in severe}))
         raise ValueError(f"Source package has blocking validation findings: {codes}")
+    if preflight is not None:
+        preflight(source_text, validation_findings)
     before = package_fingerprint(source_inventory)
 
     # Preflight the complete translation workload with a no-network adapter. This

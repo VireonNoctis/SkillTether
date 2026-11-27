@@ -78,13 +78,13 @@ skilltether translate ./skills/my-skill ./candidate/my-skill \
   --report ./review/candidate-report.json
 ~~~
 
-For an approved remote gateway, use the provider-neutral JSON bridge:
+For an approved remote gateway, use the provider-neutral JSON bridge. Add `--scan-secrets` to stop locally when supported credential indicators are found or the source inventory cannot be fully scanned:
 
 ~~~sh
 skilltether translate ./skills/my-skill ./candidate/my-skill \
   --source-locale en --target-locale fr --adapter http-json \
   --endpoint https://your-approved-gateway.example/translate \
-  --allow-remote \
+  --allow-remote --scan-secrets \
   --invariants ./review/my-skill.invariants.yaml \
   --policy config/protected-tokens.yaml \
   --report ./review/candidate-report.json

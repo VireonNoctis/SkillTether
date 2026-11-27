@@ -126,3 +126,47 @@ def test_cli_secret_scan_reports_incomplete_readable_resource(tmp_path: Path, ca
     payload = json.loads(capsys.readouterr().out)
     assert any(item["code"] == "SECRET_SCAN_INCOMPLETE" for item in payload)
     assert main(["validate", str(package), "--scan-secrets", "--fail-on", "critical"]) == 2
+
+
+def test_scanner_reports_output_truncation_as_incomplete() -> None:
+    token = "ghp_" + "R" * 36
+    findings = scan_secret_indicators({
+        "SKILL.md": "".join(f"token {token} line {index}\\n" for index in range(1005))
+    })
+
+    assert len(findings) == 1001
+    assert findings[-1].code == "SECRET_SCAN_FINDINGS_TRUNCATED"
+
+
+def test_translate_secret_preflight_stops_before_provider_or_output(
+    tmp_path: Path, monkeypatch, capsys,
+) -> None:
+    from skilltether import cli as cli_module
+
+    package = _make_skill(tmp_path / "source" / "secret-skill", "Use token ghp_" + "S" * 36)
+    output = tmp_path / "candidate" / "secret-skill"
+    report = tmp_path / "review" / "report.json"
+    history = tmp_path / "review" / "history.sqlite3"
+    calls: list[bool] = []
+
+    def unexpected_translate(self, text: str, source_locale: str, target_locale: str) -> str:
+        calls.append(True)
+        raise AssertionError("provider must not be called after a secret-scan finding")
+
+    monkeypatch.setattr(cli_module.HttpJsonAdapter, "translate", unexpected_translate)
+
+    status = main([
+        "translate", str(package), str(output),
+        "--source-locale", "en", "--target-locale", "fr",
+        "--adapter", "http-json", "--endpoint", "https://translator.example/translate",
+        "--allow-remote", "--scan-secrets",
+        "--report", str(report), "--history-db", str(history),
+    ])
+
+    captured = capsys.readouterr()
+    assert status == 2
+    assert "Credential indicators found" in captured.err
+    assert calls == []
+    assert not output.exists()
+    assert not report.exists()
+    assert not history.exists()

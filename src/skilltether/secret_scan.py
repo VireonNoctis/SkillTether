@@ -117,6 +117,14 @@ def _is_placeholder(value: str) -> bool:
     }
 
 
+def secret_scan_is_incomplete(findings: list[Finding]) -> bool:
+    """Return whether a bounded scan could not inspect all supported content."""
+    return any(
+        item.code in {"SECRET_SCAN_INCOMPLETE", "SECRET_SCAN_FINDINGS_TRUNCATED"}
+        for item in findings
+    )
+
+
 def scan_secret_indicators(texts: Mapping[str, str]) -> list[Finding]:
     """Return redacted, location-only indicators from already bounded UTF-8 resources."""
     findings: list[Finding] = []

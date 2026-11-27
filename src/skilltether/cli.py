@@ -24,7 +24,7 @@ from .locale_tags import registry_file_date, validate_bcp47_tag
 from .static_analysis import _typescript_module_path
 from .reviewing import has_audited_approval, record_review
 from .invariant_language import classify_candidate, language_profile, suggested_target_markers
-from .secret_scan import scan_secret_indicators
+from .secret_scan import scan_secret_indicators, secret_scan_is_incomplete
 
 NUMBER_PATTERN = re.compile(
     r"(?<![A-Za-z])(?:[<>]=?\s*)?\d+(?:[.,]\d+)?(?:\s*(?:%|seconds?|minutes?|hours?|days?|files?|tokens?))?",
@@ -233,7 +233,7 @@ def cmd_scan_secrets(args: argparse.Namespace) -> int:
         _show_findings(findings)
         print("Scope: readable UTF-8 package resources only; binary and unsupported encodings are not searched.")
         print("A clean result is not proof that the package contains no secrets.")
-    if incomplete:
+    if incomplete or secret_scan_is_incomplete(findings):
         return 2
     return 1 if findings else 0
 
@@ -241,11 +241,13 @@ def cmd_scan_secrets(args: argparse.Namespace) -> int:
 def cmd_validate(args: argparse.Namespace) -> int:
     _inventory, package_findings, texts = inspect_package(args.package)
     findings = package_findings
-    secret_scan_incomplete: list = []
+    secret_scan_incomplete = False
     if getattr(args, "scan_secrets", False):
-        findings.extend(scan_secret_indicators(texts))
-        secret_scan_incomplete = _secret_scan_incomplete_findings(package_findings)
-        findings.extend(secret_scan_incomplete)
+        secret_findings = scan_secret_indicators(texts)
+        incomplete_findings = _secret_scan_incomplete_findings(package_findings)
+        findings.extend(secret_findings)
+        findings.extend(incomplete_findings)
+        secret_scan_incomplete = bool(incomplete_findings) or secret_scan_is_incomplete(secret_findings)
     if args.json:
         print(json.dumps([item.model_dump(mode="json") for item in findings], indent=2, ensure_ascii=False))
     else:
@@ -446,6 +448,21 @@ def _validate_locale_tag(value: str) -> str:
         ) from None
 
 
+def _secret_scan_translation_preflight(texts: dict[str, str], package_findings: list) -> None:
+    """Block translation when an opt-in local credential scan finds indicators or is incomplete."""
+    findings = scan_secret_indicators(texts)
+    findings.extend(_secret_scan_incomplete_findings(package_findings))
+    if findings:
+        _show_findings(findings)
+        if secret_scan_is_incomplete(findings):
+            raise ValueError(
+                "Secret scan was incomplete; translation stopped before provider requests or candidate/report/history publication."
+            )
+        raise ValueError(
+            "Credential indicators found; translation stopped before provider requests or candidate/report/history publication."
+        )
+
+
 def cmd_translate(args: argparse.Namespace) -> int:
     _validate_locale_tag(args.source_locale)
     _validate_locale_tag(args.target_locale)
@@ -476,6 +493,7 @@ def cmd_translate(args: argparse.Namespace) -> int:
     source_inventory, target_inventory, changed = translate_package(
         source, output, adapter, args.source_locale, args.target_locale,
         protected_patterns=protected_patterns, explicit_tokens=explicit_tokens,
+        preflight=_secret_scan_translation_preflight if args.scan_secrets else None,
     )
     manifest = _manifest_arg(args.invariants, source)
     report = compare_packages(
@@ -669,6 +687,10 @@ def build_parser() -> argparse.ArgumentParser:
     translate.add_argument("--adapter", choices=["identity", "http-json"], default="identity")
     translate.add_argument("--endpoint", help="provider-neutral JSON translation endpoint")
     translate.add_argument("--allow-remote", action="store_true", help="explicit consent to transmit eligible prose")
+    translate.add_argument(
+        "--scan-secrets", action="store_true",
+        help="scan the source locally and stop before translation if credential indicators are found or the scan is incomplete",
+    )
     translate.add_argument("--invariants")
     translate.add_argument("--policy")
     translate.add_argument("--report")
