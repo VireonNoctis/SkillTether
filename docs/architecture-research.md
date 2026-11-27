@@ -8,11 +8,11 @@ Inventory package → validate metadata/resources → identify protected spans �
 
 ## Architecture status
 
-- **Implemented:** Python 3.13+ CLI; PyYAML and markdown-it-py parsing; Pydantic models and JSON Schema contracts; provider-neutral translation adapters; dependency-free BCP 47 structural checks; pytest/Hypothesis regression tests; GitHub Actions CI.
+- **Implemented:** Python 3.13+ CLI; PyYAML and markdown-it-py parsing; Pydantic models and JSON Schema contracts; provider-neutral translation adapters; BCP 47 syntax and bundled IANA registry membership validation with explicit-only canonicalization; pytest/Hypothesis regression tests; GitHub Actions CI.
 - **Implemented, optional:** SQLite run history stores metadata and package fingerprints without document-text columns.
-- **Implemented, deliberately bounded:** local package inventory, safe I/O/output guards, Windows/case/Unicode path-portability findings, protected-token policy, GFM-like/Pandoc Markdown parsing with AST source-map line gating, fail-closed MDX unsupported-syntax detection, Markdown syntax masking, bounded parse-only Bash/sh/JavaScript/PowerShell checks where local tools exist, Unicode decimal-digit numeric matching, human-curated target anchors, structural comparison, eleven-language heuristic invariant suggestions, positional context fallback, audit reports, optional HMAC-SHA256 sealing, and an offline HTML review workbench.
-- **Deferred:** Svelte + TypeScript review UI, vendor-specific SDK integrations, automatic protected-token rename mappings, and full semantic-equivalence analysis.
-- **Not claimed:** canonicalization or IANA registry membership for language tags, online link reachability, complete shell/JavaScript/PowerShell parsing, or full CommonMark/MDX AST transformation.
+- **Implemented, deliberately bounded:** local package inventory, safe I/O/output guards, Windows/case/Unicode path-portability findings, protected-token policy and explicit reviewer-approved path/category-scoped token rename mappings, GFM-like/Pandoc Markdown parsing with AST source-map line gating, fail-closed MDX unsupported-syntax detection, Markdown syntax masking, bounded parse-only Bash/sh/JavaScript/TypeScript/PowerShell checks where local tools exist, conservative partial batch delimiter scanning, Unicode decimal-digit numeric matching, human-curated target anchors, structural comparison, eleven-language heuristic invariant suggestions, positional context fallback, audit reports, optional HMAC-SHA256 sealing, local doctor diagnostics, configurable validate exit thresholds, and an offline HTML review workbench.
+- **Deferred:** Svelte + TypeScript review UI, vendor-specific SDK integrations, automatic token-rename suggestion generation, and full semantic-equivalence analysis.
+- **Not claimed:** live IANA registry validation or automatic locale canonicalization, online link reachability, TypeScript type checking/module resolution, complete shell/JavaScript/PowerShell parsing or runtime analysis, full Windows batch syntax validation, or full CommonMark/MDX AST transformation.
 
 ## Specification boundary
 
@@ -44,7 +44,7 @@ The Markdown transformer uses parser inline source maps to select prose lines, t
 
 ## Parse-only script syntax checks
 
-Selected Bash/sh, JavaScript, and PowerShell suffixes are checked only when a corresponding local executable is available. Source is passed through stdin to fixed syntax/parser-only arguments, with `shell=False`, a minimal environment, an eight-second timeout, and a 16-file package budget. No script is executed and no parser is downloaded. This check is not a sandbox and does not model imports, runtime behavior, language dialects, or dependencies. Missing/timeout/budget findings are surfaced for reviewer action rather than counted as successful syntax validation.
+Selected Bash/sh and JavaScript suffixes are checked only when corresponding local executables are available; PowerShell uses its local parser. TypeScript-family files use an already-installed TypeScript compiler module through its source-file AST parser, without type checking, compilation, module resolution, or execution. Windows batch files receive a conservative delimiter scan and the result is explicitly partial. Source is passed through stdin to fixed parser-only arguments, with `shell=False`, a minimal environment, an eight-second timeout, and a 16-file package budget. No script is executed and no parser is downloaded. This is not a sandbox and does not model imports, runtime behavior, language dialects, or dependencies. Missing/timeout/budget findings are surfaced for reviewer action rather than counted as successful syntax validation.
 
 ## Trust boundaries
 
