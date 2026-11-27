@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import json
 import pytest
 import yaml
 
@@ -124,8 +125,8 @@ def test_validate_fail_on_threshold_can_include_low_warnings(
     content = skill_file.read_text(encoding="utf-8")
     skill_file.write_text(
         content.replace(
-            "description: A CLI boundary fixture.\\n",
-            "description: A CLI boundary fixture.\\nx-client-extension: preserved\\n",
+            "description: A CLI boundary fixture.",
+            "description: A CLI boundary fixture." + chr(10) + "x-client-extension: preserved",
         ),
         encoding="utf-8",
     )
@@ -160,7 +161,7 @@ def test_doctor_reports_local_capabilities_without_invoking_parsers(
     )
 
     assert main(["doctor", "--json"]) == 0
-    payload = __import__("json").loads(capsys.readouterr().out)
+    payload = json.loads(capsys.readouterr().out)
 
     assert payload["checks_are_local"] is True
     assert payload["locale_registry"]["provider"] == "iana-bcp47"
