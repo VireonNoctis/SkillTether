@@ -190,3 +190,38 @@ def test_service_specific_token_assignment_is_detected_and_redacted() -> None:
     redacted = redact_sensitive_text(f"GITHUB_TOKEN={opaque_token}")
     assert opaque_token not in redacted
     assert "[REDACTED]" in redacted
+
+
+def test_translate_secret_preflight_stops_on_incomplete_inventory(
+    tmp_path: Path, monkeypatch, capsys,
+) -> None:
+    from skilltether import cli as cli_module
+
+    package = _make_skill(tmp_path / "source" / "incomplete-skill")
+    (package / "private.pem").write_bytes(b"\\xff\\xfe\\xfa")
+    output = tmp_path / "candidate" / "incomplete-skill"
+    report = tmp_path / "review" / "report.json"
+    history = tmp_path / "review" / "history.sqlite3"
+    calls: list[bool] = []
+
+    def unexpected_translate(self, text: str, source_locale: str, target_locale: str) -> str:
+        calls.append(True)
+        raise AssertionError("provider must not be called when the local scan is incomplete")
+
+    monkeypatch.setattr(cli_module.HttpJsonAdapter, "translate", unexpected_translate)
+
+    status = main([
+        "translate", str(package), str(output),
+        "--source-locale", "en", "--target-locale", "fr",
+        "--adapter", "http-json", "--endpoint", "https://translator.example/translate",
+        "--allow-remote", "--scan-secrets",
+        "--report", str(report), "--history-db", str(history),
+    ])
+
+    captured = capsys.readouterr()
+    assert status == 2
+    assert "Secret scan was incomplete" in captured.err
+    assert calls == []
+    assert not output.exists()
+    assert not report.exists()
+    assert not history.exists()

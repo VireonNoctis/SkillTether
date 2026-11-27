@@ -560,12 +560,12 @@ def translate_package(
         raise FileExistsError(f"Candidate output already exists: {output_root}")
 
     source_inventory, validation_findings, source_text = inspect_package(source_root)
+    if preflight is not None:
+        preflight(source_text, validation_findings)
     severe = [f for f in validation_findings if f.severity in ("high", "critical")]
     if severe:
         codes = ", ".join(sorted({f.code for f in severe}))
         raise ValueError(f"Source package has blocking validation findings: {codes}")
-    if preflight is not None:
-        preflight(source_text, validation_findings)
     before = package_fingerprint(source_inventory)
 
     # Preflight the complete translation workload with a no-network adapter. This
