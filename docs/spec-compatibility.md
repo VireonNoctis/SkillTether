@@ -1,6 +1,6 @@
 # Agent Skills specification boundary
 
-The normative format reference is the [official Agent Skills specification](https://agentskills.io/specification). Re-check that document when changing structural validation rules; this file records the distinction between base-format requirements and additional SkillTether safeguards.
+The normative format reference is the [official Agent Skills specification](https://agentskills.io/specification). **Last checked: 2026-11-27.** Re-check that document when changing structural validation rules; this file records the distinction between base-format requirements and additional SkillTether safeguards.
 
 ## Base-format checks implemented here
 
