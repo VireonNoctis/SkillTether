@@ -161,7 +161,7 @@ def test_token_mapping_contract_rejects_duplicates_and_unreviewed_identity() -> 
     from pydantic import ValidationError
     from skilltether.models import InvariantManifest, ProtectedTokenMapping
 
-    with pytest.raises(ValidationError, match="distinct token"):
+    with pytest.raises(ValidationError, match="must change the token value"):
         ProtectedTokenMapping(
             id="same",
             category="command_flag",
