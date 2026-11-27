@@ -50,7 +50,7 @@ skilltether validate ./skills/my-skill
 skilltether scan-secrets ./skills/my-skill
 ~~~
 
-Run the local credential-indicator scan before choosing a remote translation provider. It does not send data anywhere; it reports file/line locations and redacted rule explanations only.
+Run the local credential-indicator scan before choosing a remote translation provider. It does not send data anywhere; it reports file/line locations and redacted rule explanations only. For a strict translation gate, pass `--scan-secrets` to `translate`; it scans the exact source snapshot and blocks before the provider or any output writes.
 
 The package directory basename must match the `name` field in `SKILL.md`. Inspection is read-only; scripts and external URLs are not executed or fetched.
 

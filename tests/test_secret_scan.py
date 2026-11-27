@@ -136,7 +136,7 @@ def test_cli_secret_scan_reports_incomplete_readable_resource(tmp_path: Path, ca
 def test_scanner_reports_output_truncation_as_incomplete() -> None:
     token = "ghp_" + "R" * 36
     findings = scan_secret_indicators({
-        "SKILL.md": "".join(f"token {token} line {index}\n" for index in range(1005))
+        "SKILL.md": "\n".join(f"token {token} line {index}" for index in range(1005))
     })
 
     assert len(findings) == 1001

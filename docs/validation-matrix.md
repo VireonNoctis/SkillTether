@@ -28,6 +28,7 @@ PR #7 code/test head `7208dc6079972fa3636cc9f35468b97d2024fe36` passed [CI run 4
 | Secret scan file coverage | `.env`, `.pem`, `.key`, `.ini`, `.conf`, `.properties`, `.tf`, `.tfvars`, `.npmrc`, `id_rsa`, `id_ed25519`, and readable Markdown/script resources | Scan decoded UTF-8 content within package inventory bounds; binary and unsupported encodings remain out of scope |
 | Secret scan incomplete inventory | Oversized, unreadable, unstable, symlink, special, or expected-text non-UTF-8 entry | Emit `SECRET_SCAN_INCOMPLETE` and exit 2; never silently claim a complete scan |
 | Secret value non-disclosure | Provider token, private-key marker, bearer token, credential assignment, or URL password | JSON and terminal findings include path/line/rule only; no matched value or source context is copied; package bytes remain unchanged |
+| Translation secret preflight | Source includes a credential indicator and `translate --scan-secrets` is supplied with a remote adapter | Stop before any adapter call, temporary candidate staging, report output, or SQLite history creation; verify source bytes are unchanged |
 
 | Test class | Example | Expected result |
 |---|---|---|
